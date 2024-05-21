@@ -21,6 +21,10 @@ typedef enum {
     FW_DESERIALIZE_TYPE_MISMATCH   //!< Deserialized type ID didn't match
 } SerializeStatus;
 class SerializeBufferBase;  //!< forward declaration
+typedef enum {
+    BIG, // Native endianess, used as the default
+    LITTLE,
+} Endianess;
 
 class Serializable {
   public:
@@ -113,7 +117,7 @@ class SerializeBufferBase {
     SerializeStatus serializeFrom(
         const Serializable& val);  //!< serialize an object derived from serializable base class
 
-    SerializeStatus serializeSize(const FwSizeType size);  //!< serialize a size value
+    virtual SerializeStatus serializeSize(const FwSizeType size);  //!< serialize a size value
 
     // Deserialization for built-in types
 
@@ -154,7 +158,7 @@ class SerializeBufferBase {
 
     SerializeStatus deserializeTo(SerializeBufferBase& val);  //!< serialize a serialized buffer
 
-    SerializeStatus deserializeSize(FwSizeType& size);  //!< deserialize a size value
+    virtual SerializeStatus deserializeSize(FwSizeType& size);  //!< deserialize a size value
 
     // ----------------------------------------------------------------------
     // Serialization methods
@@ -238,6 +242,15 @@ class SerializeBufferBase {
         SerializeBufferBase& dest,
         Serializable::SizeType size);  //!< directly copies buffer without looking for a size in the stream.
                                        // Will increment deserialization pointer
+    Endianess m_endianess = Endianess::BIG;
+
+    void setEndianess(Endianess en) {
+        m_endianess = en;
+    }
+
+    Endianess getEndianess() {
+        return m_endianess;
+    }
 
 #ifdef BUILD_UT
     bool operator==(const SerializeBufferBase& other) const;

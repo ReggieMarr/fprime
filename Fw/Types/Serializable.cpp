@@ -90,7 +90,12 @@ SerializeStatus SerializeBufferBase::serializeFrom(U16 val) {
         return FW_SERIALIZE_NO_ROOM_LEFT;
     }
     FW_ASSERT(this->getBuffAddr());
-    // MSB first
+
+    // MSB first, but swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap16(val);
+    }
+
     this->getBuffAddr()[this->m_serLoc + 0] = static_cast<U8>(val >> 8);
     this->getBuffAddr()[this->m_serLoc + 1] = static_cast<U8>(val);
     this->m_serLoc += static_cast<Serializable::SizeType>(sizeof(val));
@@ -103,7 +108,12 @@ SerializeStatus SerializeBufferBase::serializeFrom(I16 val) {
         return FW_SERIALIZE_NO_ROOM_LEFT;
     }
     FW_ASSERT(this->getBuffAddr());
-    // MSB first
+
+    // MSB first, but swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap16(val);
+    }
+
     this->getBuffAddr()[this->m_serLoc + 0] = static_cast<U8>(val >> 8);
     this->getBuffAddr()[this->m_serLoc + 1] = static_cast<U8>(val);
     this->m_serLoc += static_cast<Serializable::SizeType>(sizeof(val));
@@ -115,6 +125,12 @@ SerializeStatus SerializeBufferBase::serializeFrom(I16 val) {
 SerializeStatus SerializeBufferBase::serializeFrom(U32 val) {
     if (this->m_serLoc + static_cast<Serializable::SizeType>(sizeof(val)) - 1 >= this->getBuffCapacity()) {
         return FW_SERIALIZE_NO_ROOM_LEFT;
+    }
+    FW_ASSERT(this->getBuffAddr());
+
+    // MSB first, but swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap32(val);
     }
     FW_ASSERT(this->getBuffAddr());
     // MSB first
@@ -132,7 +148,12 @@ SerializeStatus SerializeBufferBase::serializeFrom(I32 val) {
         return FW_SERIALIZE_NO_ROOM_LEFT;
     }
     FW_ASSERT(this->getBuffAddr());
-    // MSB first
+
+    // MSB first, but swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap32(val);
+    }
+
     this->getBuffAddr()[this->m_serLoc + 0] = static_cast<U8>(val >> 24);
     this->getBuffAddr()[this->m_serLoc + 1] = static_cast<U8>(val >> 16);
     this->getBuffAddr()[this->m_serLoc + 2] = static_cast<U8>(val >> 8);
@@ -147,6 +168,12 @@ SerializeStatus SerializeBufferBase::serializeFrom(I32 val) {
 SerializeStatus SerializeBufferBase::serializeFrom(U64 val) {
     if (this->m_serLoc + static_cast<Serializable::SizeType>(sizeof(val)) - 1 >= this->getBuffCapacity()) {
         return FW_SERIALIZE_NO_ROOM_LEFT;
+    }
+    FW_ASSERT(this->getBuffAddr());
+
+    // MSB first, but swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap64(val);
     }
     FW_ASSERT(this->getBuffAddr());
     // MSB first
@@ -168,7 +195,12 @@ SerializeStatus SerializeBufferBase::serializeFrom(I64 val) {
         return FW_SERIALIZE_NO_ROOM_LEFT;
     }
     FW_ASSERT(this->getBuffAddr());
-    // MSB first
+
+    // MSB first, but swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap64(val);
+    }
+
     this->getBuffAddr()[this->m_serLoc + 0] = static_cast<U8>(val >> 56);
     this->getBuffAddr()[this->m_serLoc + 1] = static_cast<U8>(val >> 48);
     this->getBuffAddr()[this->m_serLoc + 2] = static_cast<U8>(val >> 40);
@@ -189,6 +221,7 @@ SerializeStatus SerializeBufferBase::serializeFrom(F64 val) {
     (void)memcpy(&u64Val, &val, sizeof(val));
     return this->serializeFrom(u64Val);
 }
+#endif
 
 SerializeStatus SerializeBufferBase::serializeFrom(F32 val) {
     // floating point values need to be byte-swapped as well, so copy to U32 and use that routine
@@ -331,6 +364,12 @@ SerializeStatus SerializeBufferBase::deserializeTo(U16& val) {
     val = static_cast<U16>(((this->getBuffAddr()[this->m_deserLoc + 1]) << 0) |
                            ((this->getBuffAddr()[this->m_deserLoc + 0]) << 8));
     this->m_deserLoc += static_cast<Serializable::SizeType>(sizeof(val));
+
+    // Swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap16(val);
+    }
+
     return FW_SERIALIZE_OK;
 }
 
@@ -343,10 +382,15 @@ SerializeStatus SerializeBufferBase::deserializeTo(I16& val) {
     }
     // read from current location
     FW_ASSERT(this->getBuffAddr());
-    // MSB first
     val = static_cast<I16>(((this->getBuffAddr()[this->m_deserLoc + 1]) << 0) |
                            ((this->getBuffAddr()[this->m_deserLoc + 0]) << 8));
     this->m_deserLoc += static_cast<Serializable::SizeType>(sizeof(val));
+
+    // MSB first but swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap16(val);
+    }
+
     return FW_SERIALIZE_OK;
 }
 #endif
@@ -366,6 +410,12 @@ SerializeStatus SerializeBufferBase::deserializeTo(U32& val) {
           (static_cast<U32>(this->getBuffAddr()[this->m_deserLoc + 1]) << 16) |
           (static_cast<U32>(this->getBuffAddr()[this->m_deserLoc + 0]) << 24);
     this->m_deserLoc += static_cast<Serializable::SizeType>(sizeof(val));
+
+    // MSB first but swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap32(val);
+    }
+
     return FW_SERIALIZE_OK;
 }
 
@@ -384,6 +434,12 @@ SerializeStatus SerializeBufferBase::deserializeTo(I32& val) {
           (static_cast<I32>(this->getBuffAddr()[this->m_deserLoc + 1]) << 16) |
           (static_cast<I32>(this->getBuffAddr()[this->m_deserLoc + 0]) << 24);
     this->m_deserLoc += static_cast<Serializable::SizeType>(sizeof(val));
+
+    // Swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap32(val);
+    }
+
     return FW_SERIALIZE_OK;
 }
 #endif
@@ -410,6 +466,13 @@ SerializeStatus SerializeBufferBase::deserializeTo(U64& val) {
           (static_cast<U64>(this->getBuffAddr()[this->m_deserLoc + 0]) << 56);
 
     this->m_deserLoc += static_cast<Serializable::SizeType>(sizeof(val));
+
+    // Swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap64(val);
+    }
+    // read from current location
+    FW_ASSERT(this->getBuffAddr());
     return FW_SERIALIZE_OK;
 }
 
@@ -432,6 +495,12 @@ SerializeStatus SerializeBufferBase::deserializeTo(I64& val) {
           (static_cast<I64>(this->getBuffAddr()[this->m_deserLoc + 1]) << 48) |
           (static_cast<I64>(this->getBuffAddr()[this->m_deserLoc + 0]) << 56);
     this->m_deserLoc += static_cast<Serializable::SizeType>(sizeof(val));
+
+    // Swap bytes if endianess is little
+    if (m_endianess == Endianess::LITTLE) {
+        val = __builtin_bswap64(val);
+    }
+
     return FW_SERIALIZE_OK;
 }
 #endif
@@ -448,6 +517,7 @@ SerializeStatus SerializeBufferBase::deserializeTo(F64& val) {
 
     return FW_SERIALIZE_OK;
 }
+#endif
 
 SerializeStatus SerializeBufferBase::deserializeTo(bool& val) {
     // check for room
