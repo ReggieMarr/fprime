@@ -44,13 +44,14 @@ add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/PolyDb/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/PrmDb/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/RateGroupDriver/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/SeqDispatcher/")
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Router/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/StaticMemory/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/TlmChan/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/TlmPacketizer/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/SystemResources/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/Ports/VersionPorts")
 
-# Text logger components included by default, 
+# Text logger components included by default,
 # but can be disabled if FW_ENABLE_TEXT_LOGGING=0 is desired.
 if (FPRIME_ENABLE_TEXT_LOGGERS)
 	add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/PassiveConsoleTextLogger/")
