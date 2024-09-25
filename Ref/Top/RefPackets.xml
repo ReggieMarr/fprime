@@ -182,7 +182,7 @@
         <channel name="Ref.dpBufferManager.NoBuffs"/>
         <channel name="Ref.dpBufferManager.EmptyBuffs"/>
     </packet>
-    
+
     <packet name="Version1" id="22" level="2">
         <channel name="Ref.version.FrameworkVersion"/>
         <channel name="Ref.version.ProjectVersion"/>
