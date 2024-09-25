@@ -178,13 +178,13 @@ module RPI {
 
   instance fatalHandler: Svc.FatalHandler base id 100
 
-  instance fileUplinkBufferManager: Svc.BufferManager base id 900 \
+  instance commsBufferManager: Svc.BufferManager base id 900 \
   {
 
     phase Fpp.ToCpp.Phases.configConstants """
     enum {
       STORE_SIZE = 3000,
-      QUEUE_SIZE = 30,
+      STORE_COUNT = 30,
       MGR_ID = 200
     };
     """
@@ -213,8 +213,6 @@ module RPI {
   }
 
   instance fatalAdapter: Svc.AssertFatalAdapter base id 1000
-
-  instance staticMemory: Svc.StaticMemory base id 1200
 
   instance downlink: Svc.Framer base id 1220 \
   {
@@ -457,6 +455,11 @@ module RPI {
     phase Fpp.ToCpp.Phases.tearDownComponents """
     RPI::uartBufferManager.cleanup();
     """
+  }
+
+  instance frameAccumulator: Svc.FrameAccumulator base id 2900 \
+  {
+
   }
 
 
