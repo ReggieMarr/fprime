@@ -159,6 +159,8 @@ macro(fprime_initialize_build_system)
     set_property(GLOBAL PROPERTY FPRIME_BUILD_SYSTEM_LOADED ON)
 
     # Perform necessary sub-builds
+
+    run_sub_build(sm-cache target/plantuml_sm)
     run_sub_build(info-cache target/fpp_locs target/fpp_depend)
 endmacro(fprime_initialize_build_system)
 
