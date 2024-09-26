@@ -42,13 +42,13 @@ function(plantuml_sm_add_module_target MODULE TARGET SOURCES DEPENDENCIES)
 
             add_custom_command(
                 OUTPUT ${OUTPUT_FILES}
-                COMMAND ${PYTHON_EXECUTABLE} "/home/user/STARS/autocoder/Stars.py"
+                COMMAND ${PYTHON_EXECUTABLE} "${FPRIME_FRAMEWORK_PATH}/STARS/autocoder/Stars.py"
                         -backend fprime
                         -namespace ${PROJECT_NAME}
                         -model "${SOURCE}"
                 DEPENDS "${SOURCE}"
                 WORKING_DIRECTORY ${PLANTUML_DIR}
-                COMMENT "Generating files for ${PLANTUML_FILENAME} using Stars.py"
+                COMMENT "Generating files for ${PLANTUML_FILENAME} using ${FPRIME_FRAMEWORK_PATH}/STARS/autocoder/Stars.py"
             )
 
             add_custom_target(${MODULE}_${PLANTUML_FILENAME}_generate
