@@ -7,6 +7,7 @@
 #define SVC_FRAME_ACCUMULATOR_FRAME_DETECTOR_CCSDS_FRAME_DETECTOR
 #include "FpConfig.h"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
 namespace Svc {
 namespace FrameDetectors {
 
@@ -35,7 +36,6 @@ class CRC16_CCITT : public CRCWrapper<U16> {
     };
 };
 constexpr U16 TEN_BIT_MASK = 0x03FF;
-constexpr U16 CCSDS_SDLTP_TC_MAX_FRAME_LENGTH = 1017;
 static_assert(CCSDS_SCID <= (std::numeric_limits<U16>::max() & TEN_BIT_MASK), "SCID must fit in 10bits");
 
 //! CCSDS framing start word is:

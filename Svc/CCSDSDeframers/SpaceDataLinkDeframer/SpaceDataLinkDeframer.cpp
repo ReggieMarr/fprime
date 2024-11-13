@@ -6,6 +6,7 @@
 
 #include "SpaceDataLinkDeframer.hpp"
 #include "FpConfig.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
 
 namespace Svc {
 
