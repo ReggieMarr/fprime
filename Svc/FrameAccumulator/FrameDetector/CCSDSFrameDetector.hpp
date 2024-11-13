@@ -44,11 +44,16 @@ static_assert(CCSDS_SCID <= (std::numeric_limits<U16>::max() & TEN_BIT_MASK), "S
 //! - 1 bit of control command flag "0"
 //! - 2 bits of reserved "00"
 //! - 10 bits of configurable SCID
-using CCSDSStartWord = StartToken<U16, static_cast<U16>(0 | (CCSDS_SCID & TEN_BIT_MASK))>;
+using CCSDSStartWord = StartToken<U16, static_cast<U16>(0 | (CCSDS_SCID & TEN_BIT_MASK)), TEN_BIT_MASK>;
 //! CCSDS length is the last 10 bits of the 3rd and 4th octet
 using CCSDSLength = LengthToken<U16, sizeof(U16), CCSDS_SDLTP_TC_MAX_FRAME_LENGTH, TEN_BIT_MASK>;
-//! CCSDS checksum is a 16bit CRC with data starting at the 6th octet and the crc following directly
-using CCSDSChecksum = CRC<U16, 5, 0, CRC16_CCITT>;
+//! CCSDS checksum is a 16bit CRC which is calculated from the first bit in the transfer frame up to (but not including)
+//! the Frame Error Control field (aka the crc U16 itself) as per CCSDS 232.0-B-4 4.1.4.2
+//! When we perform the calculation during detection we do so by passing the length (found using the Length token)
+//! The Frame Length is set as one fewer than the total octets in the Transfer Frame as per CCSDS 232.0-B-4 4.1.4.2
+//! Therefore if we're calculating a CRC check on a frame which itself includes a CRC check we need to offset by
+//! another 1 fewer than what the frame length describes.
+using CCSDSChecksum = CRC<U16, 0, -1, CRC16_CCITT>;
 
 //! CCSDS frame detector is a start/length/crc detector using the configured fprime tokens
 using CCSDSFrameDetector = StartLengthCrcDetector<CCSDSStartWord, CCSDSLength, CCSDSChecksum>;

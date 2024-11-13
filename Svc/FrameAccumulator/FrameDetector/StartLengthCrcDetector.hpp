@@ -133,6 +133,9 @@ class StartToken : public Token<TokenType, TokenMask, TokenEndianness> {
         }
         return status;
     }
+    TokenType getExpectedStart() {
+        return StartExpected & TokenMask;
+    }
 };
 
 //! \breif token representing data length
@@ -225,9 +228,10 @@ class CRC32 : public CRCWrapper<U32> {
 //! \tparam CRCFn: function for updating CRC with new byte
 template <typename TokenType,
           FwSizeType DataOffset,
-          FwSizeType RelativeTokenOffset = 0,
-          class CRCHandler = CRC32>
-class CRC : public Token<TokenType, std::numeric_limits<TokenType>::max(), BIG> {
+          FwNativeIntType RelativeTokenOffset = 0,
+          class CRCHandler = CRC32,
+          TokenType TokenMask = std::numeric_limits<TokenType>::max()>
+class CRC : public Token<TokenType, TokenMask, BIG> {
   public:
     // Check CRC token and CRC handler match
     static_assert(std::is_base_of<CRCWrapper<TokenType>, CRCHandler>::value, "Invalid CRC wrapper supplied");
@@ -246,12 +250,12 @@ class CRC : public Token<TokenType, std::numeric_limits<TokenType>::max(), BIG> 
     //! \return: FRAME_DETECTED, or MORE_DATA_NEEDED.
     FrameDetector::Status calculate(const Types::CircularBuffer& data, FwSizeType length, FwSizeType& size_out) {
         const FwSizeType checksum_length = DataOffset + length + RelativeTokenOffset;
-        size_out = checksum_length;
         CRCHandler crc;
         // Loop byte by byte
-        for (FwSizeType i = 0; i < checksum_length; i++) {
+        for (size_out = 0; size_out < checksum_length; size_out++) {
             U8 byte = 0;
-            Fw::SerializeStatus status = data.peek(byte, i);
+            Fw::SerializeStatus status = data.peek(byte, size_out);
+
             if (status != Fw::SerializeStatus::FW_SERIALIZE_OK) {
                 this->m_stored_offset = 0;
                 return FrameDetector::Status::MORE_DATA_NEEDED;
@@ -276,13 +280,15 @@ class CRC : public Token<TokenType, std::numeric_limits<TokenType>::max(), BIG> 
         FW_ASSERT(this->m_stored_offset != 0); // Must have called calculate before calling read
         size_out = this->m_stored_offset;
         FrameDetector::Status status =
-            this->Token<TokenType, std::numeric_limits<TokenType>::max(), BIG>::read(data, size_out, size_out);
+            this->Token<TokenType, TokenMask, BIG>::read(data, size_out, size_out);
         if ((status == FrameDetector::FRAME_DETECTED) && (this->m_value != this->m_expected)) {
             status = FrameDetector::NO_FRAME_DETECTED;
         }
         return status;
     }
-
+    TokenType getExpected() {
+        return m_expected;
+    }
   protected:
     FwSizeType m_stored_offset;
     TokenType m_expected;
