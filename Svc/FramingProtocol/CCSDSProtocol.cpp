@@ -19,7 +19,6 @@
 #include "Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp"
 #include "Utils/Hash/Hash.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
 
 namespace Svc {
 
@@ -41,7 +40,7 @@ void SpacePacketFraming::frame(const U8* const data, const U32 size, Fw::ComPack
         firstByte |= (0 & 0x07) << 5;       // Version Number (3 bits)
         firstByte |= (0 & 0x01) << 4;       // Packet Type (1 bit)
         firstByte |= (0 & 0x01) << 3;       // Secondary Header Flag (1 bit)
-        firstByte |= (m_apid >> 8) & 0x07;  // APID MSB (3 bits)
+        firstByte |= (m_config.apid >> 8) & 0x07;  // APID MSB (3 bits)
 
         // Serialize header
         Fw::SerializeStatus status;
@@ -49,7 +48,7 @@ void SpacePacketFraming::frame(const U8* const data, const U32 size, Fw::ComPack
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
         // APID LSB
-        status = serializer.serialize(static_cast<U8>(m_apid & 0xFF));
+        status = serializer.serialize(static_cast<U8>(m_config.apid & 0xFF));
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
         // Sequence Control (2 bytes)
@@ -68,7 +67,7 @@ void SpacePacketFraming::frame(const U8* const data, const U32 size, Fw::ComPack
         buffer.setSize(totalSize);
         m_interface->send(buffer);
 
-        m_sequenceCount = (m_sequenceCount + 1) & 0x3FFF;
+        m_config.sequenceCount = (m_config.sequenceCount + 1) & 0x3FFF;
 }
 
 
@@ -88,15 +87,15 @@ void TCSpaceDataLinkFraming::frame(const U8* const data, const U32 dataSize, Fw:
         U16 firstTwoOctets = 0;
 
         // CCSDS 232.0-B-4 reserves this combo at the current version
-        FW_ASSERT(!(!(m_bypassFlag & 0x01) && m_controlCommandFlag & 0x01),
-                  (m_bypassFlag & 0x01 && m_controlCommandFlag & 0x01));
+        FW_ASSERT(!(!(m_config.bypassFlag & 0x01) && m_config.controlCommandFlag & 0x01),
+                  (m_config.bypassFlag & 0x01 && m_config.controlCommandFlag & 0x01));
 
         // First octet (MSB)
-        firstTwoOctets |= (m_version & 0x03) << 14;            // Version Number (2 bits)
-        firstTwoOctets |= (m_bypassFlag & 0x01) << 13;         // Bypass Flag (1 bit)
-        firstTwoOctets |= (m_controlCommandFlag & 0x01) << 12; // Control Command Flag (1 bit)
+        firstTwoOctets |= (m_config.version & 0x03) << 14;            // Version Number (2 bits)
+        firstTwoOctets |= (m_config.bypassFlag & 0x01) << 13;         // Bypass Flag (1 bit)
+        firstTwoOctets |= (m_config.controlCommandFlag & 0x01) << 12; // Control Command Flag (1 bit)
         firstTwoOctets |= (0 & 0x03) << 10;                    // Reserved Spare (2 bits)
-        firstTwoOctets |= (m_spacecraftId & 0x3FF);            // Spacecraft ID (10 bits)
+        firstTwoOctets |= (m_config.spacecraftId & 0x3FF);            // Spacecraft ID (10 bits)
 
         // Serialize the first two octets
         Fw::SerializeStatus status;
@@ -106,7 +105,7 @@ void TCSpaceDataLinkFraming::frame(const U8* const data, const U32 dataSize, Fw:
         // Next two octets: Virtual Channel ID (6 bits) and Frame Length (10 bits)
         U16 nextTwoOctets = 0;
         // CCSDS 232.0-B-4 4.1.2.6
-        nextTwoOctets |= (m_virtualChannelId & 0x3F) << 10;  // Virtual Channel ID (6 bits)
+        nextTwoOctets |= (m_config.virtualChannelId & 0x3F) << 10;  // Virtual Channel ID (6 bits)
 
         // CCSDS 232.0-B-4 4.1.2.7
         U16 frame_length = transferFrameSize - 1;
@@ -117,17 +116,17 @@ void TCSpaceDataLinkFraming::frame(const U8* const data, const U32 dataSize, Fw:
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
         // Frame Sequence Number (8 bits)
-        status = serializer.serialize(m_frameSequence);
+        status = serializer.serialize(m_config.frameSequence);
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
         // CCSDS 232.0-B-4 4.1.2.3.2
-        bool isTransferFrameFrameDataUnit = (m_controlCommandFlag & 0x01) ? false : true;
+        bool isTransferFrameFrameDataUnit = (m_config.controlCommandFlag & 0x01) ? false : true;
 
         // As per CCSDS 232.0-B-4 4.1.3.2.2
         // If the transfer frame is of Type-C (Frame Data Unit)
         // then we need to have a segment header.
         // Segment headers are not currently supported
-        FW_ASSERT(!isTransferFrameFrameDataUnit, m_controlCommandFlag);
+        FW_ASSERT(!isTransferFrameFrameDataUnit, m_config.controlCommandFlag);
 
         // Add frame data
         status = serializer.serialize(data, dataSize, true);
@@ -148,7 +147,7 @@ void TCSpaceDataLinkFraming::frame(const U8* const data, const U32 dataSize, Fw:
         buffer.setSize(transferFrameSize);
 
         m_interface->send(buffer);
-        m_frameSequence = (m_frameSequence + 1) & 0xFF;
+        m_config.frameSequence = (m_config.frameSequence + 1) & 0xFF;
 }
 
 void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) {
@@ -163,19 +162,19 @@ void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::Com
 
         // First two octets: Master Channel ID (12 bits) + Virtual Channel ID (3 bits) + OCF Flag (1 bit)
         U16 firstTwoOctets = 0;
-        firstTwoOctets |= (m_tfVersionNumber & 0x03) << 14;
-        firstTwoOctets |= (m_spacecraftId & 0x3FF) << 4;
-        firstTwoOctets |= (m_virtualChannelId & 0x07) << 1;     // Virtual Channel ID (3 bits)
-        firstTwoOctets |= m_operationalControlFlag & 0x01;      // Operational Control Field Flag (1 bit)
+        firstTwoOctets |= (m_config.tfVersionNumber & 0x03) << 14;
+        firstTwoOctets |= (m_config.spacecraftId & 0x3FF) << 4;
+        firstTwoOctets |= (m_config.virtualChannelId & 0x07) << 1;     // Virtual Channel ID (3 bits)
+        firstTwoOctets |= (m_config.operationalControlFlag & 0x01);      // Operational Control Field Flag (1 bit)
         status = serializer.serialize(firstTwoOctets);
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
         // Master Channel Frame Count (8 bits)
-        status = serializer.serialize(m_masterChannelFrameCount);
+        status = serializer.serialize(m_config.masterChannelFrameCount);
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
         // Virtual Channel Frame Count (8 bits)
-        status = serializer.serialize(m_virtualChannelFrameCount);
+        status = serializer.serialize(m_config.virtualChannelFrameCount);
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
         // Transfer Frame Data Field Status (16 bits) - Per spec 4.1.2.7
@@ -183,13 +182,13 @@ void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::Com
 
         // Bit 32: Transfer Frame Secondary Header Flag (0 if no secondary header)
         // Must be static throughout Mission Phase per 4.1.2.7.2.3
-        dataFieldStatus |= (m_hasSecondaryHeader ? 1 : 0) << 15;
+        dataFieldStatus |= (m_config.hasSecondaryHeader ? 1 : 0) << 15;
 
         // Bit 33: Synchronization Flag
         // 0 for octet-synchronized and forward-ordered Packets or Idle Data
         // 1 for VCA_SDU
         // Must be static within Virtual Channel per 4.1.2.7.3.3
-        dataFieldStatus |= (m_isVcaSdu ? 1 : 0) << 14;
+        dataFieldStatus |= (m_config.isVcaSdu ? 1 : 0) << 14;
 
         // Bit 34: Packet Order Flag
         // Set to 0 when Synchronization Flag is 0 per 4.1.2.7.4
@@ -225,7 +224,7 @@ void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::Com
         m_interface->send(buffer);
 
         // Update frame counts
-        m_masterChannelFrameCount = (m_masterChannelFrameCount + 1) & 0xFF;
-        m_virtualChannelFrameCount = (m_virtualChannelFrameCount + 1) & 0xFF;
+        m_config.masterChannelFrameCount  = (m_config.masterChannelFrameCount + 1) & 0xFF;
+        m_config.virtualChannelFrameCount = (m_config.virtualChannelFrameCount + 1) & 0xFF;
 }
 }
