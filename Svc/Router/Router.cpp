@@ -74,6 +74,9 @@ void Router ::dataIn_handler(NATIVE_INT_TYPE portNum, Fw::Buffer& packetBuffer, 
                 }
                 break;
             }
+            case Fw::ComPacket::FW_PACKET_TELEM: {
+                break;
+            }
             // Take no action for other packet types
             default:
                 break;
