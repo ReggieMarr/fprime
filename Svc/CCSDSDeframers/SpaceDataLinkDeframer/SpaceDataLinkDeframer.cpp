@@ -28,7 +28,7 @@ void SpaceDataLinkDeframer ::framedIn_handler(FwIndexType portNum, Fw::Buffer& d
     // 5 octets - TC Primary Header
     // Up to 1019 octets - Data Field (including optional 2 octets frame error control field)
 
-    // CCSDS TC Primary Header:
+    // CCSDS TC Primary Header (CCSDS 232.0-B-4 Section 4.1.2):
     // 2b - 00  - TF Version Number
     // 1b - 0/1 - Bypass Flag            (0 = FARM checks enabled, 1 = FARM checks bypassed)
     // 1b - 0/1 - Control Command Flag   (0 = Type-D data, 1 = Type-C data)
@@ -38,7 +38,7 @@ void SpaceDataLinkDeframer ::framedIn_handler(FwIndexType portNum, Fw::Buffer& d
     // 10b- XX  - Frame Length
     // 8b - XX  - Frame Sequence Number
 
-    FW_ASSERT(data.getSize() >= SPACE_PACKET_HEADER_SIZE + SPACE_PACKET_TRAILER_SIZE, data.getSize());
+    FW_ASSERT(data.getSize() >= TC_SPACE_DATA_LINK_HEADER_SIZE + TC_SPACE_DATA_LINK_TRAILER_SIZE, data.getSize());
 
     U8 byte = data.getData()[0];
 
@@ -57,13 +57,15 @@ void SpaceDataLinkDeframer ::framedIn_handler(FwIndexType portNum, Fw::Buffer& d
     U16 frame_length = (byte & 0x03) << 8;
     byte = data.getData()[3];
     frame_length |= byte;
-
+    // TODO double check this is correct
+    // FW_ASSERT(frame_length < TC_SPACE_DATA_LINK_MAX_TRANSFER_FRAME_SIZE);
+    // FW_ASSERT(frame_length == data.getSize());
 
     byte = data.getData()[4];
     U8 frame_seq_nbr = byte;
 
     // Set data buffer to be of the encapsulated data: HEADER (5 bytes) | DATA | CHECKSUM (2 bytes)
-    data.setData(data.getData() + SPACE_PACKET_HEADER_SIZE);
+    data.setData(data.getData() + TC_SPACE_DATA_LINK_HEADER_SIZE);
     data.setSize(frame_length); // 5 bytes for Header, 2 bytes for Frame Error Control Field
 
     this->deframedOut_out(0, data, context);
