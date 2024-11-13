@@ -15,116 +15,96 @@
 
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
 #include "Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
 #include "config/FpConfig.h"
 
 namespace Svc {
 
-
 class SpacePacketFraming : public FramingProtocol {
   public:
-    SpacePacketFraming() = default;
+    typedef struct SpacePacketConfig_s {
+        U16 apid{0};
+        U16 sequenceCount{0};
+    } SpacePacketConfig_t;
 
-    //! Declares the frame method
-    void frame(const U8* const data,                     //!< The data
-               const U32 size,                           //!< The data size in bytes
-               Fw::ComPacket::ComPacketType packet_type  //!< The packet type
-               ) override;
+    SpacePacketFraming() = default;
+    explicit SpacePacketFraming(const SpacePacketConfig_t& config) : m_config(config) {}
+
+    void setup(const SpacePacketConfig_t& config) { m_config = config; }
+
+    void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
 
   private:
-    U16 m_apid{0};
-    U16 m_sequenceCount{0};
+    SpacePacketConfig_t m_config;
 };
 
-//! \brief Implements the TCSpaceDataLink framing protocol
 class TCSpaceDataLinkFraming : public FramingProtocol {
+    typedef enum {
+        DISABLED = 0,
+        ENABLED = 1,
+    } BypassFlag;
 
-  typedef enum {
-      // CCSDS 232.0-B-4 Section 4.1.2.2.3
-      DISABLED = 0, // Type-A, perform normal Frame Acceptance Checks
-      ENABLED = 1, // Type-B, byepass normal Frame Acceptance Checks
-  } BypassFlag;
-
-  typedef enum {
-      // CCSDS 232.0-B-4 Section 4.1.2.3.2
-      DATA = 0, // Type-D
-      COMMAND = 1, // Type-C
-  } ControlCommandFlag;
+    typedef enum {
+        DATA = 0,
+        COMMAND = 1,
+    } ControlCommandFlag;
 
   public:
-    //! Constructor
+    typedef struct TCSpaceDataLinkConfig_s {
+        U8 version{0};
+        U8 bypassFlag{BypassFlag::ENABLED};
+        U8 controlCommandFlag{ControlCommandFlag::COMMAND};
+        U16 spacecraftId{CCSDS_SCID};
+        U8 virtualChannelId{0};
+        U8 frameSequence{0};
+    } TCSpaceDataLinkConfig_t;
+
     TCSpaceDataLinkFraming() = default;
+    explicit TCSpaceDataLinkFraming(const TCSpaceDataLinkConfig_t& config) : m_config(config) {}
 
-    //! Declares the frame method
-    void frame(const U8* const data,                     //!< The data
-               const U32 size,                           //!< The data size in bytes
-               Fw::ComPacket::ComPacketType packet_type  //!< The packet type
-               ) override;
-    private:
-        using TC_CheckSum = FrameDetectors::CCSDSChecksum;
+    void setup(const TCSpaceDataLinkConfig_t& config) { m_config = config; }
 
-        // Put this in a struct
-        U8 m_version{0};
-        U8 m_bypassFlag{BypassFlag::ENABLED};
-        U8 m_controlCommandFlag{ControlCommandFlag::COMMAND};
-        U16 m_spacecraftId{CCSDS_SCID};
-        U8 m_virtualChannelId{0};
-        U8 m_frameSequence{0};
+    void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
+
+  private:
+    using TC_CheckSum = FrameDetectors::CCSDSChecksum;
+    TCSpaceDataLinkConfig_t m_config;
 };
 
-//! \brief Implements the TMSpaceDataLink framing protocol
 class TMSpaceDataLinkFraming : public FramingProtocol {
+    typedef enum {
+        DISABLED = 0,
+        ENABLED = 1,
+    } BypassFlag;
 
-  typedef enum {
-      // CCSDS 232.0-B-4 Section 4.1.2.2.3
-      DISABLED = 0, // Type-A, perform normal Frame Acceptance Checks
-      ENABLED = 1, // Type-B, byepass normal Frame Acceptance Checks
-  } BypassFlag;
-
-  typedef enum {
-      // CCSDS 232.0-B-4 Section 4.1.2.3.2
-      COMMAND = 0, // Type-D
-      DATA = 1, // Type-C
-  } ControlCommandFlag;
+    typedef enum {
+        COMMAND = 0,
+        DATA = 1,
+    } ControlCommandFlag;
 
   public:
-    //! Constructor
+    typedef struct TMSpaceDataLinkConfig_s {
+        FwSizeType transferFrameLength{};
+        U8 tfVersionNumber{0};
+        U16 spacecraftId{CCSDS_SCID};
+        U8 virtualChannelId{0};
+        bool operationalControlFlag{false};
+        U8 masterChannelFrameCount{0};
+        U8 virtualChannelFrameCount{0};
+        bool hasSecondaryHeader{false};
+        bool isVcaSdu{false};
+    } TMSpaceDataLinkConfig_t;
+
     TMSpaceDataLinkFraming() = default;
+    explicit TMSpaceDataLinkFraming(const TMSpaceDataLinkConfig_t& config) : m_config(config) {}
 
-    //! Declares the frame method
-    void frame(const U8* const data,                     //!< The data
-               const U32 size,                           //!< The data size in bytes
-               Fw::ComPacket::ComPacketType packet_type  //!< The packet type
-               ) override;
-    private:
-        using CheckSum = FrameDetectors::CCSDSChecksum;
+    void setup(const TMSpaceDataLinkConfig_t& config) { m_config = config; }
 
-        // Member variables
-        // First 2 bits of master channel ID
-        U8 m_tfVersionNumber{0}; // 2 bits
-        // Next 10 bits of master channel ID
-        U16 m_spacecraftId{CCSDS_SCID}; // 10 bits
-        U8 m_virtualChannelId{0};          // 3 bits
-        bool m_operationalControlFlag{false}; // 1 bit
-        U8 m_masterChannelFrameCount{0};    // 8 bits
-        U8 m_virtualChannelFrameCount{0};   // 8 bits
-        bool m_hasSecondaryHeader{false};
-        bool m_isVcaSdu{false};
+    void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
 
-
-        U16 constructDataFieldStatus() {
-            // Implementation depends on mission-specific requirements
-            // This is a placeholder implementation
-            U16 status = 0;
-
-            // Example fields that might be included:
-            // - Secondary Header Present
-            // - Synchronization Flag
-            // - Packet Order Flag
-            // - Segment Length ID
-            // - First Header Pointer
-
-            return status;
-        }
+  private:
+    using CheckSum = FrameDetectors::CCSDSChecksum;
+    TMSpaceDataLinkConfig_t m_config;
 };
 
 }  // namespace Svc
