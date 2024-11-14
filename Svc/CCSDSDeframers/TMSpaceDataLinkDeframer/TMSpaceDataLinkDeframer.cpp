@@ -41,72 +41,68 @@ void TMSpaceDataLinkDeframer::processDataFieldStatus(U16 status) {
     );
 }
 
-void TMSpaceDataLinkDeframer ::framedIn_handler(FwIndexType portNum, Fw::Buffer& data, Fw::Buffer& context) {
-    // CCSDS TM Format:
-    // 6 octets - TM Primary Header
-    // Variable length - Data Field
-    // 2 octets - Frame Error Control Field (optional)
+void TMSpaceDataLinkDeframer::framedIn_handler(FwIndexType portNum, Fw::Buffer& data, Fw::Buffer& context) {
+    // Verify minimum frame size
+    const U32 minFrameSize = TM_SPACE_DATA_LINK_HEADER_SIZE + TM_SPACE_DATA_LINK_TRAILER_SIZE;
+    FW_ASSERT(data.getSize() >= minFrameSize, data.getSize());
 
-    // CCSDS TM Primary Header (CCSDS 132.0-B-3):
-    // 12b - XX - Master Channel Identifier
-    // 3b  - XX - Virtual Channel Identifier
-    // 1b  - XX - Operational Control Field Flag
-    // 8b  - XX - Master Channel Frame Count
-    // 8b  - XX - Virtual Channel Frame Count
-    // 16b - XX - Transfer Frame Data Field Status
+    Fw::SerializeBufferBase& serializer = data.getSerializeRepr();
+    // NOTE this probably shouldn't be required but seems to be at least for a loopback test
+    serializer.setBuffLen(data.getSize());
+    Fw::SerializeStatus status;
 
-    FW_ASSERT(data.getSize() >= TM_SPACE_DATA_LINK_HEADER_SIZE + TM_SPACE_DATA_LINK_TRAILER_SIZE, data.getSize());
-
-    // First two octets contain Master Channel ID, Virtual Channel ID, and OCF Flag
+    // Deserialize header components
     U16 firstTwoOctets;
-    U8 byte1 = data.getData()[0];
-    U8 byte2 = data.getData()[1];
-    firstTwoOctets = (byte1 << 8) | byte2;
+    status = serializer.deserialize(firstTwoOctets);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
-    // Extract fields from first two octets
-    U16 master_channel_id = (firstTwoOctets >> 4) & 0x0FFF;  // 12 bits
-    U8 virtual_channel_id = (firstTwoOctets >> 1) & 0x07;    // 3 bits
-    bool ocf_flag = firstTwoOctets & 0x01;                   // 1 bit
+    // Extract version number, spacecraft ID, virtual channel ID, and OCF flag
+    U8 version_number = (firstTwoOctets >> 14) & 0x03;
+    U16 spacecraft_id = (firstTwoOctets >> 4) & 0x3FF;
+    U8 virtual_channel_id = (firstTwoOctets >> 1) & 0x07;
+    bool ocf_flag = firstTwoOctets & 0x01;
 
-    // Frame counts
-    U8 master_frame_count = data.getData()[2];    // 8 bits
-    U8 virtual_frame_count = data.getData()[3];   // 8 bits
+    // Deserialize frame counts
+    U8 master_frame_count;
+    U8 virtual_frame_count;
+    status = serializer.deserialize(master_frame_count);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+    status = serializer.deserialize(virtual_frame_count);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
-    // Data Field Status (2 octets)
+    // Deserialize data field status
     U16 data_field_status;
-    byte1 = data.getData()[4];
-    byte2 = data.getData()[5];
-    data_field_status = (byte1 << 8) | byte2;
+    status = serializer.deserialize(data_field_status);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
-    // Calculate frame length
-    // Note: In TM frames, length might be fixed or derived from Data Field Status
-    // This is mission-specific and might need adjustment
-    U16 frame_length = data.getSize() - (TM_SPACE_DATA_LINK_HEADER_SIZE + TM_SPACE_DATA_LINK_TRAILER_SIZE);
+    // Extract data field status components
+    bool has_secondary_header = (data_field_status >> 15) & 0x01;
+    bool is_vca_sdu = (data_field_status >> 14) & 0x01;
+    U8 segment_length_id = (data_field_status >> 11) & 0x03;
+    U16 first_header_pointer = data_field_status & 0x7FF;
 
-    // Verify frame size constraints
-    FW_ASSERT(frame_length < TM_SPACE_DATA_LINK_MAX_TRANSFER_FRAME_SIZE);
+    // Calculate frame data length
+    U32 dataLength = data.getSize() - minFrameSize;
+
+    // Create output buffer for deframed data
+    Fw::Buffer outputBuffer = data;
+    outputBuffer.setData(data.getData() + TM_SPACE_DATA_LINK_HEADER_SIZE);
+    outputBuffer.setSize(dataLength);
 
     // Log frame details
     Fw::Logger::log(
-        "TM Frame: MC_ID %d VC_ID %d OCF %d MC_CNT %d VC_CNT %d Length %d",
-        master_channel_id,
+        "TM Frame: Ver %d, SC_ID %d, VC_ID %d, OCF %d, MC_CNT %d, VC_CNT %d, Len %d\n",
+        version_number,
+        spacecraft_id,
         virtual_channel_id,
         ocf_flag,
         master_frame_count,
         virtual_frame_count,
-        frame_length
+        dataLength
     );
 
-    // Optional: Process Data Field Status
-    // This is mission-specific and depends on how the status field is used
-    processDataFieldStatus(data_field_status);
-
-    // Set data buffer to contain only the frame data
-    data.setData(data.getData() + TM_SPACE_DATA_LINK_HEADER_SIZE);
-    data.setSize(frame_length);
-
     // Output deframed data
-    this->deframedOut_out(0, data, context);
+    this->deframedOut_out(0, outputBuffer, context);
 }
 
 }  // namespace Svc

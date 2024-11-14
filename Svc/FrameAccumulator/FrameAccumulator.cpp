@@ -5,6 +5,7 @@
 // ======================================================================
 
 #include "Svc/FrameAccumulator/FrameAccumulator.hpp"
+#include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "FpConfig.hpp"
 
@@ -114,7 +115,11 @@ void FrameAccumulator ::processBuffer(Fw::Buffer& buffer) {
             // size_out is a return variable we initialize to zero, but it should be overwritten
             FwSizeType size_out = 0;
             // Attempt to detect the frame without changing the circular buffer
+
             status = this->m_detector->detect(this->m_inRing, size_out);
+            if (this->m_inRing.get_allocated_size() == 1115) {
+                Fw::Logger::log("Detect: %d, a %d s %d\n", status, this->m_inRing.get_allocated_size(), size_out);
+            }
             // Detect must not consume data in the ring buffer
             FW_ASSERT(
                     m_inRing.get_allocated_size() == remaining,
