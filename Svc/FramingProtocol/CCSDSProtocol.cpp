@@ -157,6 +157,7 @@ void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::Com
 
         // Calculate total size including TM frame header
         Fw::Buffer buffer = m_interface->allocate(TM_TRANSFER_FRAME_SIZE(m_config.tmDataFieldSize));
+        FW_ASSERT(buffer.getSize() == TM_TRANSFER_FRAME_SIZE(m_config.tmDataFieldSize), TM_TRANSFER_FRAME_SIZE(m_config.tmDataFieldSize));
 
         Fw::SerializeBufferBase& serializer = buffer.getSerializeRepr();
         Fw::SerializeStatus status;
@@ -216,9 +217,16 @@ void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::Com
         // Add frame error control (CRC-16)
         CheckSum crc;
         Types::CircularBuffer circBuff(buffer.getData(), buffer.getSize());
+        Fw::SerializeStatus stat = circBuff.serialize(buffer.getData(), buffer.getSize());
         FwSizeType sizeOut;
-        crc.calculate(circBuff, TM_TRANSFER_FRAME_SIZE(m_config.tmDataFieldSize) - 2, sizeOut);
-        status = serializer.serialize(crc.getValue());
+        crc.calculate(circBuff, 0, sizeOut);
+        Fw::Logger::log("%d crc [%d/%d] %d %d %x %x \n", stat, (serializer.getBuffCapacity() - 2) - serializer.getBuffLength(),
+                        serializer.getBuffLength(), TM_TRANSFER_FRAME_SIZE(m_config.tmDataFieldSize) - 2, sizeOut,
+                        crc.getValue(), crc.getExpected());
+        FwSizeType skipByteNum = FW_MAX((serializer.getBuffCapacity() - 2) - serializer.getBuffLength(), 0);
+        status = serializer.serializeSkip(skipByteNum);
+        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+        status = serializer.serialize(crc.getExpected());
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
         buffer.setSize(TM_TRANSFER_FRAME_SIZE(m_config.tmDataFieldSize));

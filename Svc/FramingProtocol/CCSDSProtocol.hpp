@@ -103,7 +103,7 @@ class TMSpaceDataLinkFraming : public FramingProtocol {
     void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
 
   private:
-    using CheckSum = FrameDetectors::CCSDSChecksum;
+    using CheckSum = FrameDetectors::TMSpaceDataLinkChecksum;
     TMSpaceDataLinkConfig_t m_config;
 };
 
