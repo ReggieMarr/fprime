@@ -373,7 +373,7 @@ class StartLengthCrcDetector : public FrameDetector {
             return status;
         }
         // Read CRC
-        Fw::Logger::log("Reading crc %d %d \n", size_out, crc.getExpected());
+        Fw::Logger::log("Reading crc %d %d %x %x \n", size_out, length, crc.getValue(), crc.getExpected());
         status = crc.read(data, size_out);
         return status;
     };
