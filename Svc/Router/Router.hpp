@@ -28,6 +28,7 @@ class Router : public RouterComponentBase {
     // ----------------------------------------------------------------------
     // Handler implementations for user-defined typed input ports
     // ----------------------------------------------------------------------
+    bool routePacket(NATIVE_INT_TYPE portNum, Fw::Buffer& packet, FwPacketDescriptorType type);
 
     //! Handler implementation for bufferIn
     //! Receiving Fw::Buffer from Deframer

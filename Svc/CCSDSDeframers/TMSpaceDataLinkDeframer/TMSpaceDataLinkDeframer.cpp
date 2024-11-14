@@ -16,7 +16,7 @@ namespace Svc {
 // ----------------------------------------------------------------------
 
 TMSpaceDataLinkDeframer ::TMSpaceDataLinkDeframer(const char* const compName)
-    : TMSpaceDataLinkDeframerComponentBase(compName) {}
+    : TMSpaceDataLinkDeframerComponentBase(compName), dataFieldSize(TM_DATA_FIELD_DFLT_SIZE) {}
 
 TMSpaceDataLinkDeframer ::~TMSpaceDataLinkDeframer() {}
 
@@ -43,7 +43,8 @@ void TMSpaceDataLinkDeframer::processDataFieldStatus(U16 status) {
 
 void TMSpaceDataLinkDeframer::framedIn_handler(FwIndexType portNum, Fw::Buffer& data, Fw::Buffer& context) {
     // Verify minimum frame size
-    const U32 minFrameSize = TM_SPACE_DATA_LINK_HEADER_SIZE + TM_SPACE_DATA_LINK_TRAILER_SIZE;
+    // NOTE this check is kind of paranoid since the detector already handles this possibly remove
+    const U32 minFrameSize = TM_FRAME_PRIMARY_HEADER_SIZE;
     FW_ASSERT(data.getSize() >= minFrameSize, data.getSize());
 
     Fw::SerializeBufferBase& serializer = data.getSerializeRepr();
@@ -81,24 +82,22 @@ void TMSpaceDataLinkDeframer::framedIn_handler(FwIndexType portNum, Fw::Buffer& 
     U8 segment_length_id = (data_field_status >> 11) & 0x03;
     U16 first_header_pointer = data_field_status & 0x7FF;
 
-    // Calculate frame data length
-    U32 dataLength = data.getSize() - minFrameSize;
-
     // Create output buffer for deframed data
     Fw::Buffer outputBuffer = data;
-    outputBuffer.setData(data.getData() + TM_SPACE_DATA_LINK_HEADER_SIZE);
-    outputBuffer.setSize(dataLength);
+    outputBuffer.setData(data.getData() + TM_FRAME_PRIMARY_HEADER_SIZE);
+    outputBuffer.setSize(TM_TRANSFER_FRAME_SIZE(dataFieldSize));
 
     // Log frame details
     Fw::Logger::log(
-        "TM Frame: Ver %d, SC_ID %d, VC_ID %d, OCF %d, MC_CNT %d, VC_CNT %d, Len %d\n",
+        "TM Frame: Ver %d, SC_ID %d, VC_ID %d, OCF %d, MC_CNT %d, VC_CNT %d, Len %d TF_SIZE %d\n",
         version_number,
         spacecraft_id,
         virtual_channel_id,
         ocf_flag,
         master_frame_count,
         virtual_frame_count,
-        dataLength
+        data.getSize(),
+        TM_TRANSFER_FRAME_SIZE(dataFieldSize)
     );
 
     // Output deframed data
