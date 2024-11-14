@@ -17,6 +17,7 @@
 #include "Fw/Types/Serializable.hpp"
 #include "Svc/FrameAccumulator/FrameDetector.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
 #include "Utils/Hash/Hash.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
 
@@ -155,8 +156,8 @@ void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::Com
         FW_ASSERT(m_interface != nullptr);
 
         // Calculate total size including TM frame header
-        const U32 totalSize = TM_FRAME_PRIMARY_HEADER_SIZE + size + FRAME_ERROR_CONTROL_SIZE;
-        Fw::Buffer buffer = m_interface->allocate(totalSize);
+        Fw::Buffer buffer = m_interface->allocate(TM_TRANSFER_FRAME_SIZE(m_config.tmDataFieldSize));
+
         Fw::SerializeBufferBase& serializer = buffer.getSerializeRepr();
         Fw::SerializeStatus status;
 
@@ -164,8 +165,8 @@ void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::Com
         U16 firstTwoOctets = 0;
         firstTwoOctets |= (m_config.tfVersionNumber & 0x03) << 14;
         firstTwoOctets |= (m_config.spacecraftId & 0x3FF) << 4;
-        firstTwoOctets |= (m_config.virtualChannelId & 0x07) << 1;     // Virtual Channel ID (3 bits)
-        firstTwoOctets |= (m_config.operationalControlFlag & 0x01);      // Operational Control Field Flag (1 bit)
+        firstTwoOctets |= (m_config.virtualChannelId & 0x07) << 1;   // Virtual Channel ID (3 bits)
+        firstTwoOctets |= (m_config.operationalControlFlag & 0x01);  // Operational Control Field Flag (1 bit)
         status = serializer.serialize(firstTwoOctets);
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
@@ -215,12 +216,12 @@ void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::Com
         // Add frame error control (CRC-16)
         CheckSum crc;
         Types::CircularBuffer circBuff(buffer.getData(), buffer.getSize());
-        FwSizeType size_out;
-        crc.calculate(circBuff, totalSize - 2, size_out);
+        FwSizeType sizeOut;
+        crc.calculate(circBuff, TM_TRANSFER_FRAME_SIZE(m_config.tmDataFieldSize) - 2, sizeOut);
         status = serializer.serialize(crc.getValue());
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
-        buffer.setSize(totalSize);
+        buffer.setSize(TM_TRANSFER_FRAME_SIZE(m_config.tmDataFieldSize));
         m_interface->send(buffer);
 
         // Update frame counts

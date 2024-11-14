@@ -43,8 +43,14 @@ constexpr FwSizeType TM_DATA_FIELD_DFLT_SIZE = 1039;             // TM Data Fiel
 #define TM_TRANSFER_FRAME_SIZE(DATA_FIELD_SIZE) \
  (DATA_FIELD_SIZE + TM_FRAME_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_MAX_SIZE + TM_OPERATIONAL_CONTROL_SIZE + FRAME_ERROR_CONTROL_SIZE)
 
+// For TM
+// as per CCSDS 132.0-B-3 4.1.2.1 the Spacecraft Id is placed with a 4 bit offset within the first octet
+constexpr U16 TM_SCID_MASK = 0b0011111111110000;
+constexpr U16 TM_SCID = CCSDS_SCID << 4;
+// TM is fixed length so we want this to be 0
+constexpr U16 TM_LENGTH_MASK = 0;
 // Common Constants
-static constexpr U8 SPACE_PACKET_HEADER_SIZE = 6;                // Space Packet Header size (used in both TM and TC)
+constexpr U8 SPACE_PACKET_HEADER_SIZE = 6;                // Space Packet Header size (used in both TM and TC)
 
 // Definitions for the CCSDS frame header
 namespace CCSDSFrameHeader {

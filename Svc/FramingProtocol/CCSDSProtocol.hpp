@@ -84,7 +84,7 @@ class TMSpaceDataLinkFraming : public FramingProtocol {
 
   public:
     typedef struct TMSpaceDataLinkConfig_s {
-        FwSizeType transferFrameLength{};
+        FwSizeType tmDataFieldSize{TM_DATA_FIELD_DFLT_SIZE};
         U8 tfVersionNumber{0};
         U16 spacecraftId{CCSDS_SCID};
         U8 virtualChannelId{0};

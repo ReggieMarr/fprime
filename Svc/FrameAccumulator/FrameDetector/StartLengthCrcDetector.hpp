@@ -10,6 +10,7 @@
 #include "Fw/Types/PolyType.hpp"
 #include "Svc/FrameAccumulator/FrameDetector.hpp"
 #include <type_traits>
+#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
 
 // Include the lic crc c library:
 extern "C" {
@@ -129,8 +130,23 @@ class StartToken : public Token<TokenType, TokenMask, TokenEndianness> {
     FrameDetector::Status read(const Types::CircularBuffer& data, FwSizeType& size_out) {
         constexpr TokenType EXPECTED_VALUE = (StartExpected & TokenMask);
 
+        if (EXPECTED_VALUE == CCSDS_SCID || EXPECTED_VALUE == TM_SCID) {
+            U8 btt = 0;
+            data.peek(btt, 0);
+            Fw::Logger::log("detecting %d %d %x\n", size_out, data.get_allocated_size(), btt);
+        }
         FrameDetector::Status status = this->Token<TokenType, TokenMask, TokenEndianness>::read(data, 0, size_out);
         if ((status == FrameDetector::FRAME_DETECTED) && (this->m_value != EXPECTED_VALUE)) {
+            if (EXPECTED_VALUE == CCSDS_SCID || EXPECTED_VALUE == TM_SCID) {
+                TokenType token = 0;
+                U8 bytel = 0;
+                U8 byteh = 0;
+                data.peek(bytel, 0);
+                token = token << 8 | bytel;
+                data.peek(byteh, 1);
+                token = token << 8 | byteh;
+                Fw::Logger::log("%d %d B %x %x %x %x %x %x %x\n", status, size_out, bytel, byteh, token, this->m_value, TokenMask, StartExpected);
+            }
             status = FrameDetector::NO_FRAME_DETECTED;
         }
         return status;
@@ -321,10 +337,17 @@ class StartLengthCrcDetector : public FrameDetector {
     Status detect(const Types::CircularBuffer& data, FwSizeType& size_out) const override {
         // Read start word
         StartToken startWord;
+        if (startWord.getExpectedStart() == CCSDS_SCID || startWord.getExpectedStart() == TM_SCID) {
+            U8 btt = 0;
+            data.peek(btt, 0);
+            Fw::Logger::log("detecting %d %d %x\n", size_out, data.get_allocated_size(), btt);
+        }
         Status status = startWord.read(data, size_out);
         if (status != Status::FRAME_DETECTED) {
-            if (startWord.getExpectedStart() == CCSDS_SCID) {
-                Fw::Logger::log("%d Failed start, len %d %d\n", status, size_out, data.get_allocated_size());
+            if (startWord.getExpectedStart() == CCSDS_SCID || startWord.getExpectedStart() == TM_SCID) {
+                U8 btt = 0;
+                data.peek(btt, 0);
+                Fw::Logger::log("%d Failed start, len %d %d %x\n", status, size_out, data.get_allocated_size(), btt);
             }
             return status;
         }
@@ -333,7 +356,7 @@ class StartLengthCrcDetector : public FrameDetector {
         LengthToken lengthWord;
         status = lengthWord.read(data, size_out);
         if (status != Status::FRAME_DETECTED) {
-            if (startWord.getExpectedStart() == CCSDS_SCID) {
+            if (startWord.getExpectedStart() == CCSDS_SCID || startWord.getExpectedStart() == TM_SCID) {
                 Fw::Logger::log("Failed Length\n");
             }
             return status;
@@ -344,12 +367,13 @@ class StartLengthCrcDetector : public FrameDetector {
         Checksum crc;
         status = crc.calculate(data, length, size_out);
         if (status != Status::FRAME_DETECTED) {
-            if (startWord.getExpectedStart() == CCSDS_SCID) {
-                Fw::Logger::log("Failed word, len %d/%d %d\n", length, size_out, data.get_allocated_size());
+            if (startWord.getExpectedStart() == CCSDS_SCID || startWord.getExpectedStart() == TM_SCID) {
+                Fw::Logger::log("Failed crc, len %d/%d %d\n", length, size_out, data.get_allocated_size());
             }
             return status;
         }
         // Read CRC
+        Fw::Logger::log("Reading crc %d %d \n", size_out, crc.getExpected());
         status = crc.read(data, size_out);
         return status;
     };
