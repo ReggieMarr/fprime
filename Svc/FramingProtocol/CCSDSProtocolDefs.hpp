@@ -38,7 +38,7 @@ constexpr FwSizeType TM_FRAME_PRIMARY_HEADER_SIZE = 6;           // TM Primary H
 constexpr FwSizeType TM_SECONDARY_HEADER_MAX_SIZE = 64;          // TM Secondary Header (optional): Up to 64 octets (CCSDS 132.0-B-3, Section 4.1.3)
 constexpr FwSizeType TM_OPERATIONAL_CONTROL_SIZE = 4;            // Operational Control Field (optional): 4 octets (CCSDS 132.0-B-3, Section 4.1.5)
 constexpr FwSizeType FRAME_ERROR_CONTROL_SIZE = 2;               // Frame Error Control Field (optional): 2 octets for error detection (CCSDS 132.0-B-3, Section 4.1.6)
-constexpr FwSizeType TM_DATA_FIELD_DFLT_SIZE = 1039;             // TM Data Field size varies by application, typically constrained by maximum transfer frame size (CCSDS 132.0-B-2, Section 4.1.3.4)
+constexpr FwSizeType TM_DATA_FIELD_DFLT_SIZE = 255;             // TM Data Field size varies by application, typically constrained by maximum transfer frame size (CCSDS 132.0-B-2, Section 4.1.3.4)
 
 #define TM_TRANSFER_FRAME_SIZE(DATA_FIELD_SIZE) \
  (DATA_FIELD_SIZE + TM_FRAME_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_MAX_SIZE + TM_OPERATIONAL_CONTROL_SIZE + FRAME_ERROR_CONTROL_SIZE)

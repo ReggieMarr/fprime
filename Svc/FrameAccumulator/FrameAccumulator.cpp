@@ -117,9 +117,6 @@ void FrameAccumulator ::processBuffer(Fw::Buffer& buffer) {
             // Attempt to detect the frame without changing the circular buffer
 
             status = this->m_detector->detect(this->m_inRing, size_out);
-            if (this->m_inRing.get_allocated_size() == 1115) {
-                Fw::Logger::log("Detect: %d, a %d s %d\n", status, this->m_inRing.get_allocated_size(), size_out);
-            }
             // Detect must not consume data in the ring buffer
             FW_ASSERT(
                     m_inRing.get_allocated_size() == remaining,
@@ -135,24 +132,23 @@ void FrameAccumulator ::processBuffer(Fw::Buffer& buffer) {
                         static_cast<FwAssertArgType>(size_out),
                         static_cast<FwAssertArgType>(remaining));
                 Fw::Buffer buffer = this->frameAllocate_out(0, static_cast<U32>(size_out));
-                if (buffer.isValid()) {
-                    // Copy out data and rotate
-                    FW_ASSERT(this->m_inRing.peek(buffer.getData(), static_cast<NATIVE_UINT_TYPE>(size_out)) == Fw::SerializeStatus::FW_SERIALIZE_OK);
-                    buffer.setSize(static_cast<U32>(size_out));
-                    m_inRing.rotate(static_cast<U32>(size_out));
-                    FW_ASSERT(
-                            m_inRing.get_allocated_size() == static_cast<U32>(remaining - size_out),
-                            static_cast<FwAssertArgType>(m_inRing.get_allocated_size()),
-                            static_cast<FwAssertArgType>(remaining),
-                            static_cast<FwAssertArgType>(size_out)
-                    );
-                    Fw::Buffer nullContext;
-                    this->frameOut_out(0, buffer, nullContext);
-                }
-                else {
+                if (!buffer.isValid()) {
                     // No buffer is available, we need to exit and try again later
+                    // TODO should we assert here ?
                     break;
                 }
+                // Copy out data and rotate
+                FW_ASSERT(this->m_inRing.peek(buffer.getData(), static_cast<NATIVE_UINT_TYPE>(size_out)) == Fw::SerializeStatus::FW_SERIALIZE_OK);
+                buffer.setSize(static_cast<U32>(size_out));
+                m_inRing.rotate(static_cast<U32>(size_out));
+                FW_ASSERT(
+                        m_inRing.get_allocated_size() == static_cast<U32>(remaining - size_out),
+                        static_cast<FwAssertArgType>(m_inRing.get_allocated_size()),
+                        static_cast<FwAssertArgType>(remaining),
+                        static_cast<FwAssertArgType>(size_out)
+                );
+                Fw::Buffer nullContext;
+                this->frameOut_out(0, buffer, nullContext);
             }
             // More data needed
             else if (status == FrameDetector::MORE_DATA_NEEDED) {
