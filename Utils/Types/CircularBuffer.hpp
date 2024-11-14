@@ -134,9 +134,9 @@ class CircularBuffer {
          */
         void clear_high_water_mark();
 
-#ifdef CIRCULAR_DEBUG
+// #ifdef CIRCULAR_DEBUG
         void print();
-#endif
+// #endif
     PRIVATE:
         /**
          * Returns a wrap-advanced index into the store.

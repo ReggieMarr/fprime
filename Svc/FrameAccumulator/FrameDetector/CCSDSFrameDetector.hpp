@@ -35,8 +35,8 @@ class CRC16_CCITT : public CRCWrapper<U16> {
         return this->m_crc ^ static_cast<U16>(0);
     };
 };
-constexpr U16 TEN_BIT_MASK = 0x03FF;
-static_assert(CCSDS_SCID <= (std::numeric_limits<U16>::max() & TEN_BIT_MASK), "SCID must fit in 10bits");
+constexpr U16 TC_SCID_MASK = 0x03FF;
+static_assert(CCSDS_SCID <= (std::numeric_limits<U16>::max() & TC_SCID_MASK), "SCID must fit in 10bits");
 
 //! CCSDS framing start word is:
 //! - 2 bits of version number "00"
@@ -44,9 +44,9 @@ static_assert(CCSDS_SCID <= (std::numeric_limits<U16>::max() & TEN_BIT_MASK), "S
 //! - 1 bit of control command flag "0"
 //! - 2 bits of reserved "00"
 //! - 10 bits of configurable SCID
-using CCSDSStartWord = StartToken<U16, static_cast<U16>(0 | (CCSDS_SCID & TEN_BIT_MASK)), TEN_BIT_MASK>;
+using CCSDSStartWord = StartToken<U16, static_cast<U16>(0 | (CCSDS_SCID & TC_SCID_MASK)), TC_SCID_MASK>;
 //! CCSDS length is the last 10 bits of the 3rd and 4th octet
-using CCSDSLength = LengthToken<U16, sizeof(U16), CCSDS_SDLTP_TC_MAX_FRAME_LENGTH, TEN_BIT_MASK>;
+using CCSDSLength = LengthToken<U16, sizeof(U16), CCSDS_SDLTP_TC_MAX_FRAME_LENGTH, TC_SCID_MASK>;
 //! CCSDS checksum is a 16bit CRC which is calculated from the first bit in the transfer frame up to (but not including)
 //! the Frame Error Control field (aka the crc U16 itself) as per CCSDS 232.0-B-4 4.1.4.2
 //! When we perform the calculation during detection we do so by passing the length (found using the Length token)
@@ -56,7 +56,12 @@ using CCSDSLength = LengthToken<U16, sizeof(U16), CCSDS_SDLTP_TC_MAX_FRAME_LENGT
 using CCSDSChecksum = CRC<U16, 0, -1, CRC16_CCITT>;
 
 //! CCSDS frame detector is a start/length/crc detector using the configured fprime tokens
-using CCSDSFrameDetector = StartLengthCrcDetector<CCSDSStartWord, CCSDSLength, CCSDSChecksum>;
+using TCSpaceDataLinkDetector = StartLengthCrcDetector<CCSDSStartWord, CCSDSLength, CCSDSChecksum>;
+
+using TMSpaceDataLinkStartWord = StartToken<U16, static_cast<U16>(0 | (TM_SCID & TM_SCID_MASK)), TM_SCID_MASK>;
+using TMSpaceDataLinkLength = LengthToken<FwSizeType, sizeof(FwSizeType), TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), TM_LENGTH_MASK>;
+using TMSpaceDataLinkChecksum = CRC<U16, TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), -2, CRC16_CCITT>;
+using TMSpaceDataLinkDetector = StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
 }  // namespace FrameDetectors
 }  // namespace Svc
 #endif  // SVC_FRAME_ACCUMULATOR_FRAME_DETECTOR_CCSDS_FRAME_DETECTOR
