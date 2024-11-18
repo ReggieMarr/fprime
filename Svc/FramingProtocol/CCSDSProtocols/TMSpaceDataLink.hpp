@@ -1,7 +1,7 @@
 // ======================================================================
-// \title  CCSDSProtocol.hpp
+// \title  TMSpaceDataLink.hpp
 // \author Reginald Marr
-// \brief  hpp file for CCSDSProtocol class
+// \brief  hpp file for TMSpaceDataLink class
 //
 // \copyright
 // Copyright 2009-2021, by the California Institute of Technology.
@@ -10,66 +10,23 @@
 //
 // ======================================================================
 
-#ifndef SVC_CCSDS_PROTOCOL_HPP
-#define SVC_CCSDS_PROTOCOL_HPP
+#ifndef SVC_TM_SPACE_DATA_LINK_HPP
+#define SVC_TM_SPACE_DATA_LINK_HPP
 
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
-#include "Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
+#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
+#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "config/FpConfig.h"
 
 namespace Svc {
-
-class SpacePacketFraming : public FramingProtocol {
-  public:
-    typedef struct SpacePacketConfig_s {
-        U16 apid{0};
-        U16 sequenceCount{0};
-    } SpacePacketConfig_t;
-
-    SpacePacketFraming() = default;
-    explicit SpacePacketFraming(const SpacePacketConfig_t& config) : m_config(config) {}
-
-    void setup(const SpacePacketConfig_t& config) { m_config = config; }
-
-    void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
-
-  private:
-    SpacePacketConfig_t m_config;
+namespace FrameDetectors {
+    using TMSpaceDataLinkStartWord = StartToken<U16, static_cast<U16>(0 | (TM_SCID & TM_SCID_MASK)), TM_SCID_MASK>;
+    using TMSpaceDataLinkLength = LengthToken<FwSizeType, sizeof(FwSizeType), TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), TM_LENGTH_MASK>;
+    using TMSpaceDataLinkChecksum = CRC<U16, TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), -2, CRC16_CCITT>;
+    using TMSpaceDataLinkDetector = StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
 };
 
-class TCSpaceDataLinkFraming : public FramingProtocol {
-    typedef enum {
-        DISABLED = 0,
-        ENABLED = 1,
-    } BypassFlag;
-
-    typedef enum {
-        DATA = 0,
-        COMMAND = 1,
-    } ControlCommandFlag;
-
-  public:
-    typedef struct TCSpaceDataLinkConfig_s {
-        U8 version{0};
-        U8 bypassFlag{BypassFlag::ENABLED};
-        U8 controlCommandFlag{ControlCommandFlag::COMMAND};
-        U16 spacecraftId{CCSDS_SCID};
-        U8 virtualChannelId{0};
-        U8 frameSequence{0};
-    } TCSpaceDataLinkConfig_t;
-
-    TCSpaceDataLinkFraming() = default;
-    explicit TCSpaceDataLinkFraming(const TCSpaceDataLinkConfig_t& config) : m_config(config) {}
-
-    void setup(const TCSpaceDataLinkConfig_t& config) { m_config = config; }
-
-    void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
-
-  private:
-    using TC_CheckSum = FrameDetectors::CCSDSChecksum;
-    TCSpaceDataLinkConfig_t m_config;
-};
 
 // NOTE should this be namespaced to Fw ?
 // class DataFieldStatus : public Fw::SerializeBufferBase {
@@ -88,7 +45,7 @@ class TCSpaceDataLinkFraming : public FramingProtocol {
 //         Fw::SerializeStatus deserializeBase(Fw::SerializeBufferBase& buffer); // called by derived classes to deserialize common fields
 // };
 
-class TMSpaceDataLinkFraming : public FramingProtocol {
+class TMSpaceDataLink: public FramingProtocol {
     typedef enum {
         DISABLED = 0,
         ENABLED = 1,
@@ -112,8 +69,8 @@ class TMSpaceDataLinkFraming : public FramingProtocol {
         bool isVcaSdu{false};
     } TMSpaceDataLinkConfig_t;
 
-    TMSpaceDataLinkFraming() = default;
-    explicit TMSpaceDataLinkFraming(const TMSpaceDataLinkConfig_t& config) : m_config(config) {}
+    TMSpaceDataLink() = default;
+    explicit TMSpaceDataLink(const TMSpaceDataLinkConfig_t& config) : m_config(config) {}
 
     void setup(const TMSpaceDataLinkConfig_t& config) { m_config = config; }
 
@@ -124,7 +81,7 @@ class TMSpaceDataLinkFraming : public FramingProtocol {
     TMSpaceDataLinkConfig_t m_config;
 };
 
-class TMDataFieldFraming : public FramingProtocol {
+class TMDataField: public FramingProtocol {
 public:
     typedef struct TMDataFieldConfig_s {
         FwSizeType size{TM_DATA_FIELD_DFLT_SIZE};
@@ -137,7 +94,7 @@ public:
     } TMDataFieldConfig_t;
 
     // TMDataFieldFraming() = default;
-    explicit TMDataFieldFraming(const TMDataFieldConfig_t& config);
+    explicit TMDataField(const TMDataFieldConfig_t& config);
     void setup(const TMDataFieldConfig_t& config);
     void frame(const U8* const data, const U32 size,
                Fw::ComPacket::ComPacketType packet_type) override;
@@ -153,4 +110,4 @@ private:
 };
 
 }  // namespace Svc
-#endif  // SVC_CCSDS_PROTOCOL_HPP
+#endif  // SVC_TM_SPACE_DATA_LINK_HPP

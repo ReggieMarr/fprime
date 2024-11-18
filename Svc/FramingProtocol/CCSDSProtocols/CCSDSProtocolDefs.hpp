@@ -1,7 +1,7 @@
 // ======================================================================
 // \title  CCSDSProtocolDefs.hpp
 // \author Reginald Marr
-// \brief  hpp file for CCSDS frame detector definitions
+// \brief  Contains constants common to various CCSDS protocols
 // ======================================================================
 #ifndef SVC_CCSDS_PROTOCOL_DEFS
 #define SVC_CCSDS_PROTOCOL_DEFS
@@ -51,22 +51,6 @@ constexpr U16 TM_SCID = CCSDS_SCID << 4;
 constexpr U16 TM_LENGTH_MASK = 0;
 // Common Constants
 constexpr U8 SPACE_PACKET_HEADER_SIZE = 6;                // Space Packet Header size (used in both TM and TC)
-
-// Definitions for the CCSDS frame header
-namespace CCSDSFrameHeader {
-
-//! Token type for CCSDS frame header
-typedef U32 TokenType;
-
-enum {
-    //! Header size for CCSDS frame header
-    SIZE = sizeof(TokenType) * 2
-};
-
-//! The start word for CCSDS framing
-const TokenType START_WORD = static_cast<TokenType>(0xdeadbeef);
-
-}  // namespace CCSDSFrameHeader
 
 }  // namespace Svc
 #endif  // SVC_CCSDS_PROTOCOL_DEFS

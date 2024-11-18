@@ -6,7 +6,7 @@
 
 #include "SpacePacketDeframer.hpp"
 #include "FpConfig.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 
 namespace Svc {
 

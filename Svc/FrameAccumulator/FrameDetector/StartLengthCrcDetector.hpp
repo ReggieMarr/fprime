@@ -10,7 +10,7 @@
 #include "Fw/Types/PolyType.hpp"
 #include "Svc/FrameAccumulator/FrameDetector.hpp"
 #include <type_traits>
-#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 
 // Include the lic crc c library:
 extern "C" {
@@ -130,23 +130,8 @@ class StartToken : public Token<TokenType, TokenMask, TokenEndianness> {
     FrameDetector::Status read(const Types::CircularBuffer& data, FwSizeType& size_out) {
         constexpr TokenType EXPECTED_VALUE = (StartExpected & TokenMask);
 
-        // if (EXPECTED_VALUE == CCSDS_SCID || EXPECTED_VALUE == TM_SCID) {
-        //     U8 btt = 0;
-        //     data.peek(btt, 0);
-        //     Fw::Logger::log("detecting %d %d %x\n", size_out, data.get_allocated_size(), btt);
-        // }
         FrameDetector::Status status = this->Token<TokenType, TokenMask, TokenEndianness>::read(data, 0, size_out);
         if ((status == FrameDetector::FRAME_DETECTED) && (this->m_value != EXPECTED_VALUE)) {
-            if (EXPECTED_VALUE == CCSDS_SCID || EXPECTED_VALUE == TM_SCID) {
-                TokenType token = 0;
-                U8 bytel = 0;
-                U8 byteh = 0;
-                data.peek(bytel, 0);
-                token = token << 8 | bytel;
-                data.peek(byteh, 1);
-                token = token << 8 | byteh;
-                Fw::Logger::log("%d %d B %x %x %x %x %x %x %x\n", status, size_out, bytel, byteh, token, this->m_value, TokenMask, StartExpected);
-            }
             status = FrameDetector::NO_FRAME_DETECTED;
         }
         return status;
@@ -311,6 +296,30 @@ class CRC : public Token<TokenType, TokenMask, BIG> {
     FwSizeType m_stored_offset;
     TokenType m_expected;
 };
+//! \brief CRC16 CCITT implementation
+//!
+//! CCSDS uses a CRC16 (CCITT) implementation with polynomial 0x11021, initial value of 0xFFFF, and XOR of 0x0000.
+//!
+class CRC16_CCITT : public CRCWrapper<U16> {
+  public:
+    // Initial value is 0xFFFF
+    CRC16_CCITT() : CRCWrapper<U16>(std::numeric_limits<U16>::max()) {}
+
+    //! \brief update CRC with one new byte
+    //!
+    //! Update function for CRC taking previous value from member variable and updating it.
+    //!
+    //! \param new_byte: new byte to add to calculation
+    void update(U8 new_byte) override {
+        this->m_crc =  static_cast<U16>(update_crc_ccitt(m_crc, new_byte));
+    };
+
+    //! \brief finalize and return CRC value
+    U16 finalize() override {
+        // Specified XOR value is 0x0000
+        return this->m_crc ^ static_cast<U16>(0);
+    };
+};
 //! \breif start/length/crc detector template
 //!
 //! Most packets are of the form start token, length token, data, and a trailing CRC. This template is used to quickly
@@ -361,6 +370,7 @@ class StartLengthCrcDetector : public FrameDetector {
         return status;
     };
 };
+
 }  // namespace FrameDetectors
 }  // namespace Svc
 
