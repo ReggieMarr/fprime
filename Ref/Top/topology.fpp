@@ -32,7 +32,7 @@ module Ref {
     instance tlmSend
     instance cmdDisp
     instance cmdSeq
-    instance comm
+    instance transportLink
     instance deframer
     instance eventLogger
     instance fatalAdapter
@@ -83,23 +83,6 @@ module Ref {
     # Direct graph specifiers
     # ----------------------------------------------------------------------
 
-    connections Downlink {
-
-      tlmSend.PktSend -> framer.comIn
-      eventLogger.PktSend -> framer.comIn
-      fileDownlink.bufferSendOut -> framer.bufferIn
-
-      framer.framedAllocate -> commsBufferManager.bufferGetCallee
-      framer.framedOut -> comm.$send
-      framer.bufferDeallocate -> fileDownlink.bufferReturn
-
-      comm.deallocate -> commsBufferManager.bufferSendIn
-
-      dpCat.fileOut -> fileDownlink.SendFile
-      fileDownlink.FileComplete -> dpCat.fileDone
-
-    }
-
     connections FaultProtection {
       eventLogger.FatalAnnounce -> fatalHandler.FatalReceive
     }
@@ -145,10 +128,22 @@ module Ref {
       cmdDisp.seqCmdStatus -> cmdSeq.cmdResponseIn
     }
 
-    connections Uplink {
+    connections DeploymentLink {
+      tlmSend.PktSend -> framer.comIn
+      eventLogger.PktSend -> framer.comIn
+      fileDownlink.bufferSendOut -> framer.bufferIn
 
-      comm.allocate -> commsBufferManager.bufferGetCallee
-      comm.$recv -> frameAccumulator.dataIn
+      framer.framedAllocate -> commsBufferManager.bufferGetCallee
+      framer.framedOut -> transportLink.$send
+      framer.bufferDeallocate -> fileDownlink.bufferReturn
+
+      transportLink.deallocate -> commsBufferManager.bufferSendIn
+
+      dpCat.fileOut -> fileDownlink.SendFile
+      fileDownlink.FileComplete -> dpCat.fileDone
+
+      transportLink.allocate -> commsBufferManager.bufferGetCallee
+      transportLink.$recv -> frameAccumulator.dataIn
 
       frameAccumulator.frameOut -> deframer.framedIn
       frameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
@@ -162,7 +157,6 @@ module Ref {
       cmdDisp.seqCmdStatus -> uplinkRouter.cmdResponseIn
 
       fileUplink.bufferSendOut -> commsBufferManager.bufferSendIn
-
     }
 
     connections DataProducts {

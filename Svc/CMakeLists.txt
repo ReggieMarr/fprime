@@ -63,3 +63,4 @@ endif()
 
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/PosixTime/")
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/LinuxTimer/")
+add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/PacketAccumulator/")

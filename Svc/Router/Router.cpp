@@ -24,8 +24,11 @@ Router ::~Router() {}
 // Handler implementations for user-defined typed input ports
 // ----------------------------------------------------------------------
 
-bool Router::routePacket(NATIVE_INT_TYPE portNum, Fw::Buffer& packet, FwPacketDescriptorType type) {
+bool Router::routePacket(NATIVE_INT_TYPE portNum, Fw::Buffer& packet, U8 type) {
     // Process the packet
+
+    bool isEvent = false;
+
     switch (type) {
         // Handle a command packet
         case Fw::ComPacket::FW_PACKET_COMMAND: {

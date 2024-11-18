@@ -137,7 +137,7 @@ module Ref {
   # ----------------------------------------------------------------------
 
   @ Communications driver. May be swapped with other comm drivers like UART
-  instance comm: Drv.TcpClient base id 0x4000
+  instance transportLink: Drv.TcpClient base id 0x4000
 
   instance framer: Svc.Framer base id 0x4100
 
