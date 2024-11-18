@@ -236,4 +236,76 @@ void TMSpaceDataLinkFraming::frame(const U8* const data, const U32 size, Fw::Com
         m_config.masterChannelFrameCount  = (m_config.masterChannelFrameCount + 1) & 0xFF;
         m_config.virtualChannelFrameCount = (m_config.virtualChannelFrameCount + 1) & 0xFF;
 }
+
+TMDataFieldFraming::TMDataFieldFraming(
+        const TMDataFieldConfig_t& config) : m_config(config) {}
+
+void TMDataFieldFraming::setup(const TMDataFieldConfig_t& config) {
+        m_config = config;
+}
+
+void TMDataFieldFraming::frame(const U8* const data, const U32 size,
+                               Fw::ComPacket::ComPacketType packet_type) {
+        FW_ASSERT(data != nullptr);
+        FW_ASSERT(m_interface != nullptr);
+
+        // Calculate total size including TM frame header
+        Fw::Buffer buffer = m_interface->allocate(m_config.size);
+        FW_ASSERT(buffer.getSize() == m_config.size, buffer.getSize());
+
+        Fw::SerializeBufferBase& serializer = buffer.getSerializeRepr();
+        Fw::SerializeStatus status;
+
+        // Frame Secondary Header if present (4.1.3)
+        if (m_config.hasSecondaryHeader) {
+                frameSecondaryHeader(serializer);
+        }
+
+        // Frame Data Field (4.1.4)
+        frameDataField(data, size, buffer, offset);
+}
+
+void TMDataFieldFraming::frameSecondaryHeader(Fw::SerializeBufferBase& serializer) {
+    // Secondary Header Identification Field (4.1.3.2)
+    // buffer[offset++] = (m_config.secondaryHeaderVersion << 6) |
+    //                   (m_config.secondaryHeaderLength & 0x3F);
+
+    // Secondary Header Data Field (4.1.3.3)
+    // if (m_config.secondaryHeaderData != nullptr) {
+    //     memcpy(&buffer[offset], m_config.secondaryHeaderData,
+    //            m_config.secondaryHeaderLength + 1);
+    //     offset += m_config.secondaryHeaderLength + 1;
+    // }
+}
+
+void TMDataFieldFraming::frameDataField(const U8* const data,
+                                               const U32 size,
+                                               U8* buffer, U32& offset) {
+    // Handle case where no data is available (4.1.4.6)
+    // if (size == 0 && m_config.allowIdleData) {
+    //     // Generate idle data using PN sequence
+    //     generateIdleData(&buffer[offset], getMaxSize() - offset);
+    //     return;
+    // }
+
+    // // Copy actual data (4.1.4.5)
+    // memcpy(&buffer[offset], data, size);
+    // offset += size;
+}
+
+void TMDataFieldFraming::generateIdleData(U8* buffer, U32 size) {
+    // Implementation of LFSR as per 4.1.4.6.2 (Fibonacci form)
+    // for (U32 i = 0; i < size; i++) {
+    //     U8 byte = 0;
+    //     for (U8 bit = 0; bit < 8; bit++) {
+    //         U32 feedback = ((m_lfsr_state >> 0) ^ (m_lfsr_state >> 1) ^
+    //                       (m_lfsr_state >> 2) ^ (m_lfsr_state >> 22) ^
+    //                       (m_lfsr_state >> 32)) & 1;
+    //         m_lfsr_state = (m_lfsr_state >> 1) | (feedback << 31);
+    //         byte = (byte << 1) | feedback;
+    //     }
+    //     buffer[i] = byte;
+    // }
+}
+
 }
