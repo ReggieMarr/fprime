@@ -8,7 +8,7 @@
 #define Svc_SpaceDataLinkDeframer_HPP
 
 #include "Svc/CCSDSDeframers/SpaceDataLinkDeframer/SpaceDataLinkDeframerComponentAc.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 
 namespace Svc {
 

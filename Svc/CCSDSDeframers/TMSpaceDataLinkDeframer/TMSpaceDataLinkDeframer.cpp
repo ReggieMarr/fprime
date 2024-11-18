@@ -7,7 +7,7 @@
 #include "TMSpaceDataLinkDeframer.hpp"
 #include "FpConfig.hpp"
 #include "Fw/Logger/Logger.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 
 namespace Svc {
 

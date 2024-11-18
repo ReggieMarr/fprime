@@ -9,7 +9,7 @@
 
 #include "FpConfig.h"
 #include "Svc/CCSDSDeframers/TMSpaceDataLinkDeframer/TMSpaceDataLinkDeframerComponentAc.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocolDefs.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 
 namespace Svc {
 

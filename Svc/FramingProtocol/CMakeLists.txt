@@ -10,7 +10,9 @@ set(SOURCE_FILES
   "${CMAKE_CURRENT_LIST_DIR}/DeframingProtocol.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/FramingProtocol.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/FprimeProtocol.cpp"
-  "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocol.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TCSpaceDataLink.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/SpacePacketProtocol.cpp"
 )
 
 set(MOD_DEPS
