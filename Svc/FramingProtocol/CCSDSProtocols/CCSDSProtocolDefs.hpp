@@ -41,16 +41,22 @@ constexpr FwSizeType FRAME_ERROR_CONTROL_SIZE = 2;               // Frame Error 
 constexpr FwSizeType TM_DATA_FIELD_DFLT_SIZE = 255;             // TM Data Field size varies by application, typically constrained by maximum transfer frame size (CCSDS 132.0-B-2, Section 4.1.3.4)
 
 #define TM_TRANSFER_FRAME_SIZE(DATA_FIELD_SIZE) \
- (DATA_FIELD_SIZE + TM_FRAME_PRIMARY_HEADER_SIZE + TM_SECONDARY_HEADER_MAX_SIZE + TM_OPERATIONAL_CONTROL_SIZE + FRAME_ERROR_CONTROL_SIZE)
+ (DATA_FIELD_SIZE + TM_FRAME_PRIMARY_HEADER_SIZE + FRAME_ERROR_CONTROL_SIZE)
 
 // For TM
 // as per CCSDS 132.0-B-3 4.1.2.1 the Spacecraft Id is placed with a 4 bit offset within the first octet
 constexpr U16 TM_SCID_MASK = 0b0011111111110000;
-constexpr U16 TM_SCID = CCSDS_SCID << 4;
+constexpr FwSizeType TM_SCID_SHIFT = 4;
+
 // TM is fixed length so we want this to be 0
 constexpr U16 TM_LENGTH_MASK = 0;
 // Common Constants
 constexpr U8 SPACE_PACKET_HEADER_SIZE = 6;                // Space Packet Header size (used in both TM and TC)
 
 }  // namespace Svc
+
+// Accounts for the shifting and masking that must occur to fit the space craft id value into the
+// protocol data unit/field
+#define TM_SCID_VAL_TO_FIELD(val) ((val << Svc::TM_SCID_SHIFT) & Svc::TM_SCID_MASK)
+
 #endif  // SVC_CCSDS_PROTOCOL_DEFS
