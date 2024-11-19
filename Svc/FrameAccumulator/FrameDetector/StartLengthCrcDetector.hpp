@@ -348,6 +348,9 @@ class StartLengthCrcDetector : public FrameDetector {
         StartToken startWord;
         Status status = startWord.read(data, size_out);
         if (status != Status::FRAME_DETECTED) {
+            if (startWord.getExpectedStart() == TM_SCID_VAL_TO_FIELD(CCSDS_SCID)) {
+                Fw::Logger::log("%d Failed start, len %d %d\n", status, size_out, data.get_allocated_size());
+            }
             return status;
         }
 
@@ -355,6 +358,9 @@ class StartLengthCrcDetector : public FrameDetector {
         LengthToken lengthWord;
         status = lengthWord.read(data, size_out);
         if (status != Status::FRAME_DETECTED) {
+            if (startWord.getExpectedStart() == TM_SCID_VAL_TO_FIELD(CCSDS_SCID)) {
+                Fw::Logger::log("Failed Length\n");
+            }
             return status;
         }
         FwSizeType length = lengthWord.getValue();
@@ -363,6 +369,9 @@ class StartLengthCrcDetector : public FrameDetector {
         Checksum crc;
         status = crc.calculate(data, length, size_out);
         if (status != Status::FRAME_DETECTED) {
+            if (startWord.getExpectedStart() == TM_SCID_VAL_TO_FIELD(CCSDS_SCID)) {
+                Fw::Logger::log("Failed word, len %d/%d %d\n", length, size_out, data.get_allocated_size());
+            }
             return status;
         }
         // Read CRC
