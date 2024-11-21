@@ -1,7 +1,7 @@
 // ======================================================================
-// \title  TMSpaceDataLink.hpp
+// \title  TMSpaceDataLink TransferFrame.cpp
 // \author Reginald Marr
-// \brief  hpp file for TMSpaceDataLink class
+// \brief  Implementation of TMSpaceDataLink TransferFrame
 //
 // \copyright
 // Copyright 2009-2021, by the California Institute of Technology.
@@ -10,8 +10,8 @@
 //
 // ======================================================================
 
-#ifndef SVC_TM_SPACE_DATA_LINK_HPP
-#define SVC_TM_SPACE_DATA_LINK_HPP
+#ifndef TM_SPACE_DATA_LINK_TRANSFER_FRAME_HPP
+#define TM_SPACE_DATA_LINK_TRANSFER_FRAME_HPP
 
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
 #include <cstddef>
@@ -250,23 +250,4 @@ private:
 };
 
 }
-
-namespace Svc {
-class TMSpaceDataLinkProtocol: public FramingProtocol {
-
-  public:
-
-    TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams, const FwSizeType dataFieldSize):
-        m_transferFrame(TMSpaceDataLink::TransferFrame(missionParams)), m_dataFieldSize(dataFieldSize) {}
-
-    void setup(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams, const FwSizeType dataFieldSize);
-
-    void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
-
-  private:
-    TMSpaceDataLink::TransferData_t m_transferData = {0};
-    TMSpaceDataLink::TransferFrame m_transferFrame;
-    const FwSizeType m_dataFieldSize{Svc::TM_DATA_FIELD_DFLT_SIZE};
-};
-}  // namespace Svc
-#endif  // SVC_TM_SPACE_DATA_LINK_HPP
+#endif  // TM_SPACE_DATA_LINK_TRANSFER_FRAME_HPP

@@ -1,10 +1,9 @@
 // ======================================================================
-// \title  TMSpaceDataLink.cpp
+// \title  TMSpaceDataLink TransferFrame.cpp
 // \author Reginald Marr
-// \brief  cpp file for TMSpaceDataLink class
+// \brief  Implementation of TMSpaceDataLink TransferFrame
 //
 // ======================================================================
-#include "TMSpaceDataLink.hpp"
 #include <array>
 #include "FpConfig.h"
 #include "FpConfig.hpp"
@@ -15,6 +14,8 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "Utils/Hash/Hash.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
+#include "TransferFrame.hpp"
+#include "ProtocolInterface.hpp"
 
 namespace TMSpaceDataLink {
 PrimaryHeader::PrimaryHeader(MissionPhaseParameters_t const &params) {
@@ -180,31 +181,6 @@ Fw::SerializeStatus TransferFrame::serialize(Fw::SerializeBufferBase& buffer,
         FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
         return Fw::SerializeStatus::FW_SERIALIZE_OK;
-}
-
-}
-
-namespace Svc {
-
-void TMSpaceDataLinkProtocol::frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) {
-        FW_ASSERT(data != nullptr);
-        FW_ASSERT(m_interface != nullptr);
-
-        // Calculate total size including TM frame header
-        Fw::Buffer buffer = m_interface->allocate(TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
-        FW_ASSERT(buffer.getSize() == TM_TRANSFER_FRAME_SIZE(m_dataFieldSize), TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
-
-        Fw::SerializeBufferBase& serializer = buffer.getSerializeRepr();
-        Fw::SerializeStatus status;
-        status = m_transferFrame.serialize(serializer, m_transferData, data, size);
-        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-
-        buffer.setSize(TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
-        m_interface->send(buffer);
-
-        // Update frame counts
-        m_transferData.masterChannelFrameCount  = (m_transferData.masterChannelFrameCount + 1) & 0xFF;
-        m_transferData.virtualChannelFrameCount = (m_transferData.virtualChannelFrameCount + 1) & 0xFF;
 }
 
 }
