@@ -36,68 +36,9 @@
 #include <map>
 #include <memory>
 #include <cstdint>
+#include "Channels.hpp"
 
 namespace TMSpaceDataLink {
-
-enum class ServiceType { VCP, VCA };
-
-class BaseChannel {
-protected:
-    FwSizeType m_frameLength;
-    Os::Queue m_queue;  // Queue for inter-task communication
-public:
-    BaseChannel(FwSizeType frameLength) : m_frameLength(frameLength) {}
-    virtual ~BaseChannel() {}
-
-    virtual bool propogate(const Fw::Buffer& sdu) = 0;  // Abstract process method
-};
-
-// Virtual Channel Implementation
-// The Segmenting and blocking functionality described in 2.3.1(b)
-// is implemented by the PacketProccessing_handler (if the VCP service is registered)
-// And the VirtualChannelGeneration_handler.
-class VirtualChannelSender : public BaseChannel {
-public:
-  VirtualChannelSender(VirtualChannelParams_t const &params, FwSizeType const transferFrameSize);
-
-    // Register a service for the virtual channel
-    void registerService(ServiceType type) {
-        m_registeredServices[type] = true;
-    }
-
-    // Handles incoming user data, first attempts to process packets (if supported)
-    // by calling PacketProcessing_handler then creates a frame representation of
-    // the virtual channel via VirtualChannelGeneration_handler
-    bool propogate(const Fw::Buffer& sdu) override;
-private:
-    bool PacketProcessing_handler(const Fw::Buffer& sdu);
-    bool VirtualChannelGeneration_handler(const Fw::Buffer& sdu);
-    std::map<ServiceType, bool> m_registeredServices;  // Registered services
-};
-
-// Master Channel Implementation
-class MasterChannelSender : public BaseChannel {
-public:
-    MasterChannelSender(MasterChannelParams_t const &params, FwSizeType const transferFrameLength);
-
-    bool VirtualChannelMultiplexing_handler(const std::array<Fw::Buffer, 8>& vcFrames);
-    bool MasterChannelGeneration_handler(Fw::Buffer& frame);
-    bool propogate(const Fw::Buffer& sdu) override;
-private:
-    std::array<VirtualChannelSender, MAX_VIRTUAL_CHANNELS> m_subChannels;
-};
-
-// Physical Channel Implementation
-class PhysicalChannelSender : public BaseChannel {
-public:
-    PhysicalChannelSender(PhysicalChannelParams_t const &params);
-
-    bool MasterChannelMultiplexing_handler(const std::array<Fw::Buffer, 8>& mcFrames);
-    bool AllFramesGeneration_handler(Fw::Buffer& frame);
-    bool propogate(const Fw::Buffer& sdu) override;
-private:
-    std::array<MasterChannelSender, MAX_MASTER_CHANNELS> m_subChannels;
-};
 
 /**
  * @class ProtocolEntity
@@ -122,9 +63,6 @@ public:
     void generateIdleData(Fw::Buffer& frame);
 private:
     PhysicalChannelSender m_physicalChannel;
-    MasterChannelSender m_masterChannels[8];         // Support for up to 8 master channels
-    VirtualChannelSender m_virtualChannels[8][8];   // Support for 8 virtual channels per master channel
-
 };
 
 }  // namespace TMSpaceDataLink
