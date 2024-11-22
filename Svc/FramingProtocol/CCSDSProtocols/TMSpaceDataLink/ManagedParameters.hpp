@@ -17,8 +17,10 @@
 #include "Fw/Types/String.hpp"
 #include <array>
 
-//NOTE artificial restraint for now
+// Based on the definition of MCID addressing we infer that we can only
+// have one master channel per physical channel
 constexpr FwSizeType MAX_MASTER_CHANNELS = 1;
+// Per Master Channel
 constexpr FwSizeType MAX_VIRTUAL_CHANNELS = 8;
 //FIXME See the SANA Packet Version Number registry @ https://sanaregistry.org/r/packet_version_number/
 constexpr FwSizeType NUM_SUPPORTED_PACKET_VERSIONS = 1;
@@ -42,7 +44,6 @@ typedef struct PacketTransferParams_s {
 
 // CCSDS 132.0-B-3 5.3
 typedef struct VirtualChannelParams_s {
-  U16 spaceCraftId;
   //NOTE Id's must be between 0 and 7
   U8 virtualChannelId;
   // Valid lengths are from 2 to 64, 0 indicates its not present

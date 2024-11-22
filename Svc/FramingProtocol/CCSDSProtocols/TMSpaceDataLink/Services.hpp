@@ -8,6 +8,7 @@
 #include "Os/Queue.hpp"
 
 namespace TMSpaceDataLink {
+enum class ServiceType { VCP, VCA };
 
 /**
  * Virtual Channel Access Service (CCSDS 132.0-B-3 3.4)
