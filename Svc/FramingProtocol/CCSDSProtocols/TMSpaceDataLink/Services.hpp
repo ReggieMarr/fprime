@@ -2,65 +2,63 @@
 #ifndef SVC_VIRTUAL_CHANNEL_ACCESS_HPP
 #define SVC_VIRTUAL_CHANNEL_ACCESS_HPP
 
+#include <array>
+#include "FpConfig.h"
+#include "Fw/Buffer/Buffer.hpp"
 #include "Fw/Types/BasicTypes.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "Os/Mutex.hpp"
 #include "Os/Queue.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 
 namespace TMSpaceDataLink {
+
 enum class ServiceType { VCP, VCA };
+
+// Source Data types/Service Data Units (SDU) for services as per CCSDS 132.0-B-3 3.2.1
+
+// Packets 3.2.2 (Not currently supported)
+// using PACKET_SDU
+
+// Virtual Access Service Data Unit 3.2.3
+using VCA_SDU_t=Fw::Buffer;
+// template<FwSizeType DATA_LENGTH>
+// using VCA_SDU_t=std::array<U8, DATA_LENGTH>;
+
+// Frame Secondary Header Service Data Unit  3.2.4
+using FSH_SDU_t=Fw::Buffer;
+
+// Operational Control Field Service Data Unit  3.2.5
+using OCF_SDU_t=Fw::Buffer;
+
+// Operational Control Field Service Data Unit  3.2.6
+using TM_SDU_t=TransferFrame;
+
+//NOTE we could abstract this more with templates
+// once adding support for more protocols
+typedef struct SendVCAServiceParams_s {
+  VCA_SDU_t sdu;
+} SendVCAServiceParams_t;
+
+template<typename SDU_t, typename SAP_t, typename ServiceParams_t>
+class SendTMService {
+public:
+    SendTMService(ServiceParams_t const &serviceParams) :
+      m_serviceParams(serviceParams) {};
+
+    virtual bool request(SAP_t const sap, SDU_t const &sdu) = 0;
+private:
+    ServiceParams_t m_serviceParams;
+};
 
 /**
  * Virtual Channel Access Service (CCSDS 132.0-B-3 3.4)
  * Provides fixed-length data unit transfer across virtual channels
  */
-class VirtualChannelAccess {
+class SendVCAService: public SendTMService<GVCID_t, VCA_SDU_t> {
 public:
-    static constexpr U8 MAX_VIRTUAL_CHANNELS = 8;  // 3-bit VCID allows 8 channels
-    static constexpr U32 MAX_SDU_SIZE = 1024;  // Default SDU size in bytes
-
-    /**
-     * VCA Service Data Unit Status (CCSDS 132.0-B-3 3.4.2.3)
-     * Optional status fields for VCA_SDU
-     */
-    struct VcaStatus {
-        bool packetOrderFlag{false};     ///< User-defined ordering status
-        U8 segmentLengthId{0};          ///< User-defined segment status (2 bits)
-        bool sduLossFlag{false};         ///< Indicates sequence discontinuity
-        U8 verificationStatus{0};        ///< SDLS protocol status
-    };
-
-    /**
-     * VCA Service Data Unit (CCSDS 132.0-B-3 3.4.2.2)
-     * Fixed-length data unit for virtual channel transfer
-     */
-    struct VcaSdu {
-        U8* data;                        ///< SDU payload
-        U32 size;                        ///< Size must match configured size
-        VcaStatus status;                ///< Optional status fields
-    };
-
-    /**
-     * Virtual Channel Configuration
-     */
-    struct VcConfig {
-        U8 virtualChannelId;             ///< Virtual Channel ID (0-7)
-        U32 sduSize{MAX_SDU_SIZE};   ///< Fixed SDU size for this channel
-        U8 priority{0};                  ///< Channel priority (0 highest)
-    };
-
-    /**
-     * Constructor
-     * @param maxQueueDepth Maximum SDUs queued per channel
-     */
-    explicit VirtualChannelAccess(U32 maxQueueDepth = 10);
-
-    /**
-     * Configure a virtual channel
-     * @param config Channel configuration
-     * @return Status (true if successful)
-     */
-    bool configureChannel(const VcConfig& config);
+    SendVCAService() = default;
 
     /**
      * VCA.request primitive (CCSDS 132.0-B-3 3.4.3.2)
@@ -70,29 +68,9 @@ public:
      * @param sdu Service Data Unit to transfer
      * @return Status (true if accepted)
      */
-    bool request(U8 vcId, const VcaSdu& sdu);
-
-    /**
-     * Get next available SDU from highest priority channel
-     * @param vcId [out] Virtual Channel ID of retrieved SDU
-     * @param sdu [out] Retrieved Service Data Unit
-     * @return True if SDU retrieved, false if no data
-     */
-    bool getNextSdu(U8& vcId, VcaSdu& sdu);
-
-    /**
-     * Check if any virtual channel has data
-     * @return True if data available
-     */
-    bool hasData() const;
+    bool request(GVCID_t const sap, VCA_SDU_t const &sdu) override;
 
 private:
-    typedef struct VirtualChannel_s {
-        VcConfig config;
-        Os::Queue sduQueue;
-        U32 frameCount{0};
-    } VirtualChannel_t;
-
     std::map<U8, VirtualChannel_t> m_channels;  ///< Virtual channels by VCID
     const U32 m_maxQueueDepth;                ///< Maximum queued SDUs per channel
     Os::Mutex m_mutex;                        ///< Thread safety for queue access
