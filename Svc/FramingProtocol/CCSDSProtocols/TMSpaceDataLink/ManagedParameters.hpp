@@ -46,6 +46,8 @@ typedef struct PacketTransferParams_s {
 typedef struct VirtualChannelParams_s {
   //NOTE Id's must be between 0 and 7
   U8 virtualChannelId;
+  // If used != 0, 0 indicates this channel uses the VCP Service.
+  FwSizeType VCA_SDULength;
   // Valid lengths are from 2 to 64, 0 indicates its not present
   U8 VC_FSHLength;
   // Is the Virtual Channel Operational Control Field present
