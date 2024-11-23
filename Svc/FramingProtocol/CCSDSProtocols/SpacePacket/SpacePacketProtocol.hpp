@@ -37,6 +37,5 @@ class SpacePacketProtocol : public FramingProtocol {
     SpacePacketConfig_t m_config;
 };
 
-
 }  // namespace Svc
 #endif  // SVC_SPACE_PACKET_PROTOCOL_HPP
