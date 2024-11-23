@@ -89,4 +89,21 @@ typedef struct ManagedParameters_s {
 
 }
 
+
+// Addresses derived from CCSDS 132.0-B-3 2.1.3
+// Master Channel Identifier (MCID)
+typedef struct MCID_s {
+    // Spacecraft Identifier
+    NATIVE_UINT_TYPE SCID;
+    // Transfer Version Number
+    NATIVE_UINT_TYPE TFVN;
+} MCID_t;
+
+// Global Virtual Channel Identifier (GVCID)
+typedef struct GVCID_s {
+    // Master Channel Identifier (MCID)
+    MCID_t MCID;
+    // Virtual Channel Identifier (VCID)
+    NATIVE_UINT_TYPE VCID;
+} GVCID_t;
 #endif  // TM_SPACE_DATA_LINK_MANAGED_PARAMETERS_HPP
