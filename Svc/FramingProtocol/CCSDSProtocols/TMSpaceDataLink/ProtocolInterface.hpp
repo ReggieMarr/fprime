@@ -62,7 +62,9 @@ public:
     // Internal helper for idle frame generation
     void generateIdleData(Fw::Buffer& frame);
 private:
-    PhysicalChannelSender m_physicalChannel;
+    ManagedParameters_t const m_params;
+
+    // PhysicalChannelSender m_physicalChannel;
 };
 
 }  // namespace TMSpaceDataLink
