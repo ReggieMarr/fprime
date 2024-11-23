@@ -21,22 +21,21 @@
 
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
 #include <cstddef>
-#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <queue>
+#include <vector>
+#include "Channels.hpp"
 #include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Types/SerialStatusEnumAc.hpp"
 #include "Fw/Types/Serializable.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
-#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
-#include "config/FpConfig.h"
-#include "Os/Queue.hpp"
-#include "TransferFrame.hpp"
 #include "ManagedParameters.hpp"
-#include <vector>
-#include <queue>
-#include <map>
-#include <memory>
-#include <cstdint>
-#include "Channels.hpp"
+#include "Os/Queue.hpp"
+#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
+#include "TransferFrame.hpp"
+#include "config/FpConfig.h"
 
 namespace TMSpaceDataLink {
 
@@ -49,8 +48,8 @@ namespace TMSpaceDataLink {
  * (TM Transfer Frames) at a constant rate.
  */
 class ProtocolEntity {
-public:
-    ProtocolEntity(ManagedParameters_t const &params);
+  public:
+    ProtocolEntity(ManagedParameters_t const& params);
 
     // Process incoming telemetry data
     bool UserComIn_handler(Fw::Buffer data, U32 context);
@@ -61,7 +60,8 @@ public:
 
     // Internal helper for idle frame generation
     void generateIdleData(Fw::Buffer& frame);
-private:
+
+  private:
     ManagedParameters_t const m_params;
 
     // PhysicalChannelSender m_physicalChannel;
@@ -70,12 +70,11 @@ private:
 }  // namespace TMSpaceDataLink
 
 namespace Svc {
-class TMSpaceDataLinkProtocol: public FramingProtocol {
-
+class TMSpaceDataLinkProtocol : public FramingProtocol {
   public:
-
-    TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams, const FwSizeType dataFieldSize):
-        m_transferFrame(TMSpaceDataLink::TransferFrame(missionParams)), m_dataFieldSize(dataFieldSize) {}
+    TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams,
+                            const FwSizeType dataFieldSize)
+        : m_transferFrame(TMSpaceDataLink::TransferFrame(missionParams)), m_dataFieldSize(dataFieldSize) {}
 
     void setup(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams, const FwSizeType dataFieldSize);
 

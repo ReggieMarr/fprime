@@ -3,23 +3,22 @@
 
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
 #include <cstddef>
-#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <queue>
+#include <vector>
 #include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Types/SerialStatusEnumAc.hpp"
 #include "Fw/Types/Serializable.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
-#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
-#include "config/FpConfig.h"
-#include "Os/Queue.hpp"
-#include "TransferFrame.hpp"
 #include "ManagedParameters.hpp"
-#include <vector>
-#include <queue>
-#include <map>
-#include <memory>
-#include <cstdint>
+#include "Os/Queue.hpp"
+#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
+#include "TransferFrame.hpp"
+#include "config/FpConfig.h"
 
 namespace TMSpaceDataLink {
 
@@ -53,11 +52,9 @@ namespace TMSpaceDataLink {
 // is implemented by the PacketProccessing_handler (if the VCP service is registered)
 // And the VirtualChannelGeneration_handler.
 class VirtualChannelSender : public VCAService {
-public:
-    VirtualChannelSender(VirtualChannelParams_t const &params,
-                         FwSizeType const transferFrameSize, GVCID_t id) :
-                           id(id), m_queue(),
-                           VCAService(createService(params, id, &m_queue)) {}
+  public:
+    VirtualChannelSender(VirtualChannelParams_t const& params, FwSizeType const transferFrameSize, GVCID_t id)
+        : id(id), m_queue(), VCAService(createService(params, id, &m_queue)) {}
 
     // VirtualChannelSender(VirtualChannelSender const &other) :
     //     VCAService(other), id(other.id) {}
@@ -71,19 +68,19 @@ public:
 
     // NOTE should be const
     const GVCID_t id;
-protected:
+
+  protected:
     FwSizeType m_transferFrameSize;
     Os::Queue m_queue;  // Queue for inter-task communication
-private:
+  private:
     bool PacketProcessing_handler(const Fw::Buffer& sdu);
     bool VirtualChannelGeneration_handler(const Fw::Buffer& sdu);
 
-    static VCAService* createService(VirtualChannelParams_t const &channelParams, GVCID_t id, Os::Queue &q)
-    {
-      VCAServiceParameters_t serviceParams;
-      serviceParams.sap = id;
-      serviceParams.primQ = q;
-      return VCAService(serviceParams, 1);
+    static VCAService* createService(VirtualChannelParams_t const& channelParams, GVCID_t id, Os::Queue& q) {
+        VCAServiceParameters_t serviceParams;
+        serviceParams.sap = id;
+        serviceParams.primQ = q;
+        return VCAService(serviceParams, 1);
     }
 };
 

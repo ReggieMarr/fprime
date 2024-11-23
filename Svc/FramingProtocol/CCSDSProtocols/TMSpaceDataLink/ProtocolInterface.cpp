@@ -4,7 +4,10 @@
 // \brief  Implementation of protocol interface to support TMSpaceDataLink
 //
 // ======================================================================
+#include "ProtocolInterface.hpp"
+#include <algorithm>
 #include <array>
+#include <stdexcept>
 #include "FpConfig.h"
 #include "FpConfig.hpp"
 #include "Fw/Com/ComBuffer.hpp"
@@ -16,19 +19,13 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
+#include "TransferFrame.hpp"
 #include "Utils/Hash/Hash.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
-#include "TransferFrame.hpp"
-#include "ProtocolInterface.hpp"
-#include <algorithm>
-#include <stdexcept>
 
 namespace TMSpaceDataLink {
 
-ProtocolEntity::ProtocolEntity(ManagedParameters_t const &params) :
-    m_params(params)
-{
-}
+ProtocolEntity::ProtocolEntity(ManagedParameters_t const& params) : m_params(params) {}
 
 bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
     // Forward data to the appropriate Virtual Channel
@@ -71,30 +68,30 @@ void ProtocolEntity::generateIdleData(Fw::Buffer& frame) {
     // Generate an idle frame with appropriate First Header Pointer
 }
 
-} // namespace TMSpaceDataLink
+}  // namespace TMSpaceDataLink
 
 namespace Svc {
 
 void TMSpaceDataLinkProtocol::frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) {
-        FW_ASSERT(data != nullptr);
-        FW_ASSERT(m_interface != nullptr);
+    FW_ASSERT(data != nullptr);
+    FW_ASSERT(m_interface != nullptr);
 
-        // Calculate total size including TM frame header
-        Fw::Buffer buffer = m_interface->allocate(TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
-        FW_ASSERT(buffer.getSize() == TM_TRANSFER_FRAME_SIZE(m_dataFieldSize), TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
+    // Calculate total size including TM frame header
+    Fw::Buffer buffer = m_interface->allocate(TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
+    FW_ASSERT(buffer.getSize() == TM_TRANSFER_FRAME_SIZE(m_dataFieldSize), TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
 
-        Fw::SerializeBufferBase& serializer = buffer.getSerializeRepr();
-        Fw::SerializeStatus status;
-        // status = m_transferFrame.serialize(serializer, m_transferData, data, size);
-        // FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+    Fw::SerializeBufferBase& serializer = buffer.getSerializeRepr();
+    Fw::SerializeStatus status;
+    // status = m_transferFrame.serialize(serializer, m_transferData, data, size);
+    // FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
-        // buffer.setSize(TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
+    // buffer.setSize(TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
 
-        m_interface->send(buffer);
+    m_interface->send(buffer);
 
-        // Update frame counts
-        m_transferData.masterChannelFrameCount  = (m_transferData.masterChannelFrameCount + 1) & 0xFF;
-        m_transferData.virtualChannelFrameCount = (m_transferData.virtualChannelFrameCount + 1) & 0xFF;
+    // Update frame counts
+    m_transferData.masterChannelFrameCount = (m_transferData.masterChannelFrameCount + 1) & 0xFF;
+    m_transferData.virtualChannelFrameCount = (m_transferData.virtualChannelFrameCount + 1) & 0xFF;
 }
 
-}
+}  // namespace Svc

@@ -53,4 +53,4 @@ bool PhysicalChannelSender::propogate(const Fw::Buffer& sdu) {
     return channelStatus;
 }
 
-} // namespace TMSpaceDataLink
+}  // namespace TMSpaceDataLink

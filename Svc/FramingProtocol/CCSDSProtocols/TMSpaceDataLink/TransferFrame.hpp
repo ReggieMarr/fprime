@@ -15,21 +15,22 @@
 
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
 #include <cstddef>
-#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Fw/Types/SerialStatusEnumAc.hpp"
 #include "Fw/Types/Serializable.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "config/FpConfig.h"
 
 namespace Svc {
 namespace FrameDetectors {
-    using TMSpaceDataLinkStartWord = StartToken<U16, static_cast<U16>(0 | TM_SCID_VAL_TO_FIELD(CCSDS_SCID)), TM_SCID_MASK>;
-    using TMSpaceDataLinkLength = LengthToken<FwSizeType, sizeof(FwSizeType), TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), TM_LENGTH_MASK>;
-    using TMSpaceDataLinkChecksum = CRC<U16, TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), -2, CRC16_CCITT>;
-    using TMSpaceDataLinkDetector = StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
-}
-}
+using TMSpaceDataLinkStartWord = StartToken<U16, static_cast<U16>(0 | TM_SCID_VAL_TO_FIELD(CCSDS_SCID)), TM_SCID_MASK>;
+using TMSpaceDataLinkLength =
+    LengthToken<FwSizeType, sizeof(FwSizeType), TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), TM_LENGTH_MASK>;
+using TMSpaceDataLinkChecksum = CRC<U16, TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), -2, CRC16_CCITT>;
+using TMSpaceDataLinkDetector =
+    StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
+}  // namespace FrameDetectors
+}  // namespace Svc
 
 namespace TMSpaceDataLink {
 // These contain a set of non-contiguous parameters which are mutually agreed upon
@@ -68,17 +69,19 @@ typedef struct {
     DataFieldDesc_t dataFieldDesc;
 } TransferData_t;
 
+// clang-format off
 // CCSDS Transfer Frame Data Field Status (16 bits)
 // +-----+-----+-----+-------+-----------------------------------+
 // | Sec | Syn | Pkt | Seg   |           First Header           |
 // | Hdr | ch  | Ord | Len   |            Pointer               |
 // | (1) | (1) | (1) | (2)   |              (11)                |
 // +-----+-----+-----+-------+-----------------------------------+
+// clang-format on
 typedef struct DataFieldStatus_s {
     // See missionPhaseParameters_t.hasSecondaryHeader
-    bool hasSecondaryHeader : 1; // Constant for Mission Phase
+    bool hasSecondaryHeader : 1;  // Constant for Mission Phase
     // See missionPhaseParameters_t.isSyncFlagEnabled
-    bool isSyncFlagEnabled : 1; // Constant for Mission Phase
+    bool isSyncFlagEnabled : 1;  // Constant for Mission Phase
     // CCSDS 132.0-B-3 4.1.2.7.4
     // This field is reserved for future use (and is recommended to be set to 0)
     // if set to 1 it's meaning is undefined
@@ -93,9 +96,10 @@ typedef struct DataFieldStatus_s {
     // If the sync flag field is 1 then this field is undefined.
     // If the sync flag field is 0 then this field indicates the position of
     // the first octet of the first packet in the transfer frame data field.
-    U16 firstHeaderPointer: 11;
+    U16 firstHeaderPointer : 11;
 } __attribute__((packed)) DataFieldStatus_t;
 
+// clang-format off
 // CCSDS 132.0-B-3 4.1.2.7 Transfer Frame Primary Header (48 bits)
 // +--------+------------+-----+---+---------+---------+----------------+
 // |Version |  Spacecraft| VCID|OCF| Master  | Virtual |  Data Field    |
@@ -104,6 +108,7 @@ typedef struct DataFieldStatus_s {
 // |        |            |     |   | Count(8)| Count(8)|                |
 // +--------+------------+-----+---+---------+---------+----------------+
 // |        Octet 1-2          |    Octet 3-4          |    Octet 5-6   |
+// clang-format on
 class PrimaryHeader : public Fw::Serializable {
     // TM Primary Header: 6 octets (CCSDS 132.0-B-3, Section 4.1.2)
     static constexpr FwSizeType SIZE = 6;
@@ -113,35 +118,38 @@ class PrimaryHeader : public Fw::Serializable {
     // If data field contains only idle data and the sync flag is 1
     // this should be the firstHeaderPointerField
     static constexpr U16 IDLE_TYPE = 0b11111111110;
-    public:
-        // Describes the primary headers fields
-        // NOTE __attribute__((packed)) is used here with bit specifications to express field mapping
-        typedef struct ControlInformation_s {
-            U8 transferFrameVersion: 2; // Constant for Mission Phase
-            U16 spacecraftId: 10; // Constant for Mission Phase
-            U8 virtualChannelId : 3;
-            bool operationalControlFlag : 1; // Constant for Mission Phase
-            U8 masterChannelFrameCount;
-            U8 virtualChannelFrameCount;
-            DataFieldStatus_t dataFieldStatus;
-        } __attribute__((packed)) ControlInformation_t;
 
-        PrimaryHeader(MissionPhaseParameters_t const &params);
-        ~PrimaryHeader() = default;
-        PrimaryHeader& operator=(const PrimaryHeader& other);
+  public:
+    // Describes the primary headers fields
+    // NOTE __attribute__((packed)) is used here with bit specifications to express field mapping
+    typedef struct ControlInformation_s {
+        U8 transferFrameVersion : 2;  // Constant for Mission Phase
+        U16 spacecraftId : 10;        // Constant for Mission Phase
+        U8 virtualChannelId : 3;
+        bool operationalControlFlag : 1;  // Constant for Mission Phase
+        U8 masterChannelFrameCount;
+        U8 virtualChannelFrameCount;
+        DataFieldStatus_t dataFieldStatus;
+    } __attribute__((packed)) ControlInformation_t;
 
-        const ControlInformation_t getControlInfo() {return m_ci; };
-        Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t &transferData);
-    private:
-        Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override;
+    PrimaryHeader(MissionPhaseParameters_t const& params);
+    ~PrimaryHeader() = default;
+    PrimaryHeader& operator=(const PrimaryHeader& other);
 
-        Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
-            return Fw::SerializeStatus::FW_SERIALIZE_OK;
-        }
+    const ControlInformation_t getControlInfo() { return m_ci; };
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t& transferData);
 
-        ControlInformation_t m_ci;
+  private:
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override;
+
+    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
+        return Fw::SerializeStatus::FW_SERIALIZE_OK;
+    }
+
+    ControlInformation_t m_ci;
 };
 
+// clang-format off
 // CCSDS Transfer Frame Secondary Header (1-64 octets)
 // +----------------------+-------------------------------+
 // |    Secondary Header  |      Secondary Header         |
@@ -152,36 +160,37 @@ class PrimaryHeader : public Fw::Serializable {
 // +--+---------+--------++-------------------------------+
 // |     Octet 1         |       Octets 2-64              |
 // NOTE should leverage std::optional here
+// clang-format on
 class SecondaryHeader : public Fw::Serializable {
     // At least one byte of transfer frame data units must be associated with the header for it to be used
     static constexpr FwSizeType MIN_FSDU_LEN = 1;
-    static constexpr FwSizeType MAX_SIZE = 64;          // TM Secondary Header is up to 64 octets (CCSDS 132.0-B-3, Section 4.1.3)
-    public:
+    static constexpr FwSizeType MAX_SIZE =
+        64;  // TM Secondary Header is up to 64 octets (CCSDS 132.0-B-3, Section 4.1.3)
+  public:
+    typedef struct ControlInformation_s {
+        U8 version : 2;
+        bool length : 6;
+        U8 dataField[MAX_SIZE - 1];
+    } __attribute__((packed)) ControlInformation_t;
 
-        typedef struct ControlInformation_s {
-            U8 version : 2;
-            bool length : 6;
-            U8 dataField[MAX_SIZE - 1];
-        } __attribute__((packed)) ControlInformation_t;
+    SecondaryHeader() = default;
+    ~SecondaryHeader() = default;
+    SecondaryHeader& operator=(const SecondaryHeader& other);
 
-        SecondaryHeader() = default;
-        ~SecondaryHeader() = default;
-        SecondaryHeader& operator=(const SecondaryHeader& other);
+    const ControlInformation_t getControlInfo() { return m_ci; };
 
-        const ControlInformation_t getControlInfo() {return m_ci; };
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
+        // currently unsupported
+        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
+    }
 
-        Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
-            // currently unsupported
-            return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-        }
+    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
+        // currently unsupported
+        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
+    }
 
-        Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
-            // currently unsupported
-            return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-        }
-
-    private:
-        ControlInformation_t m_ci;
+  private:
+    ControlInformation_t m_ci;
 };
 
 // NOTE need to come up with a way to express the underlying service type
@@ -190,28 +199,30 @@ class DataField : public Fw::Serializable {
     static constexpr FwSizeType MIN_FSDU_LEN = 1;
     // TM Secondary Header is up to 64 octets (CCSDS 132.0-B-3, Section 4.1.3)
     static constexpr FwSizeType MAX_SIZE = 64;
-    public:
-        // NOTE expand and leverage this to express service info
-        typedef enum {
-            VCAS, // !< Virtual Channel Access Service
-            VCPS, // !< Virtual Channel Packet Service
-        } ServiceType;
 
-        DataField() = default;
-        ~DataField() = default;
-        DataField& operator=(const DataField& other);
+  public:
+    // NOTE expand and leverage this to express service info
+    typedef enum {
+        VCAS,  // !< Virtual Channel Access Service
+        VCPS,  // !< Virtual Channel Packet Service
+    } ServiceType;
 
-        Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, const U8* const data, const U32 size) const;
-        Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
-            return Fw::SerializeStatus::FW_SERIALIZE_OK;
-        }
+    DataField() = default;
+    ~DataField() = default;
+    DataField& operator=(const DataField& other);
 
-        Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
-            // currently unsupported
-            return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-        }
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, const U8* const data, const U32 size) const;
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
+        return Fw::SerializeStatus::FW_SERIALIZE_OK;
+    }
+
+    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
+        // currently unsupported
+        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
+    }
 };
 
+// clang-format off
 // TM Transfer Frame Structural Components
 // +-------------------------+------------------------+------------------------+-------------------------+-------------------------+
 // | TRANSFER FRAME          | TRANSFER FRAME         | TRANSFER FRAME         | TRANSFER FRAME          | TRANSFER FRAME          |
@@ -221,20 +232,23 @@ class DataField : public Fw::Serializable {
 // +-------------------------+------------------------+------------------------+-------------------------+-------------------------+
 // | 6 octets                | Up to 64 octets        | Varies                 | 4 octets                | 2 octets                |
 // +-------------------------+------------------------+------------------------+-------------------------+-------------------------+
+// clang-format on
 class TransferFrame : public Fw::Serializable {
-public:
-
-    TransferFrame(const MissionPhaseParameters_t &missionParams):
-            m_primaryHeader(missionParams), m_secondaryHeader(), m_dataField() {}
+  public:
+    TransferFrame(const MissionPhaseParameters_t& missionParams)
+        : m_primaryHeader(missionParams), m_secondaryHeader(), m_dataField() {}
     ~TransferFrame() = default;
 
-    PrimaryHeader getPrimaryHeader() {return m_primaryHeader; };
-    SecondaryHeader getSecondaryHeader() {return m_secondaryHeader; };
-    DataField getDataField() {return m_dataField; };
+    PrimaryHeader getPrimaryHeader() { return m_primaryHeader; };
+    SecondaryHeader getSecondaryHeader() { return m_secondaryHeader; };
+    DataField getDataField() { return m_dataField; };
 
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t &transferData, const U8* const data, const U32 size);
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer,
+                                  TransferData_t& transferData,
+                                  const U8* const data,
+                                  const U32 size);
 
-private:
+  private:
     PrimaryHeader m_primaryHeader;
     SecondaryHeader m_secondaryHeader;
     DataField m_dataField;
@@ -249,5 +263,5 @@ private:
     }
 };
 
-}
+}  // namespace TMSpaceDataLink
 #endif  // TM_SPACE_DATA_LINK_TRANSFER_FRAME_HPP
