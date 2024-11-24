@@ -15,6 +15,8 @@
 
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
 #include <cstddef>
+#include "Fw/Buffer/Buffer.hpp"
+#include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Types/SerialStatusEnumAc.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
@@ -133,14 +135,18 @@ class PrimaryHeader : public Fw::Serializable {
     } __attribute__((packed)) ControlInformation_t;
 
     PrimaryHeader(MissionPhaseParameters_t const& params);
+    PrimaryHeader(MissionPhaseParameters_t const& params, TransferData_t &transferData);
     ~PrimaryHeader() = default;
     PrimaryHeader& operator=(const PrimaryHeader& other);
 
     const ControlInformation_t getControlInfo() { return m_ci; };
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t& transferData);
 
-  private:
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override;
+
+  private:
+    void setControlInfo(TransferData_t &transferData);
+    void setControlInfo(MissionPhaseParameters_t const& params);
 
     Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
         return Fw::SerializeStatus::FW_SERIALIZE_OK;
@@ -201,25 +207,18 @@ class DataField : public Fw::Serializable {
     static constexpr FwSizeType MAX_SIZE = 64;
 
   public:
-    // NOTE expand and leverage this to express service info
-    typedef enum {
-        VCAS,  // !< Virtual Channel Access Service
-        VCPS,  // !< Virtual Channel Packet Service
-    } ServiceType;
-
     DataField() = default;
+    DataField(Fw::Buffer const& data) : m_data(data){};
     ~DataField() = default;
     DataField& operator=(const DataField& other);
 
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, const U8* const data, const U32 size) const;
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
-        return Fw::SerializeStatus::FW_SERIALIZE_OK;
-    }
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override { return m_data.serialize(buffer); }
 
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
-        // currently unsupported
-        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-    }
+    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override { return m_data.deserialize(buffer); }
+
+  private:
+    Fw::Buffer m_data;
 };
 
 // clang-format off
@@ -237,6 +236,8 @@ class TransferFrame : public Fw::Serializable {
   public:
     TransferFrame(const MissionPhaseParameters_t& missionParams)
         : m_primaryHeader(missionParams), m_secondaryHeader(), m_dataField() {}
+    TransferFrame(PrimaryHeader &primaryHeader, DataField &dataField)
+        : m_primaryHeader(primaryHeader), m_secondaryHeader(), m_dataField(dataField) {}
     ~TransferFrame() = default;
 
     PrimaryHeader getPrimaryHeader() { return m_primaryHeader; };
