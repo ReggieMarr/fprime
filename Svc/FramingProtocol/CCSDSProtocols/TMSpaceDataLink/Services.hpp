@@ -21,6 +21,7 @@ namespace TMSpaceDataLink {
 
 // Packets 3.2.2 (Not currently supported)
 // using PACKET_SDU
+using VCP_SDU_t = Fw::ComPacket;
 
 // Virtual Access Service Data Unit 3.2.3
 using VCA_SDU_t = Fw::Buffer;
@@ -34,7 +35,7 @@ using FSH_SDU_t = Fw::Buffer;
 using OCF_SDU_t = Fw::Buffer;
 
 // Operational Control Field Service Data Unit  3.2.6
-using TM_SDU_t = TransferFrame;
+using FrameSDU_t = TransferFrame;
 
 // CCSDS 132.0-B-3 3.4.2.3
 // The Packet Order Flag (1 bit) and Segment Length ID (2 bits) may be used to convey
@@ -51,11 +52,61 @@ typedef struct VCARequest_s {
     VCA_SDU_t sdu;
     VCAStatusFields_t statusFields;
     GVCID_t sap;
-} VCARequest_t;
+} VCA_Request_t;
 
 typedef struct VCAServiceParameters_s {
     GVCID_t sap;
-} VCAServiceParameters_t;
+} VCA_ServiceParameters_t;
+
+typedef NATIVE_UINT_TYPE VCP_Request_t;
+typedef NATIVE_UINT_TYPE OCF_Request_t;
+typedef NATIVE_UINT_TYPE FSH_Request_t;
+typedef NATIVE_UINT_TYPE FrameRequest_t;
+typedef NATIVE_UINT_TYPE VCP_ServiceParameters_t;
+typedef NATIVE_UINT_TYPE OCF_ServiceParameters_t;
+typedef NATIVE_UINT_TYPE FSH_ServiceParameters_t;
+typedef NATIVE_UINT_TYPE FrameServiceParameters_t;
+
+// None type for optional services
+struct None {
+    template<typename... Args>
+    None(Args&&...) {} // Constructor that accepts anything but does nothing
+};
+
+// Type traits to check if service is None
+template<typename T>
+struct is_service_active : std::true_type {};
+
+template<>
+struct is_service_active<None> : std::false_type {};
+
+template<
+    typename UserDataService,
+    typename OCFService = None,
+    typename FSHService = None,
+    typename FrameService = None
+>
+class ServiceProcedure :
+    public UserDataService,
+    public std::conditional<is_service_active<OCFService>::value, OCFService, None>::type,
+    public std::conditional<is_service_active<FSHService>::value, FSHService, None>::type,
+    public std::conditional<is_service_active<FrameService>::value, FrameService, None>::type
+{
+public:
+    template<typename... Args>
+    ServiceProcedure(Args&&... args)
+        : UserDataService(std::forward<Args>(args)...)
+        // Optional services initialized only if active
+        , std::conditional<is_service_active<OCFService>::value, OCFService, None>::type(args...)
+        , std::conditional<is_service_active<FSHService>::value, FSHService, None>::type(args...)
+        , std::conditional<is_service_active<FrameService>::value, FrameService, None>::type(args...)
+    {}
+
+    // Helper methods to check if services are available
+    static constexpr bool hasOCF() { return is_service_active<OCFService>::value; }
+    static constexpr bool hasFSH() { return is_service_active<FSHService>::value; }
+    static constexpr bool hasFrame() { return is_service_active<FrameService>::value; }
+};
 
 typedef enum {
     SYNCHRONOUS = 0x1,
@@ -76,7 +127,7 @@ template <typename SDU_t,
 class TMService {
   public:
     TMService(ServiceParams_t const& serviceParams, FwSizeType const qDepth);
-    bool transfer(Fw::ComBuffer const& transferBuffer);
+    bool generatePrimitive();
     const Fw::String serviceName = "VCA SERVICE";
     const SERVICE_TRANSFER_TYPE_t serviceTransferType = SERVICE_TRANSFER_TYPE;
     const SAP_t sap = m_serviceParams.sap;
@@ -90,15 +141,49 @@ class TMService {
  * Virtual Channel Access Service (CCSDS 132.0-B-3 3.4)
  * Provides fixed-length data unit transfer across virtual channels
  */
-class VCAService : public TMService<VCA_SDU_t, GVCID_t, VCAServiceParameters_t, VCARequest_t, SYNCHRONOUS> {
+class VCAService : public TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
   public:
-    VCAService(VCAServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-        : TMService<VCA_SDU_t, GVCID_t, VCAServiceParameters_t, VCARequest_t, SYNCHRONOUS>(serviceParams, qDepth),
-          m_mutex() {}
-    // TODO add some packetize function here
+    VCAService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+        : TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS>(serviceParams, qDepth) {}
 
   private:
-    Os::Mutex m_mutex;  ///< Thread safety for queue access
+};
+
+class VCPService : public TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {
+  public:
+    VCPService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+        : TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS>(serviceParams, qDepth) {}
+
+  private:
+    bool generatePrimitive(); // generates VCP.request
+    bool PacketProcessing_handler(const Fw::Buffer& sdu) { return false; };
+};
+
+class FSHService : public TMService<FSH_SDU_t, GVCID_t, FSH_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
+  public:
+    FSHService(FSH_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+        : TMService<FSH_SDU_t, GVCID_t, FSH_ServiceParameters_t, FSH_Request_t, SYNCHRONOUS>(serviceParams, qDepth) {}
+  private:
+    bool generatePrimitive(); // generates FSH.request
+};
+
+class OCFService : public TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
+  public:
+    OCFService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+        : TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS>(serviceParams, qDepth) {}
+
+  private:
+    bool generatePrimitive(); // generates OCF.request
+};
+
+class FrameService : public TMService<FrameSDU_t, GVCID_t, FrameServiceParameters_t, FrameRequest_t, SYNCHRONOUS> {
+  public:
+    FrameService(FrameServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+        : TMService<FrameSDU_t, GVCID_t, FrameServiceParameters_t, FrameRequest_t, SYNCHRONOUS>(serviceParams, qDepth) {
+    }
+
+  private:
+    bool generatePrimitive(); // generates Frame.request
 };
 
 }  // namespace TMSpaceDataLink

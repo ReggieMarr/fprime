@@ -51,22 +51,15 @@ namespace TMSpaceDataLink {
 // The Segmenting and blocking functionality described in 2.3.1(b)
 // is implemented by the PacketProccessing_handler (if the VCP service is registered)
 // And the VirtualChannelGeneration_handler.
-class VirtualChannelSender : public VCAService {
+template <class UserDataProcessor = VCAService,
+          class OCFFieldGenerator = None,
+          class FSHFieldGenerator = None,
+          class FrameGenerator = None>
+class VirtualChannelSender : public UserDataProcessor {
   public:
     VirtualChannelSender(VirtualChannelParams_t const& params, FwSizeType const transferFrameSize, GVCID_t id)
-        : id(id), VCAService(VCAServiceParameters_t{id}, 1) {}
+        : id(id), VCAService(VCA_ServiceParameters_t{id}, 1) {}
 
-    // VirtualChannelSender(VirtualChannelSender const &other) :
-    //     VCAService(other), id(other.id) {}
-
-    // VirtualChannelSender& operator=(const VirtualChannelSender& other) {
-    //     if (this != &other) {
-    //         VCAService::operator=(other);
-    //     }
-    //     return *this;
-    // }
-
-    // NOTE should be const
     const GVCID_t id;
     bool transfer(Fw::ComBuffer const& transferBuffer);
 
@@ -74,8 +67,7 @@ class VirtualChannelSender : public VCAService {
     FwSizeType m_transferFrameSize;
 
   private:
-    bool PacketProcessing_handler(const Fw::Buffer& sdu);
-    bool VirtualChannelGeneration_handler(const Fw::Buffer& sdu);
+    bool ChannelGeneration_handler(const Fw::Buffer& sdu);
 };
 
 // template <class VCService>
