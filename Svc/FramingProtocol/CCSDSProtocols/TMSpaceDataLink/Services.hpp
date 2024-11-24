@@ -120,99 +120,69 @@ class ServiceProcedure
     static constexpr bool hasFrame() { return is_service_active<FrameService>::value; }
 };
 
+typedef enum {
+    SYNCHRONOUS = 0x1,
+    ASYNCHRONOUS = 0x2,
+    PERIODIC = 0x4,
+} SERVICE_TRANSFER_TYPE_t;
+
+typedef enum {
+    REQUEST,
+    INIDICATION,
+} SERVICE_TRANSFER_DIRECTION_t;
+
+template <typename SDU_t,
+          typename SAP_t,
+          typename ServiceParams_t,
+          typename ServiceTransferPrimitive_t,
+          SERVICE_TRANSFER_TYPE_t SERVICE_TRANSFER_TYPE>
+class TMService {
+  public:
+    TMService(ServiceParams_t const& serviceParams, FwSizeType const qDepth);
+    bool generatePrimitive();
+    const Fw::String serviceName = "VCA SERVICE";
+    const SERVICE_TRANSFER_TYPE_t serviceTransferType = SERVICE_TRANSFER_TYPE;
+    const SAP_t sap = m_serviceParams.sap;
+
+  private:
+    Os::Queue m_q;  // Queue for inter-task communication
+    ServiceParams_t m_serviceParams;
+};
+
+/**
+ * Virtual Channel Access Service (CCSDS 132.0-B-3 3.4)
+ * Provides fixed-length data unit transfer across virtual channels
+ */
 class VCAService {
   public:
     VCAService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth){};
+  private
+    bool generatePrimitive();  // generates VCP.request
 };
 
-// NOTE this is really just the TransferFrame class
-class FrameService {
+// NOTE the "FrameService" and "FSHService" can really just be replaced the
+// TransferFrame and SecondaryHeader classes (perhaps with some added stuff to conform) to a
+// "Service Interface" if need be
+
+class VCPService : public TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {
   public:
-    FrameService(FrameServiceParameters_t const& serviceParams, FwSizeType const qDepth){};
+    VCPService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+        : TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS>(serviceParams, qDepth) {}
+
+  private:
+    bool generatePrimitive();  // generates VCP.request
+    bool PacketProcessing_handler(const Fw::Buffer& sdu) { return false; };
 };
 
-// typedef enum {
-//     SYNCHRONOUS = 0x1,
-//     ASYNCHRONOUS = 0x2,
-//     PERIODIC = 0x4,
-// } SERVICE_TRANSFER_TYPE_t;
+// All this really is is something that inserts the Operational Control Flag into a transfer frame
+class OCFService : public TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
+  public:
+    OCFService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+        : TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS>(serviceParams, qDepth) {}
 
-// typedef enum {
-//     REQUEST,
-//     INIDICATION,
-// } SERVICE_TRANSFER_DIRECTION_t;
-
-// template <typename SDU_t,
-//           typename SAP_t,
-//           typename ServiceParams_t,
-//           typename ServiceTransferPrimitive_t,
-//           SERVICE_TRANSFER_TYPE_t SERVICE_TRANSFER_TYPE>
-// class TMService {
-//   public:
-//     TMService(ServiceParams_t const& serviceParams, FwSizeType const qDepth);
-//     bool generatePrimitive();
-//     const Fw::String serviceName = "VCA SERVICE";
-//     const SERVICE_TRANSFER_TYPE_t serviceTransferType = SERVICE_TRANSFER_TYPE;
-//     const SAP_t sap = m_serviceParams.sap;
-
-//   private:
-//     Os::Queue m_q;  // Queue for inter-task communication
-//     ServiceParams_t m_serviceParams;
-// };
-
-// /**
-//  * Virtual Channel Access Service (CCSDS 132.0-B-3 3.4)
-//  * Provides fixed-length data unit transfer across virtual channels
-//  */
-// class VCAService : public TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
-//   public:
-//     VCAService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-//         : TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
-//         {}
-
-//   private:
-// };
-
-// class VCPService : public TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {
-//   public:
-//     VCPService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-//         : TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
-//         {}
-
-//   private:
-//     bool generatePrimitive(); // generates VCP.request
-//     bool PacketProcessing_handler(const Fw::Buffer& sdu) { return false; };
-// };
-
-// class FSHService : public TMService<FSH_SDU_t, GVCID_t, FSH_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
-//   public:
-//     FSHService(FSH_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-//         : TMService<FSH_SDU_t, GVCID_t, FSH_ServiceParameters_t, FSH_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
-//         {}
-//   private:
-//     bool generatePrimitive(); // generates FSH.request
-// };
-
-// class OCFService : public TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
-//   public:
-//     OCFService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-//         : TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
-//         {}
-
-//   private:
-//     bool generatePrimitive(); // generates OCF.request
-// };
-
-// class FrameService : public TMService<FrameSDU_t, GVCID_t, FrameServiceParameters_t, FrameRequest_t, SYNCHRONOUS> {
-//   public:
-//     FrameService(FrameServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-//         : TMService<FrameSDU_t, GVCID_t, FrameServiceParameters_t, FrameRequest_t, SYNCHRONOUS>(serviceParams,
-//         qDepth) {
-//     }
-
-//   private:
-//     bool generatePrimitive(); // generates Frame.request
-// };
+  private:
+    bool generatePrimitive();  // generates OCF.request
+};
 
 }  // namespace TMSpaceDataLink
 

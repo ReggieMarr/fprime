@@ -49,6 +49,8 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
     // and then uses the Virtual Channel Framing Service to create a transfer frame
     // then sends it to the parent master channel via the queue for it to handle
     Fw::ComBuffer com(data.getData(), data.getSize());
+    // NOTE this implies that the virutal channel is setup to be synchronous
+    // we should support async and periodic with queues as well.
     virtualChannel.transfer(com);
 
     return channelStatus;

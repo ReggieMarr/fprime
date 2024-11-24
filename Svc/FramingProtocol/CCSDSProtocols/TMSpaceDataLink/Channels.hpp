@@ -107,14 +107,14 @@ class VirtualChannelSender
     virtual bool ChannelGeneration_handler(VCP_Request_t const& request, VCP_OCF_ChannelOut_t& channelOut) = 0;
 };
 
-using VCAFramedChannel = VirtualChannelSender<VCAService, FrameService>;
-template class VirtualChannelSender<VCAService, FrameService>;
+using VCAFramedChannel = VirtualChannelSender<VCAService, TransferFrame>;
+template class VirtualChannelSender<VCAService, TransferFrame>;
 
 // Helper to determine service type at compile time
 template <typename T>
 struct ServiceTraits {
     static constexpr bool is_vca = std::is_same<T, VCAService>::value;
-    static constexpr bool is_frame = std::is_same<T, FrameService>::value;
+    static constexpr bool is_frame = std::is_same<T, TransferFrame>::value;
 };
 
 // template <class VCService>
