@@ -29,7 +29,12 @@ template <typename SDU_t,
 bool TMService<SDU_t, SAP_t, ServiceParams_t, ServiceTransferPrimitive_t, SERVICE_TRANSFER_TYPE>::transfer(
     Fw::ComBuffer const& transferBuffer) {
     ServiceTransferPrimitive_t primitive;
-    m_q.send(transferBuffer);
+    FwQueuePriorityType priority = 0;
+    Os::Queue::BlockingType blockType = Os::Queue::BLOCKING;
+
+    m_q.send(transferBuffer.getBuffAddr(),
+             transferBuffer.getBuffCapacity(), priority, blockType);
+
     return true;
 }
 

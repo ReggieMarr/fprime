@@ -68,6 +68,7 @@ class VirtualChannelSender : public VCAService {
 
     // NOTE should be const
     const GVCID_t id;
+    bool transfer(Fw::ComBuffer const& transferBuffer);
 
   protected:
     FwSizeType m_transferFrameSize;

@@ -41,6 +41,14 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
 
     // VirtualChannelSender<VCAService> vc(vcParams, m_params.physicalParams.transferFrameSize, gvcid);
     Fw::ComBuffer com(data.getData(), data.getSize());
+    // This will transfer through the following services and functions
+    // PacketProcessing() (If VCP Service is supported)
+    // -> This packetizes the raw buffer according to some registered and well known scheme
+    // VCA will packetize the raw buffer/process it in a private manner
+    // VirtualChannelGeneration()
+    // -> Takes the packets and secondary header and/or operational control field (if services support)
+    // and then uses the Virtual Channel Framing Service to create a transfer frame
+    // then sends it to the parent master channel via the queue for it to handle
     vc.transfer(com);
 
     return channelStatus;

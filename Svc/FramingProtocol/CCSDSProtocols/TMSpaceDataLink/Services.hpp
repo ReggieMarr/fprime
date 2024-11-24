@@ -95,6 +95,7 @@ class VCAService : public TMService<VCA_SDU_t, GVCID_t, VCAServiceParameters_t, 
     VCAService(VCAServiceParameters_t const& serviceParams, FwSizeType const qDepth)
         : TMService<VCA_SDU_t, GVCID_t, VCAServiceParameters_t, VCARequest_t, SYNCHRONOUS>(serviceParams, qDepth),
           m_mutex() {}
+    // TODO add some packetize function here
 
   private:
     Os::Mutex m_mutex;  ///< Thread safety for queue access

@@ -5,13 +5,21 @@ namespace TMSpaceDataLink {
 
 bool VirtualChannelSender::PacketProcessing_handler(const Fw::Buffer& sdu) {
     // Simulate segmenting and blocking
-    // TODO not currently implemented
-    return false;
+    return true;
 }
 
 bool VirtualChannelSender::VirtualChannelGeneration_handler(const Fw::Buffer& sdu) {
     // Generate Transfer Frame for the Virtual Channel
+
     return true;
+}
+bool  VirtualChannelSender::transfer(Fw::ComBuffer const& transferBuffer) {
+    bool status = false;
+
+    status = VCAService::transfer(transferBuffer);
+    FW_ASSERT(status, status);
+
+    return status;
 }
 
 // bool MasterChannelSender::VirtualChannelMultiplexing_handler(const std::array<Fw::Buffer, 8>& vcFrames) {
