@@ -55,9 +55,6 @@ typedef struct VCARequest_s {
 
 typedef struct VCAServiceParameters_s {
     GVCID_t sap;
-    // TODO should probs use something that doesn't require ser and deser on each request/receive
-    // or leverage this better by turning things into components
-    Os::Queue primQ;
 } VCAServiceParameters_t;
 
 typedef enum {
@@ -85,6 +82,7 @@ class TMService {
     const SAP_t sap = m_serviceParams.sap;
 
   private:
+    Os::Queue m_q;  // Queue for inter-task communication
     ServiceParams_t m_serviceParams;
 };
 

@@ -14,7 +14,7 @@ TMService<SDU_t, SAP_t, ServiceParams_t, ServiceTransferPrimitive_t, SERVICE_TRA
     FwSizeType const qDepth)
     : sap(serviceParams.sap), m_serviceParams(serviceParams) {
     Os::Queue::Status status;
-    m_serviceParams.primQ.create(serviceName, qDepth, sizeof(ServiceTransferPrimitive_t));
+    m_q.create(serviceName, qDepth, sizeof(ServiceTransferPrimitive_t));
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 }
 
@@ -29,7 +29,7 @@ template <typename SDU_t,
 bool TMService<SDU_t, SAP_t, ServiceParams_t, ServiceTransferPrimitive_t, SERVICE_TRANSFER_TYPE>::transfer(
     Fw::ComBuffer const& transferBuffer) {
     ServiceTransferPrimitive_t primitive;
-    m_serviceParams.primQ.send(transferBuffer);
+    m_q.send(transferBuffer);
     return true;
 }
 

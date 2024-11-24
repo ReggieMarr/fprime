@@ -34,13 +34,14 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
     // TODO should have some sort of routing function here that takes the context
     // and gets the MCID and GVCID
     bool channelStatus = true;
-    VCAServiceParameters_t params;
-    // VirtualChannelParams_t vcParams = m_params.physicalParams.subChannels.at(0).subChannels.at(0);
-    // MCID_t mcid = {m_params.physicalParams.transferFrameVersion, 0};
-    // GVCID_t gvcid = {mcid, 0};
+    VirtualChannelParams_t vcParams = m_params.physicalParams.subChannels.at(0).subChannels.at(0);
+    MCID_t mcid = {m_params.physicalParams.transferFrameVersion, 0};
+    GVCID_t gvcid = {mcid, 0};
+    VirtualChannelSender vc(vcParams, m_params.physicalParams.transferFrameSize, gvcid);
+
     // VirtualChannelSender<VCAService> vc(vcParams, m_params.physicalParams.transferFrameSize, gvcid);
-    // Fw::ComBuffer com(data.getData(), data.getSize());
-    // vc.transfer(com);
+    Fw::ComBuffer com(data.getData(), data.getSize());
+    vc.transfer(com);
 
     return channelStatus;
 }

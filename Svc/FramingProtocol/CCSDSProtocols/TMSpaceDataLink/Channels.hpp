@@ -54,7 +54,7 @@ namespace TMSpaceDataLink {
 class VirtualChannelSender : public VCAService {
   public:
     VirtualChannelSender(VirtualChannelParams_t const& params, FwSizeType const transferFrameSize, GVCID_t id)
-        : id(id), m_queue(), VCAService(createService(params, id, &m_queue)) {}
+        : id(id), VCAService(VCAServiceParameters_t{id}, 1) {}
 
     // VirtualChannelSender(VirtualChannelSender const &other) :
     //     VCAService(other), id(other.id) {}
@@ -71,17 +71,10 @@ class VirtualChannelSender : public VCAService {
 
   protected:
     FwSizeType m_transferFrameSize;
-    Os::Queue m_queue;  // Queue for inter-task communication
+
   private:
     bool PacketProcessing_handler(const Fw::Buffer& sdu);
     bool VirtualChannelGeneration_handler(const Fw::Buffer& sdu);
-
-    static VCAService* createService(VirtualChannelParams_t const& channelParams, GVCID_t id, Os::Queue& q) {
-        VCAServiceParameters_t serviceParams;
-        serviceParams.sap = id;
-        serviceParams.primQ = q;
-        return VCAService(serviceParams, 1);
-    }
 };
 
 // template <class VCService>
