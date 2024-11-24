@@ -18,24 +18,14 @@
 #include "Utils/Types/CircularBuffer.hpp"
 
 namespace TMSpaceDataLink {
+
+PrimaryHeader::PrimaryHeader(MissionPhaseParameters_t const& params, TransferData_t &transferData) {
+    setControlInfo(transferData);
+    setControlInfo(params);
+}
+
 PrimaryHeader::PrimaryHeader(MissionPhaseParameters_t const& params) {
-    // These fields are mission parameters and must be constant over the course of the mission phase
-    m_ci.transferFrameVersion = params.transferFrameVersion;
-    // as per CCSDS 132.0-B-3 4.1.2.1
-    // the Spacecraft Id is placed with a 4 bit offset within the first octet
-    m_ci.spacecraftId = params.spaceCraftId;
-    m_ci.operationalControlFlag = params.hasOperationalControlFlag;
-    m_ci.dataFieldStatus.hasSecondaryHeader = params.hasSecondaryHeader;
-    m_ci.dataFieldStatus.isSyncFlagEnabled = params.isSyncFlagEnabled;
-
-    // Recommended value as per CCSDS 132.0-B-3 4.1.2.7.4
-    m_ci.dataFieldStatus.isPacketOrdered = false;
-
-    // If the sync flag field is true then segementLengthId is undefined
-    // otherwise set it to 0b11
-    if (!m_ci.dataFieldStatus.isSyncFlagEnabled) {
-        m_ci.dataFieldStatus.segmentLengthId = 0b11;
-    }
+    setControlInfo(params);
 }
 
 Fw::SerializeStatus PrimaryHeader::serialize(Fw::SerializeBufferBase& buffer) const {
@@ -85,7 +75,27 @@ Fw::SerializeStatus PrimaryHeader::serialize(Fw::SerializeBufferBase& buffer) co
     return Fw::SerializeStatus::FW_SERIALIZE_OK;
 }
 
-Fw::SerializeStatus PrimaryHeader::serialize(Fw::SerializeBufferBase& buffer, TransferData_t& transferData) {
+void PrimaryHeader::setControlInfo(MissionPhaseParameters_t const& params) {
+    // These fields are mission parameters and must be constant over the course of the mission phase
+    m_ci.transferFrameVersion = params.transferFrameVersion;
+    // as per CCSDS 132.0-B-3 4.1.2.1
+    // the Spacecraft Id is placed with a 4 bit offset within the first octet
+    m_ci.spacecraftId = params.spaceCraftId;
+    m_ci.operationalControlFlag = params.hasOperationalControlFlag;
+    m_ci.dataFieldStatus.hasSecondaryHeader = params.hasSecondaryHeader;
+    m_ci.dataFieldStatus.isSyncFlagEnabled = params.isSyncFlagEnabled;
+
+    // Recommended value as per CCSDS 132.0-B-3 4.1.2.7.4
+    m_ci.dataFieldStatus.isPacketOrdered = false;
+
+    // If the sync flag field is true then segementLengthId is undefined
+    // otherwise set it to 0b11
+    if (!m_ci.dataFieldStatus.isSyncFlagEnabled) {
+        m_ci.dataFieldStatus.segmentLengthId = 0b11;
+    }
+}
+
+void PrimaryHeader::setControlInfo(TransferData_t& transferData) {
     // Set the transfer specific control info
     m_ci.virtualChannelId = transferData.virtualChannelId;
     m_ci.masterChannelFrameCount = transferData.masterChannelFrameCount;
@@ -103,6 +113,10 @@ Fw::SerializeStatus PrimaryHeader::serialize(Fw::SerializeBufferBase& buffer, Tr
             FW_ASSERT(m_ci.dataFieldStatus.firstHeaderPointer == IDLE_TYPE);
         }
     }
+}
+
+Fw::SerializeStatus PrimaryHeader::serialize(Fw::SerializeBufferBase& buffer, TransferData_t& transferData) {
+    setControlInfo(transferData);
 
     // Serialize the actual buffer now that the internal state is correct
     return serialize(buffer);

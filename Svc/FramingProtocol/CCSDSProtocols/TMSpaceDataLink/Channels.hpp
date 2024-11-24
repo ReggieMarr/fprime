@@ -47,27 +47,74 @@ namespace TMSpaceDataLink {
 //     virtual bool propogate(const Fw::Buffer& sdu) = 0;  // Abstract process method
 // };
 
+// Primary template for transfer implementation
+template <typename UserDataProcessor,
+          typename OCFService,
+          typename FSHService,
+          typename FrameService,
+          bool HasOCF = is_service_active<OCFService>::value,
+          bool HasFSH = is_service_active<FSHService>::value,
+          bool HasFrame = is_service_active<FrameService>::value>
+struct TransferImpl;
+
 // Virtual Channel Implementation
 // The Segmenting and blocking functionality described in 2.3.1(b)
 // is implemented by the PacketProccessing_handler (if the VCP service is registered)
 // And the VirtualChannelGeneration_handler.
-template <class UserDataProcessor = VCAService,
-          class OCFFieldGenerator = None,
-          class FSHFieldGenerator = None,
-          class FrameGenerator = None>
-class VirtualChannelSender : public UserDataProcessor {
+template <typename UserDataProcessor,
+          typename OCFFieldGenerator = OCF_None,
+          typename FSHFieldGenerator = FSH_None,
+          typename FrameGenerator = FrameNone>
+class VirtualChannelSender
+    : public ServiceProcedure<UserDataProcessor, OCFFieldGenerator, FSHFieldGenerator, FrameGenerator> {
+    using BaseType = ServiceProcedure<UserDataProcessor, OCFFieldGenerator, FSHFieldGenerator, FrameGenerator>;
+
   public:
     VirtualChannelSender(VirtualChannelParams_t const& params, FwSizeType const transferFrameSize, GVCID_t id)
-        : id(id), VCAService(VCA_ServiceParameters_t{id}, 1) {}
+        : BaseType(VCA_ServiceParameters_t{id}, 1), id(id), m_transferFrameSize(transferFrameSize) {}
 
     const GVCID_t id;
-    bool transfer(Fw::ComBuffer const& transferBuffer);
+
+    bool transfer(Fw::ComBuffer const& transferBuffer) {
+        return TransferImpl<UserDataProcessor, OCFFieldGenerator, FSHFieldGenerator, FrameGenerator>::transfer(
+            this, transferBuffer);
+    }
 
   protected:
     FwSizeType m_transferFrameSize;
 
   private:
-    bool ChannelGeneration_handler(const Fw::Buffer& sdu);
+    // In general the ChannelGeneration creates the output that the channel transfers
+    // if VCF service is available then this means it represents the channel as TransferFrame
+    // if not then it will be a composite object that provides those fields that the virtual channel
+    // can set in the TransferFrame at this time.
+    // NOTE we could use composites to create these structures
+    bool ChannelGeneration_handler(VCA_Request_t const& request, TransferFrame& channelOut);
+    // place holders for now
+    typedef NATIVE_UINT_TYPE VCA_OCF_FSH_ChannelOut_t;
+    typedef NATIVE_INT_TYPE VCA_FSH_ChannelOut_t;
+    typedef U8 VCA_OCF_ChannelOut_t;
+    virtual bool ChannelGeneration_handler(VCA_Request_t const& request, VCA_OCF_FSH_ChannelOut_t& channelOut) = 0;
+    virtual bool ChannelGeneration_handler(VCA_Request_t const& request, VCA_FSH_ChannelOut_t& channelOut) = 0;
+    virtual bool ChannelGeneration_handler(VCA_Request_t const& request, VCA_OCF_ChannelOut_t& channelOut) = 0;
+
+    typedef NATIVE_UINT_TYPE VCP_OCF_FSH_ChannelOut_t;
+    typedef NATIVE_INT_TYPE VCP_FSH_ChannelOut_t;
+    typedef U8 VCP_OCF_ChannelOut_t;
+    virtual bool ChannelGeneration_handler(VCP_Request_t const& request, TransferFrame& channelOut) = 0;
+    virtual bool ChannelGeneration_handler(VCP_Request_t const& request, VCP_OCF_FSH_ChannelOut_t& channelOut) = 0;
+    virtual bool ChannelGeneration_handler(VCP_Request_t const& request, VCP_FSH_ChannelOut_t& channelOut) = 0;
+    virtual bool ChannelGeneration_handler(VCP_Request_t const& request, VCP_OCF_ChannelOut_t& channelOut) = 0;
+};
+
+using VCAFramedChannel = VirtualChannelSender<VCAService, FrameService>;
+template class VirtualChannelSender<VCAService, FrameService>;
+
+// Helper to determine service type at compile time
+template <typename T>
+struct ServiceTraits {
+    static constexpr bool is_vca = std::is_same<T, VCAService>::value;
+    static constexpr bool is_frame = std::is_same<T, FrameService>::value;
 };
 
 // template <class VCService>

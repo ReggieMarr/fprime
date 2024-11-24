@@ -37,10 +37,9 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
     VirtualChannelParams_t vcParams = m_params.physicalParams.subChannels.at(0).subChannels.at(0);
     MCID_t mcid = {m_params.physicalParams.transferFrameVersion, 0};
     GVCID_t gvcid = {mcid, 0};
-    VirtualChannelSender vc(vcParams, m_params.physicalParams.transferFrameSize, gvcid);
+    FwSizeType transferFrameSize;
+    VCAFramedChannel virtualChannel(vcParams, transferFrameSize, gvcid);
 
-    // VirtualChannelSender<VCAService> vc(vcParams, m_params.physicalParams.transferFrameSize, gvcid);
-    Fw::ComBuffer com(data.getData(), data.getSize());
     // This will transfer through the following services and functions
     // PacketProcessing() (If VCP Service is supported)
     // -> This packetizes the raw buffer according to some registered and well known scheme
@@ -49,7 +48,8 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
     // -> Takes the packets and secondary header and/or operational control field (if services support)
     // and then uses the Virtual Channel Framing Service to create a transfer frame
     // then sends it to the parent master channel via the queue for it to handle
-    vc.transfer(com);
+    Fw::ComBuffer com(data.getData(), data.getSize());
+    virtualChannel.transfer(com);
 
     return channelStatus;
 }
