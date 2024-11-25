@@ -134,8 +134,9 @@ class PrimaryHeader : public Fw::Serializable {
         DataFieldStatus_t dataFieldStatus;
     } __attribute__((packed)) ControlInformation_t;
 
+    PrimaryHeader() = default;
     PrimaryHeader(MissionPhaseParameters_t const& params);
-    PrimaryHeader(MissionPhaseParameters_t const& params, TransferData_t &transferData);
+    PrimaryHeader(MissionPhaseParameters_t const& params, TransferData_t& transferData);
     ~PrimaryHeader() = default;
     PrimaryHeader& operator=(const PrimaryHeader& other);
 
@@ -145,7 +146,7 @@ class PrimaryHeader : public Fw::Serializable {
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override;
 
   private:
-    void setControlInfo(TransferData_t &transferData);
+    void setControlInfo(TransferData_t& transferData);
     void setControlInfo(MissionPhaseParameters_t const& params);
 
     Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
@@ -234,9 +235,10 @@ class DataField : public Fw::Serializable {
 // clang-format on
 class TransferFrame : public Fw::Serializable {
   public:
+    TransferFrame() = default;
     TransferFrame(const MissionPhaseParameters_t& missionParams)
         : m_primaryHeader(missionParams), m_secondaryHeader(), m_dataField() {}
-    TransferFrame(PrimaryHeader &primaryHeader, DataField &dataField)
+    TransferFrame(PrimaryHeader& primaryHeader, DataField& dataField)
         : m_primaryHeader(primaryHeader), m_secondaryHeader(), m_dataField(dataField) {}
     ~TransferFrame() = default;
 
@@ -249,15 +251,15 @@ class TransferFrame : public Fw::Serializable {
                                   const U8* const data,
                                   const U32 size);
 
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
+        return Fw::SerializeStatus::FW_SERIALIZE_OK;
+    }
+
   private:
     PrimaryHeader m_primaryHeader;
     SecondaryHeader m_secondaryHeader;
     DataField m_dataField;
     using CheckSum = Svc::FrameDetectors::TMSpaceDataLinkChecksum;
-
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
-        return Fw::SerializeStatus::FW_SERIALIZE_OK;
-    }
 
     Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
         return Fw::SerializeStatus::FW_SERIALIZE_OK;
