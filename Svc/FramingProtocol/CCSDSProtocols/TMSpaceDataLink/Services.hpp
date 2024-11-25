@@ -138,40 +138,43 @@ typedef enum {
     INIDICATION,
 } SERVICE_TRANSFER_DIRECTION_t;
 
-template <typename SDU_t,
-          typename SAP_t,
-          typename ServiceParams_t,
-          typename ServiceTransferPrimitive_t,
-          SERVICE_TRANSFER_TYPE_t SERVICE_TRANSFER_TYPE>
-class TMService {
-  public:
-    // NOTE based on the spec it seems as though this should happen at the service level but
-    TMService(ServiceParams_t const& serviceParams, FwSizeType const qDepth)
-        : m_serviceParams(serviceParams), sap(serviceParams.sap) {}
-    //     Os::Queue::Status status;
-    //     m_q.create(serviceName, qDepth, sizeof(ServiceTransferPrimitive_t));
-    //     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
-    // }
-    const Fw::String serviceName = "DEFAULT SERVICE";
-    const SERVICE_TRANSFER_TYPE_t serviceTransferType = SERVICE_TRANSFER_TYPE;
-    const SAP_t sap;
+// template <typename SDU_t,
+//           typename SAP_t,
+//           typename ServiceParams_t,
+//           typename ServiceTransferPrimitive_t,
+//           SERVICE_TRANSFER_TYPE_t SERVICE_TRANSFER_TYPE>
+// class TMService {
+//   public:
+//     // NOTE based on the spec it seems as though this should happen at the service level but
+//     TMService(ServiceParams_t const& serviceParams, FwSizeType const qDepth)
+//         : m_serviceParams(serviceParams), sap(serviceParams.sap) {}
+//     //     Os::Queue::Status status;
+//     //     m_q.create(serviceName, qDepth, sizeof(ServiceTransferPrimitive_t));
+//     //     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
+//     // }
+//     const Fw::String serviceName = "DEFAULT SERVICE";
+//     const SERVICE_TRANSFER_TYPE_t serviceTransferType = SERVICE_TRANSFER_TYPE;
+//     const SAP_t sap;
 
-    bool generatePrimitive(ServiceTransferPrimitive_t& prim);
+//     bool generatePrimitive(ServiceTransferPrimitive_t& prim);
 
-  protected:
-    // Os::Queue m_q;  // Queue for inter-task communication
-    ServiceParams_t m_serviceParams;
-};
+//   protected:
+//     // Os::Queue m_q;  // Queue for inter-task communication
+//     ServiceParams_t m_serviceParams;
+// };
 
 /**
  * Virtual Channel Access Service (CCSDS 132.0-B-3 3.4)
  * Provides fixed-length data unit transfer across virtual channels
  */
-class VCAService : public TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
+class VCAService {
   public:
     VCAService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-        : TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS>(serviceParams, qDepth){};
-    using BaseType = TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS>;
+        : m_serviceParams(serviceParams), sap(serviceParams.sap) {}
+
+    const Fw::String serviceName = "DEFAULT SERVICE";
+    const SERVICE_TRANSFER_TYPE_t serviceTransferType = SYNCHRONOUS;
+    const GVCID_t sap;
 
     bool generatePrimitive(Fw::ComBuffer& transferBuffer, VCA_Request_t& prim) {
         // NOTE should handle this in some way that respect const
@@ -181,21 +184,30 @@ class VCAService : public TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t,
         prim.statusFields = {};
         return true;
     }
+
+  protected:
+    VCA_ServiceParameters_t m_serviceParams;
 };
 
 // NOTE the "FrameService" and "FSHService" can really just be replaced by the
 // TransferFrame and SecondaryHeader classes
 // The only reason we'd have this is to conform to a "Service Interface" if need be
-class FrameService : public TMService<FrameSDU_t, GVCID_t, FrameServiceParameters_t, FrameRequest_t, SYNCHRONOUS> {
+class FrameService {
   public:
     FrameService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-        : TMService<FrameSDU_t, GVCID_t, FrameServiceParameters_t, FrameRequest_t, SYNCHRONOUS>(serviceParams,
-                                                                                                qDepth){};
+        : m_serviceParams(serviceParams), sap(serviceParams.sap) {}
+
+    const Fw::String serviceName = "DEFAULT SERVICE";
+    const SERVICE_TRANSFER_TYPE_t serviceTransferType = SYNCHRONOUS;
+    const GVCID_t sap;
     bool generatePrimitive(Fw::ComBuffer& transferBuffer, FrameRequest_t& prim) {
         // NOTE should handle this in some way that respect const
         prim.serialize(transferBuffer);
         return true;
     }
+
+  protected:
+    FrameServiceParameters_t m_serviceParams;
 };
 
 // class VCPService : public TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {

@@ -27,17 +27,25 @@ namespace TMSpaceDataLink {
 // The Segmenting and blocking functionality described in CCSDS 132.0-B-3 2.3.1(b)
 // is implemented by the PacketProccessing_handler (if the VCP service is registered)
 // And the VirtualChannelGeneration_handler.
-template <typename UserDataProcessor,
-          typename OCFFieldGenerator = OCF_None,
-          typename FSHFieldGenerator = FSH_None,
-          typename FrameGenerator = FrameNone>
-class VirtualChannel
-    : public ServiceProcedure<UserDataProcessor, OCFFieldGenerator, FSHFieldGenerator, FrameGenerator> {
-    using BaseType = ServiceProcedure<UserDataProcessor, OCFFieldGenerator, FSHFieldGenerator, FrameGenerator>;
+// template <typename UserDataProcessor,
+//           typename OCFFieldGenerator = OCF_None,
+//           typename FSHFieldGenerator = FSH_None,
+//           typename FrameGenerator = FrameNone>
+// class VirtualChannel
+//     : public ServiceProcedure<UserDataProcessor, OCFFieldGenerator, FSHFieldGenerator, FrameGenerator> {
+//     using BaseType = ServiceProcedure<UserDataProcessor, OCFFieldGenerator, FSHFieldGenerator, FrameGenerator>;
 
+// TODO replace with a real value
+constexpr FwSizeType virtualChannelQDepth = 10;
+template <typename UserDataProcessor, typename FrameGenerator>
+class VirtualChannel : public UserDataProcessor, public FrameGenerator {
   public:
     VirtualChannel(VirtualChannelParams_t const& params, FwSizeType const transferFrameSize, GVCID_t id)
-        : BaseType(VCA_ServiceParameters_t{id}, 1), id(id), m_transferFrameSize(transferFrameSize), m_q() {
+        : UserDataProcessor(params, virtualChannelQDepth),
+          FrameService(params, virtualChannelQDepth),
+          id(id),
+          m_transferFrameSize(transferFrameSize),
+          m_q() {
         Os::Queue::Status status;
         Fw::String name = "Virtual Channel";
         FwSizeType qDepth = 1;
@@ -81,7 +89,7 @@ class VirtualChannel
     // virtual bool ChannelGeneration_handler(VCP_Request_t const& request, VCP_OCF_ChannelOut_t& channelOut) = 0;
 };
 
-using VCAFramedChannel = VirtualChannel<VCAService, TransferFrame>;
+using VCAFramedChannel = VirtualChannel<VCAService, FrameService>;
 // TODO we should be able to put this in a cpp file
 template <>
 class VirtualChannel<VCAService, TransferFrame> {
