@@ -55,13 +55,6 @@ typedef struct VCARequest_s {
     GVCID_t sap;
 } VCA_Request_t;
 
-typedef struct VCAServiceParameters_s {
-    GVCID_t sap;
-} VCA_ServiceParameters_t;
-
-// this is just one indication of a few that we need to rethink things here
-using FrameServiceParameters_t = VCA_ServiceParameters_t;
-
 typedef NATIVE_UINT_TYPE VCP_Request_t;
 typedef NATIVE_UINT_TYPE OCF_Request_t;
 typedef NATIVE_UINT_TYPE FSH_Request_t;
@@ -169,14 +162,13 @@ typedef enum {
  */
 class VCAService {
   public:
-    VCAService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-        : m_serviceParams(serviceParams), sap(serviceParams.sap) {}
+    VCAService(GVCID_t gvcid) : sap(gvcid){};
 
     const Fw::String serviceName = "DEFAULT SERVICE";
     const SERVICE_TRANSFER_TYPE_t serviceTransferType = SYNCHRONOUS;
     const GVCID_t sap;
 
-    bool generatePrimitive(Fw::ComBuffer& transferBuffer, VCA_Request_t& prim) {
+    bool generateVCAPrimitive(Fw::ComBuffer& transferBuffer, VCA_Request_t& prim) {
         // NOTE should handle this in some way that respect const
         prim.sdu.serialize(transferBuffer);
         prim.sap = sap;
@@ -184,9 +176,6 @@ class VCAService {
         prim.statusFields = {};
         return true;
     }
-
-  protected:
-    VCA_ServiceParameters_t m_serviceParams;
 };
 
 // NOTE the "FrameService" and "FSHService" can really just be replaced by the
@@ -194,20 +183,16 @@ class VCAService {
 // The only reason we'd have this is to conform to a "Service Interface" if need be
 class FrameService {
   public:
-    FrameService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-        : m_serviceParams(serviceParams), sap(serviceParams.sap) {}
+    FrameService(GVCID_t gvcid) : sap(gvcid){};
 
     const Fw::String serviceName = "DEFAULT SERVICE";
     const SERVICE_TRANSFER_TYPE_t serviceTransferType = SYNCHRONOUS;
     const GVCID_t sap;
-    bool generatePrimitive(Fw::ComBuffer& transferBuffer, FrameRequest_t& prim) {
+    bool generateFramePrimitive(Fw::ComBuffer& transferBuffer, FrameRequest_t& prim) {
         // NOTE should handle this in some way that respect const
         prim.serialize(transferBuffer);
         return true;
     }
-
-  protected:
-    FrameServiceParameters_t m_serviceParams;
 };
 
 // class VCPService : public TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {
