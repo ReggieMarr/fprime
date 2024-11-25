@@ -59,14 +59,16 @@ typedef struct VCAServiceParameters_s {
     GVCID_t sap;
 } VCA_ServiceParameters_t;
 
+// this is just one indication of a few that we need to rethink things here
+using FrameServiceParameters_t = VCA_ServiceParameters_t;
+
 typedef NATIVE_UINT_TYPE VCP_Request_t;
 typedef NATIVE_UINT_TYPE OCF_Request_t;
 typedef NATIVE_UINT_TYPE FSH_Request_t;
-typedef NATIVE_UINT_TYPE FrameRequest_t;
+using FrameRequest_t = FrameSDU_t;
 typedef NATIVE_UINT_TYPE VCP_ServiceParameters_t;
 typedef NATIVE_UINT_TYPE OCF_ServiceParameters_t;
 typedef NATIVE_UINT_TYPE FSH_ServiceParameters_t;
-typedef NATIVE_UINT_TYPE FrameServiceParameters_t;
 
 // None type for optional services
 struct OCF_None {
@@ -95,6 +97,11 @@ struct is_service_active<FSH_None> : std::false_type {};
 template <>
 struct is_service_active<FrameNone> : std::false_type {};
 
+// This exists so that we can declare channels like this:
+// using VCAFramedChannel = VirtualChannel<VCAService, TransferFrame>;
+// template class VirtualChannel<VCAService, TransferFrame>;
+// however it introduces some complexity and possibly the diamon problem.
+// A better strategy might just be nesting inheritance on service classes
 template <typename UserDataService,
           typename OCFService = OCF_None,
           typename FSHService = FSH_None,
@@ -138,14 +145,21 @@ template <typename SDU_t,
           SERVICE_TRANSFER_TYPE_t SERVICE_TRANSFER_TYPE>
 class TMService {
   public:
-    TMService(ServiceParams_t const& serviceParams, FwSizeType const qDepth);
-    bool generatePrimitive();
-    const Fw::String serviceName = "VCA SERVICE";
+    // NOTE based on the spec it seems as though this should happen at the service level but
+    TMService(ServiceParams_t const& serviceParams, FwSizeType const qDepth)
+        : m_serviceParams(serviceParams), sap(serviceParams.sap) {}
+    //     Os::Queue::Status status;
+    //     m_q.create(serviceName, qDepth, sizeof(ServiceTransferPrimitive_t));
+    //     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
+    // }
+    const Fw::String serviceName = "DEFAULT SERVICE";
     const SERVICE_TRANSFER_TYPE_t serviceTransferType = SERVICE_TRANSFER_TYPE;
-    const SAP_t sap = m_serviceParams.sap;
+    const SAP_t sap;
 
-  private:
-    Os::Queue m_q;  // Queue for inter-task communication
+    bool generatePrimitive(ServiceTransferPrimitive_t& prim);
+
+  protected:
+    // Os::Queue m_q;  // Queue for inter-task communication
     ServiceParams_t m_serviceParams;
 };
 
@@ -153,36 +167,58 @@ class TMService {
  * Virtual Channel Access Service (CCSDS 132.0-B-3 3.4)
  * Provides fixed-length data unit transfer across virtual channels
  */
-class VCAService {
+class VCAService : public TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
   public:
-    VCAService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth){};
-  private
-    bool generatePrimitive();  // generates VCP.request
+    VCAService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+        : TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS>(serviceParams, qDepth){};
+    using BaseType = TMService<VCA_SDU_t, GVCID_t, VCA_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS>;
+
+    bool generatePrimitive(Fw::ComBuffer& transferBuffer, VCA_Request_t& prim) {
+        // NOTE should handle this in some way that respect const
+        prim.sdu.serialize(transferBuffer);
+        prim.sap = sap;
+        // TODO actually handle this
+        prim.statusFields = {};
+        return true;
+    }
 };
 
-// NOTE the "FrameService" and "FSHService" can really just be replaced the
-// TransferFrame and SecondaryHeader classes (perhaps with some added stuff to conform) to a
-// "Service Interface" if need be
-
-class VCPService : public TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {
+// NOTE the "FrameService" and "FSHService" can really just be replaced by the
+// TransferFrame and SecondaryHeader classes
+// The only reason we'd have this is to conform to a "Service Interface" if need be
+class FrameService : public TMService<FrameSDU_t, GVCID_t, FrameServiceParameters_t, FrameRequest_t, SYNCHRONOUS> {
   public:
-    VCPService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-        : TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS>(serviceParams, qDepth) {}
-
-  private:
-    bool generatePrimitive();  // generates VCP.request
-    bool PacketProcessing_handler(const Fw::Buffer& sdu) { return false; };
+    FrameService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+        : TMService<FrameSDU_t, GVCID_t, FrameServiceParameters_t, FrameRequest_t, SYNCHRONOUS>(serviceParams,
+                                                                                                qDepth){};
+    bool generatePrimitive(Fw::ComBuffer& transferBuffer, FrameRequest_t& prim) {
+        // NOTE should handle this in some way that respect const
+        prim.serialize(transferBuffer);
+        return true;
+    }
 };
 
-// All this really is is something that inserts the Operational Control Flag into a transfer frame
-class OCFService : public TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, VCA_Request_t, SYNCHRONOUS> {
-  public:
-    OCFService(VCA_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-        : TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS>(serviceParams, qDepth) {}
+// class VCPService : public TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {
+//   public:
+//     VCPService(VCP_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+//         : TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
+//         {}
 
-  private:
-    bool generatePrimitive();  // generates OCF.request
-};
+//   private:
+//     bool generatePrimitive();  // generates VCP.request
+//     bool PacketProcessing_handler(const Fw::Buffer& sdu) { return false; };
+// };
+
+// // All this really is is something that inserts the Operational Control Flag into a transfer frame
+// class OCFService : public TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS> {
+//   public:
+//     OCFService(OCF_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
+//         : TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
+//         {}
+
+//   private:
+//     bool generatePrimitive();  // generates OCF.request
+// };
 
 }  // namespace TMSpaceDataLink
 
