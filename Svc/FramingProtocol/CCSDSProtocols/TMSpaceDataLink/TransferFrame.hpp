@@ -145,6 +145,9 @@ class PrimaryHeader : public Fw::Serializable {
 
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override;
 
+    void setMasterChannelCount(U8 channelCount) { m_ci.masterChannelFrameCount = channelCount; };
+    void setVirtualChannelCount(U8 channelCount) { m_ci.virtualChannelFrameCount = channelCount; };
+
   private:
     void setControlInfo(TransferData_t& transferData);
     void setControlInfo(MissionPhaseParameters_t const& params);
@@ -233,7 +236,7 @@ class DataField : public Fw::Serializable {
 // | 6 octets                | Up to 64 octets        | Varies                 | 4 octets                | 2 octets                |
 // +-------------------------+------------------------+------------------------+-------------------------+-------------------------+
 // clang-format on
-class TransferFrame : public Fw::Serializable {
+class TransferFrame : public Fw::Buffer {
   public:
     TransferFrame() = default;
     TransferFrame(const MissionPhaseParameters_t& missionParams)
@@ -267,4 +270,14 @@ class TransferFrame : public Fw::Serializable {
 };
 
 }  // namespace TMSpaceDataLink
+
+// namespace Os {
+//     namespace Generic {
+//         namespace TMSpaceDataLink {
+//             class TransferFrameQueue: public Os::Generic::PriorityQueue {
+// }
+
+// }// namespace TMSpaceDataLink
+// }// namespace Generic
+// }// namespace Os
 #endif  // TM_SPACE_DATA_LINK_TRANSFER_FRAME_HPP
