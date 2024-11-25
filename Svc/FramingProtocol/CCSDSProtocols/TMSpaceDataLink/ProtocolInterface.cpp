@@ -38,7 +38,7 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
     MCID_t mcid = {m_params.physicalParams.transferFrameVersion, 0};
     GVCID_t gvcid = {mcid, 0};
     FwSizeType transferFrameSize;
-    VCAFramedChannel virtualChannel(vcParams, transferFrameSize, gvcid);
+    VirtualChannel virtualChannel(vcParams, transferFrameSize, gvcid);
 
     // This will transfer through the following services and functions
     // PacketProcessing() (If VCP Service is supported)

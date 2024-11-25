@@ -13,7 +13,7 @@ set(SOURCE_FILES
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/ProtocolInterface.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/TransferFrame.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/Services.cpp"
-  "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/Channels.cpp"
+  # "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/Channels.cpp"
   # "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TCSpaceDataLink.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/SpacePacket/SpacePacketProtocol.cpp"
 )
