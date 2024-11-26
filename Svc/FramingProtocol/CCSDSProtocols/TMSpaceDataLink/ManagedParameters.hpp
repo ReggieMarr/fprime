@@ -105,4 +105,5 @@ typedef struct GVCID_s {
     // Virtual Channel Identifier (VCID)
     NATIVE_UINT_TYPE VCID;
 } GVCID_t;
+
 #endif  // TM_SPACE_DATA_LINK_MANAGED_PARAMETERS_HPP

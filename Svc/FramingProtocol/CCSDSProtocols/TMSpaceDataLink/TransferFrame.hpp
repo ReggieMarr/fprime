@@ -112,6 +112,7 @@ typedef struct DataFieldStatus_s {
 // |        Octet 1-2          |    Octet 3-4          |    Octet 5-6   |
 // clang-format on
 class PrimaryHeader : public Fw::Serializable {
+  public:
     // TM Primary Header: 6 octets (CCSDS 132.0-B-3, Section 4.1.2)
     static constexpr FwSizeType SIZE = 6;
     // If data field is an extension of some previous packet and the sync flag is 1
@@ -121,7 +122,6 @@ class PrimaryHeader : public Fw::Serializable {
     // this should be the firstHeaderPointerField
     static constexpr U16 IDLE_TYPE = 0b11111111110;
 
-  public:
     // Describes the primary headers fields
     // NOTE __attribute__((packed)) is used here with bit specifications to express field mapping
     typedef struct ControlInformation_s {
@@ -171,7 +171,9 @@ class PrimaryHeader : public Fw::Serializable {
 // |     Octet 1         |       Octets 2-64              |
 // NOTE should leverage std::optional here
 // clang-format on
-class SecondaryHeader : public Fw::Serializable {
+// Currently we assume this isnt supported
+template <FwSizeType FieldSize = 0>
+class SecondaryHeader : public Fw::Buffer {
     // At least one byte of transfer frame data units must be associated with the header for it to be used
     static constexpr FwSizeType MIN_FSDU_LEN = 1;
     static constexpr FwSizeType MAX_SIZE =
@@ -187,6 +189,7 @@ class SecondaryHeader : public Fw::Serializable {
     ~SecondaryHeader() = default;
     SecondaryHeader& operator=(const SecondaryHeader& other);
 
+    static constexpr FwSizeType SIZE = FieldSize;
     const ControlInformation_t getControlInfo() { return m_ci; };
 
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
@@ -236,6 +239,7 @@ class DataField : public Fw::Serializable {
 // | 6 octets                | Up to 64 octets        | Varies                 | 4 octets                | 2 octets                |
 // +-------------------------+------------------------+------------------------+-------------------------+-------------------------+
 // clang-format on
+template <FwSizeType FrameSize = 1024, FwSizeType SecondaryHeaderSize = 0, FwSizeType TrailerSize = 2>
 class TransferFrame : public Fw::Buffer {
   public:
     TransferFrame() = default;
@@ -245,8 +249,13 @@ class TransferFrame : public Fw::Buffer {
         : m_primaryHeader(primaryHeader), m_secondaryHeader(), m_dataField(dataField) {}
     ~TransferFrame() = default;
 
+    static constexpr FwSizeType SIZE = FrameSize;
+
     PrimaryHeader getPrimaryHeader() { return m_primaryHeader; };
-    SecondaryHeader getSecondaryHeader() { return m_secondaryHeader; };
+    // This could become optional depending on a template provided
+    SecondaryHeader<SecondaryHeaderSize> getSecondaryHeader() { return m_secondaryHeader; };
+
+    // What this constitutes could also become optional
     DataField getDataField() { return m_dataField; };
 
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer,
@@ -260,7 +269,7 @@ class TransferFrame : public Fw::Buffer {
 
   private:
     PrimaryHeader m_primaryHeader;
-    SecondaryHeader m_secondaryHeader;
+    SecondaryHeader<SecondaryHeaderSize> m_secondaryHeader;
     DataField m_dataField;
     using CheckSum = Svc::FrameDetectors::TMSpaceDataLinkChecksum;
 
@@ -271,13 +280,4 @@ class TransferFrame : public Fw::Buffer {
 
 }  // namespace TMSpaceDataLink
 
-// namespace Os {
-//     namespace Generic {
-//         namespace TMSpaceDataLink {
-//             class TransferFrameQueue: public Os::Generic::PriorityQueue {
-// }
-
-// }// namespace TMSpaceDataLink
-// }// namespace Generic
-// }// namespace Os
 #endif  // TM_SPACE_DATA_LINK_TRANSFER_FRAME_HPP
