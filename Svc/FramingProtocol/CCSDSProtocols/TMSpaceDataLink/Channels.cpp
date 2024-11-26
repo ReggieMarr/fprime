@@ -32,7 +32,7 @@ bool VCAFramedChannel::transfer(Fw::ComBuffer& transferBuffer) {
 }
 
 template class VirtualChannel<VCAService, TransferFrame>;
-NOTE could apply templating here to support VCA and VCP both in request and return types
+// NOTE could apply templating here to support VCA and VCP both in request and return types
 template <>
 bool VCAFramedChannel::ChannelGeneration_handler<VCA_Request_t, TransferFrame>(VCA_Request_t const& request,
 template <>
