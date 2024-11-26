@@ -88,22 +88,52 @@ typedef struct ManagedParameters_s {
 } ManagedParameters_t;
 
 }  // namespace TMSpaceDataLink
+namespace Fw {
 
-// Addresses derived from CCSDS 132.0-B-3 2.1.3
-// Master Channel Identifier (MCID)
-typedef struct MCID_s {
-    // Spacecraft Identifier
-    NATIVE_UINT_TYPE SCID;
-    // Transfer Version Number
-    NATIVE_UINT_TYPE TFVN;
-} MCID_t;
+class GlobalVirtualChannelId : public Serializable {
+  public:
+    GlobalVirtualChannelId();
 
-// Global Virtual Channel Identifier (GVCID)
-typedef struct GVCID_s {
+    // Addresses derived from CCSDS 132.0-B-3 2.1.3
     // Master Channel Identifier (MCID)
-    MCID_t MCID;
-    // Virtual Channel Identifier (VCID)
-    NATIVE_UINT_TYPE VCID;
-} GVCID_t;
+    typedef struct MCID_s {
+        // Spacecraft Identifier (10 bits allocated)
+        U16 SCID : 10;
+        // Transfer Version Number (2 bits)
+        U8 TFVN : 2;
+    } __attribute__((packed)) MCID_t;
+
+    // Global Virtual Channel Identifier (GVCID)
+    typedef struct GVCID_s {
+        // Master Channel Identifier (MCID)
+        MCID_t MCID;
+        // Virtual Channel Identifier (VCID) (3 bits)
+        U8 VCID : 3;
+    } __attribute__((packed)) GVCID_t;
+
+    enum { SERIALIZED_SIZE = sizeof(GVCID_t) };
+
+    static constexpr U16 MAX_SCID = 0x3FF;  // 10 bits max (0b1111111111)
+    static constexpr U8 MAX_TFVN = 0x3;     // 2 bits max  (0b11)
+    static constexpr U8 MAX_VCID = 0x7;     // 3 bits max  (0b111)
+
+    // Bit positions in 32-bit word
+    static constexpr U8 VCID_OFFSET = 0;
+    static constexpr U8 TFVN_OFFSET = 3;
+    static constexpr U8 SCID_OFFSET = 5;
+
+    // Bit masks for extraction
+    static constexpr U32 VCID_MASK = 0x7;    // 0b111
+    static constexpr U32 TFVN_MASK = 0x3;    // 0b11
+    static constexpr U32 SCID_MASK = 0x3FF;  // 0b1111111111
+
+    GVCID_t getId() { return m_id; };
+            SerializeStatus serialize(SerializeBufferBase& buffer) const; // !< Serialize method
+            SerializeStatus deserialize(SerializeBufferBase& buffer); // !< Deserialize method
+
+  private:
+    GVCID_t m_id;
+};
+}  // namespace Fw
 
 #endif  // TM_SPACE_DATA_LINK_MANAGED_PARAMETERS_HPP
