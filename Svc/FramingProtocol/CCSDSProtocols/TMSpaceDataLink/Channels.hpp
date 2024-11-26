@@ -20,37 +20,37 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameQueue.hpp"
 #include "TransferFrame.hpp"
 
 namespace TMSpaceDataLink {
 constexpr FwSizeType CHANNEL_Q_DEPTH = 10;
-
-template<>
-constexpr FwSizeType TransferFrame<>::SIZE;
-using UserTransferFrame = TransferFrame<>;
+static constexpr FwSizeType TransferFrameSize = 255;
 
 class VirtualChannel : public VCAService, public FrameService {
   public:
     using TransferInType = Fw::ComBuffer;
-    using TransferOutType = UserTransferFrame;
-    static constexpr FwSizeType TransferOutSize = UserTransferFrame::SIZE;
+    using TransferOutType = TransferFrame<TransferFrameSize>;
+    static constexpr FwSizeType TransferOutSize = TransferFrame<TransferFrameSize>::SIZE;
 
     // require parameterless construction to make an array of virtual channels
     VirtualChannel() : VCAService({}), FrameService({}), id({}), m_q() {}
 
-    VirtualChannel(VirtualChannelParams_t const& params, FwSizeType const transferFrameSize, GVCID_t id)
-        : VCAService(id), FrameService(id), id(id), m_transferFrameSize(transferFrameSize), m_q() {
+    VirtualChannel(VirtualChannelParams_t const& params, GVCID_t id)
+        : VCAService(id), FrameService(id), id(id), m_q() {
         Os::Queue::Status status;
         Fw::String name = "Virtual Channel";
         // NOTE this is very wrong at the moment
-        m_q.create(name, CHANNEL_Q_DEPTH, sizeof(UserTransferFrame));
+        m_q.create(name, CHANNEL_Q_DEPTH);
         FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
     }
 
     VirtualChannel& operator=(const VirtualChannel& other) {
-        FW_ASSERT(this == &other);
-        return *this;
         // NOTE can't really support this at the moment because we can't copy queues
+        FW_ASSERT(this == &other);
+        id = other.id;
+        // m_q = other.m_q;
+        return *this;
     }
 
     // NOTE should be const
@@ -67,24 +67,21 @@ class VirtualChannel : public VCAService, public FrameService {
         status = generateVCAPrimitive(transferBuffer, vcaRequest);
         FW_ASSERT(status, status);
 
-        UserTransferFrame frame;
+        TransferOutType frame;
         status = ChannelGeneration_handler(vcaRequest, frame);
         FW_ASSERT(status, status);
 
         FwQueuePriorityType priority = 0;
         Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-        qStatus = m_q.send(static_cast<U8*>(transferBuffer.getBuffAddr()),
-                           static_cast<FwSizeType>(transferBuffer.getBuffLength()), priority,
-                           Os::QueueInterface::BlockingType::BLOCKING);
-        // qStatus = m_q.send(frame, priority, Os::QueueInterface::BlockingType::BLOCKING);
+        qStatus = m_q.send(frame, priority, Os::QueueInterface::BlockingType::BLOCKING);
         return qStatus == Os::Queue::Status::OP_OK;
     }
 
-    Os::Queue m_q;  // Queue for inter-task communication
+    Os::Generic::TransformFrameQueue m_q;  // Queue for inter-task communication
   protected:
     FwSizeType m_transferFrameSize;
     U8 channelCount = 0;
-    bool ChannelGeneration_handler(VCA_Request_t const& request, UserTransferFrame& channelOut) {
+    bool ChannelGeneration_handler(VCA_Request_t const& request, TransferOutType& channelOut) {
         bool status = true;
         // Was something like this originally
         // FrameSDU_t framePrim;
@@ -106,7 +103,7 @@ class VirtualChannel : public VCAService, public FrameService {
         // do anything to the secondary header or operational control frame
         PrimaryHeader primaryHeader(missionParams, transferData);
         primaryHeader.setVirtualChannelCount(channelCount++);
-        UserTransferFrame frame(primaryHeader, dataField);
+        TransferOutType frame(primaryHeader, dataField);
         // FIXME this I think is bad memory management
         channelOut = frame;
 
@@ -126,34 +123,36 @@ class MasterChannel {
     // using TransferOutItemType = std::array<TransferInType, MAX_VIRTUAL_CHANNELS>;
     // how many transfers we'll hold internally before we have to dump
     // note this is basically just an internal queue
-    static constexpr FwSizeType TransferOutLength = 10;
-    using TransferOutType = std::array<TransferInType, TransferOutLength>;
+    static constexpr FwSizeType InternalTransferOutLength = MAX_VIRTUAL_CHANNELS;
+    using InternalTransferOutType = std::array<TransferInType, InternalTransferOutLength>;
+    // TODO create a queue that can handle a queue of master channels
+    using TransferOutType = VirtualChannel::TransferOutType;
 
     // NOTE should be const if a public member
     MCID_t id;
-    using MasterChannel_Q_Item_t = std::array<U8, sizeof(UserTransferFrame)>;
-    Os::Queue m_externalQueue;  // Queue for inter-task communication
-    MasterChannel() : id({}), m_transferFrameSize(), m_params(dfltParams) {}
+    // This should really hold a queue containing sets of transform frames
+    Os::Generic::TransformFrameQueue m_externalQueue;  // Queue for inter-task communication
+    MasterChannel() : id({}), m_params(dfltParams) {}
 
-    MasterChannel(MasterChannelParams_t& params, FwSizeType const transferFrameSize, MCID_t id)
-        : id(id), m_transferFrameSize(transferFrameSize), m_params(params) {
+    MasterChannel(MasterChannelParams_t& params, MCID_t id)
+        : id(id), m_params(params) {
         Os::Queue::Status status;
         Fw::String name = "Master Channel";
         // NOTE this is very wrong at the moment
-        m_externalQueue.create(name, CHANNEL_Q_DEPTH, sizeof(UserTransferFrame));
+        m_externalQueue.create(name, CHANNEL_Q_DEPTH);
         FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 
-        for (NATIVE_UINT_TYPE i = 0; i < params.numSubChannels; i++) {
+        for (U8 i = 0; i < params.numSubChannels; i++) {
             GVCID_t vcid = {id, i};
-            m_subChannels.at(i) = VirtualChannel(params.subChannels[i], transferFrameSize, vcid);
+            m_subChannels.at(i) = VirtualChannel(params.subChannels[i], vcid);
         }
     }
 
     MasterChannel(const MasterChannel& other)
-        : m_params(other.m_params), m_transferFrameSize(other.m_transferFrameSize), id(other.id) {
-        for (NATIVE_UINT_TYPE i = 0; i < m_params.numSubChannels; i++) {
+        : m_params(other.m_params), id(other.id) {
+        for (U8 i = 0; i < m_params.numSubChannels; i++) {
             GVCID_t vcid = {id, i};
-            m_subChannels.at(i) = VirtualChannel(m_params.subChannels[i], m_transferFrameSize, vcid);
+            m_subChannels.at(i) = VirtualChannel(m_params.subChannels[i], vcid);
         }
     }
 
@@ -167,51 +166,62 @@ class MasterChannel {
         return *this;
     }
 
+    bool getChannel(GVCID_t const gvcid, VirtualChannel& vc) {
+        FW_ASSERT(gvcid.MCID == id);
+        NATIVE_UINT_TYPE i = 0;
+        while (i++ < m_subChannels.size()) {
+            if (m_subChannels.at(i).id == gvcid) {
+                vc = m_subChannels.at(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool transfer() {
         // Specific implementation for VirtualChannel with no underlying services
-
-        TransferOutType masterChannelTransferItems;
+        // TransferOutType masterChannelTransferItems;
+        std::array<TransferInType, MAX_VIRTUAL_CHANNELS> masterChannelTransferItems;
         FwQueuePriorityType priority = 0;
         for (NATIVE_UINT_TYPE i = 0; i < m_params.numSubChannels; i++) {
-            GVCID_t vcid = {id, i};
-            constexpr FwSizeType size = 5;
-            U8 buff[size] = {};
-            VirtualChannel vc(m_params.subChannels[i], m_transferFrameSize, vcid);
-
             // This collects frames from various virtual channels and muxes them
-            UserTransferFrame tFrame;
+            TransferInType frame;
             FwSizeType actualsize;
             Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-            qStatus = vc.m_q.receive(reinterpret_cast<U8*>(&tFrame), sizeof(tFrame),
-                                     Os::QueueInterface::BlockingType::BLOCKING, actualsize, priority);
+            qStatus = m_subChannels.at(i).m_q.receive(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
             // If this were to fail we should create a transfer frame as per CCSDS 4.2.4.4
             FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
-            VirtualChannelMultiplexing_handler(tFrame, i, masterChannelTransferItems);
+            // TODO do some sort of id matching
+            VirtualChannelMultiplexing_handler(frame, i, masterChannelTransferItems);
         }
         MasterChannelGeneration_handler(masterChannelTransferItems);
 
         Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-        qStatus =
-            m_externalQueue.send(reinterpret_cast<U8*>(&masterChannelTransferItems), masterChannelTransferItems.size(),
-                                 priority, Os::QueueInterface::BlockingType::BLOCKING);
-        FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+        for (NATIVE_UINT_TYPE i = 0; i < m_params.numSubChannels; i++) {
+            qStatus = m_externalQueue.send(masterChannelTransferItems.at(i), priority,
+                                           Os::QueueInterface::BlockingType::BLOCKING);
+            FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+        }
+
         return true;
     }
 
   private:
     // NOTE should be const
     std::array<VirtualChannel, MAX_VIRTUAL_CHANNELS> m_subChannels{};
-    FwSizeType const m_transferFrameSize;
     MasterChannelParams_t& m_params;
     U8 m_channelCount = 0;
 
     bool VirtualChannelMultiplexing_handler(TransferInType& virtualChannelOut,
                                             NATIVE_UINT_TYPE vcid,
-                                            TransferOutType& masterChannelTransfer) {
+                                            InternalTransferOutType& masterChannelTransfer) {
+        // Trivial for now
         masterChannelTransfer.at(vcid) = virtualChannelOut;
+        // TODO implement 4.2.4.4 here
         return true;
     }
-    bool MasterChannelGeneration_handler(TransferOutType& masterChannelTransfer) {
+
+    bool MasterChannelGeneration_handler(InternalTransferOutType& masterChannelTransfer) {
         for (NATIVE_UINT_TYPE i = 0; i < masterChannelTransfer.size(); i++) {
             TransferInType inItem = masterChannelTransfer.at(i);
             PrimaryHeader primHeader = inItem.getPrimaryHeader();
@@ -233,25 +243,25 @@ class PhysicalChannel {
     using TransferOutType = std::array<TransferInType, TransferOutLength>;
 
   public:
-    PhysicalChannel(PhysicalChannelParams_t& params, FwSizeType const transferFrameSize, Fw::String id)
-        : id(id), m_transferFrameSize(transferFrameSize), m_params(params) {
+    PhysicalChannel(PhysicalChannelParams_t& params)
+        : id(params.channelName), m_params(params) {
         Os::Queue::Status status;
-        Fw::String name = "Master Channel";
+        Fw::String name = "Physical Channel";
         // NOTE this is very wrong at the moment
-        m_externalQueue.create(name, CHANNEL_Q_DEPTH, sizeof(UserTransferFrame));
+        m_externalQueue.create(name, CHANNEL_Q_DEPTH);
         FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 
-        for (NATIVE_UINT_TYPE i = 0; i < params.numSubChannels; i++) {
+        for (U8 i = 0; i < params.numSubChannels; i++) {
             MCID_t mcid = {m_params.subChannels.at(i).spaceCraftId, m_params.transferFrameVersion};
-            m_subChannels.at(i) = MasterChannel(params.subChannels[i], transferFrameSize, mcid);
+            m_subChannels.at(i) = MasterChannel(params.subChannels[i], mcid);
         }
     }
 
     PhysicalChannel(const PhysicalChannel& other)
-        : m_params(other.m_params), m_transferFrameSize(other.m_transferFrameSize), id(other.id) {
-        for (NATIVE_UINT_TYPE i = 0; i < m_params.numSubChannels; i++) {
+        : m_params(other.m_params), id(other.id) {
+        for (U8 i = 0; i < m_params.numSubChannels; i++) {
             MCID_t mcid = {m_params.subChannels.at(i).spaceCraftId, m_params.transferFrameVersion};
-            m_subChannels.at(i) = MasterChannel(m_params.subChannels.at(i), m_params.transferFrameSize, mcid);
+            m_subChannels.at(i) = MasterChannel(m_params.subChannels.at(i), mcid);
         }
     }
 
@@ -262,16 +272,78 @@ class PhysicalChannel {
         }
         return *this;
     }
+
+    bool getChannel(MCID_t const mcid, VirtualChannel& vc) {
+        for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
+            if (m_subChannels.at(i).id == mcid) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool getChannel(GVCID_t const gvcid, VirtualChannel& vc) {
+        for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
+            if (m_subChannels.at(i).getChannel(gvcid, vc)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool transfer() {
+        // Specific implementation for VirtualChannel with no underlying services
+        TransferOutType masterChannelTransferItems;
+        FwQueuePriorityType priority = 0;
+        for (NATIVE_UINT_TYPE i = 0; i < m_params.numSubChannels; i++) {
+            // This collects frames from various virtual channels and muxes them
+            TransferInType frame;
+            Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
+            qStatus = m_subChannels.at(i).m_externalQueue.receive(frame, Os::QueueInterface::BlockingType::BLOCKING,
+                                                                  priority);
+            // If this were to fail we should create a transfer frame as per CCSDS 4.2.4.4
+            FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+            MasterChannelMultiplexing_handler(frame, i, masterChannelTransferItems);
+        }
+        AllFramesChannelGeneration_handler(masterChannelTransferItems);
+
+        Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
+        for (NATIVE_UINT_TYPE i = 0; i < masterChannelTransferItems.size(); i++) {
+            qStatus = m_externalQueue.send(masterChannelTransferItems.at(i), priority,
+                                           Os::QueueInterface::BlockingType::BLOCKING);
+            FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+        }
+
+        return true;
+    }
+
     // const Fw::String id;
     Fw::String id;
-    Os::Queue m_externalQueue;  // Queue for inter-task communication
+    Os::Generic::TransformFrameQueue m_externalQueue;  // Queue for inter-task communication
 
   private:
-    FwSizeType const m_transferFrameSize;
     PhysicalChannelParams_t& m_params;
 
-    bool MasterChannelMultiplexing_handler(const std::array<Fw::Buffer, 8>& mcFrames);
-    bool AllFramesGeneration_handler(Fw::Buffer& frame);
+    void generateIdleData(Fw::Buffer& frame) {
+        // Generate an idle frame with appropriate First Header Pointer
+    }
+
+    bool MasterChannelMultiplexing_handler(TransferInType& masterChannelOut,
+                                           NATIVE_UINT_TYPE mcid,
+                                           TransferOutType& physicalChannelOut) {
+        // Trivial for now
+        physicalChannelOut.at(mcid) = masterChannelOut;
+        // TODO implement 4.2.6.4 here
+        return true;
+    }
+
+    bool AllFramesChannelGeneration_handler(TransferOutType& masterChannelTransfer) {
+        for (NATIVE_UINT_TYPE i = 0; i < masterChannelTransfer.size(); i++) {
+            TransferInType inItem = masterChannelTransfer.at(i);
+            // inItem.setFrameErrorControlField();
+        }
+        return true;
+    }
 
     std::array<MasterChannel, MAX_MASTER_CHANNELS> m_subChannels;
 };

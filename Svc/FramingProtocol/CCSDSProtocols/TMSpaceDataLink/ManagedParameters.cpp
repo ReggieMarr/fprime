@@ -1,69 +1,54 @@
 #include "ManagedParameters.hpp"
+#include "Fw/Types/Assert.hpp"
+#include "Fw/Types/Serializable.hpp"
 
-namespace Fw {
-GlobalVirtualChannelId::GlobalVirtualChannelId()
-: m_id({}) {}
-    SerializeStatus GlobalVirtualChannelId::serialize(SerializeBufferBase& buffer) const {
-    SerializeStatus status;
+namespace TMSpaceDataLink {
+void GlobalVirtualChannelId::toVal(GVCID_t const gvcid, U16& val) {
+    // Convert bit fields to a U16
+    val |= (static_cast<U16>(m_id.MCID.SCID) << SCID_OFFSET);
+    val |= (static_cast<U16>(m_id.MCID.TFVN) << TFVN_OFFSET);
+    val |= (static_cast<U16>(m_id.VCID) << VCID_OFFSET);
+}
 
-    // Serialize MCID members
-    status = buffer.serialize(static_cast<U16>(m_id.MCID.SCID));
-    if (status != SerializeStatus::FW_SERIALIZE_OK) {
-        return status;
-    }
+void GlobalVirtualChannelId::fromVal(GVCID_t& gvcid, U16 const val) {
+    // Extract fields
+    U16 scid = (val >> SCID_OFFSET) & SCID_MASK;
+    U8 tfvn = (val >> TFVN_OFFSET) & TFVN_MASK;
+    U8 vcid = (val >> VCID_OFFSET) & VCID_MASK;
 
-    status = buffer.serialize(static_cast<U8>(m_id.MCID.TFVN));
-    if (status != SerializeStatus::FW_SERIALIZE_OK) {
-        return status;
-    }
+    // Validate fields
+    FW_ASSERT(scid <= MAX_SCID, scid);
+    FW_ASSERT(tfvn <= MAX_TFVN, tfvn);
+    FW_ASSERT(vcid <= MAX_VCID, vcid);
 
-    // Serialize VCID
-    status = buffer.serialize(static_cast<U8>(m_id.VCID));
-    if (status != SerializeStatus::FW_SERIALIZE_OK) {
-        return status;
-    }
+    // All valid, assign to bit fields
+    gvcid.MCID.SCID = scid;
+    gvcid.MCID.TFVN = tfvn;
+    gvcid.VCID = vcid;
+}
 
-    return SerializeStatus::FW_SERIALIZE_OK;
-    }
+void GlobalVirtualChannelId::toVal(GVCID_t const gvcid, U32& val) {
+    // Convert bit fields to a U16
+    U16 valU16;
+    toVal(gvcid, valU16);
+    val = valU16 << GVCID_OFFSET;
+}
 
-    SerializeStatus GlobalVirtualChannelId::deserialize(SerializeBufferBase& buffer) {
-    SerializeStatus status;
-    U16 scid;
-    U8 tfvn;
-    U8 vcid;
+void GlobalVirtualChannelId::fromVal(GVCID_t& gvcid, U32 const val) {
+    // Extract fields
+    U16 scid = (val >> SCID_OFFSET) & SCID_MASK;
+    U8 tfvn = (val >> TFVN_OFFSET) & TFVN_MASK;
+    U8 vcid = (val >> VCID_OFFSET) & VCID_MASK;
 
-    // Deserialize and validate MCID members
-    status = buffer.deserialize(scid);
-    if (status != SerializeStatus::FW_SERIALIZE_OK) {
-        return status;
-    }
-    if (scid > MAX_SCID) {
-        return SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-    }
+    // Validate fields
+    FW_ASSERT(scid <= MAX_SCID, scid);
+    FW_ASSERT(tfvn <= MAX_TFVN, tfvn);
+    FW_ASSERT(vcid <= MAX_VCID, vcid);
 
-    status = buffer.deserialize(tfvn);
-    if (status != SerializeStatus::FW_SERIALIZE_OK) {
-        return status;
-    }
-    if (tfvn > MAX_TFVN) {
-        return SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-    }
+    // All valid, assign to bit fields
+    gvcid.MCID.SCID = scid;
+    gvcid.MCID.TFVN = tfvn;
+    gvcid.VCID = vcid;
+}
 
-    // Deserialize and validate VCID
-    status = buffer.deserialize(vcid);
-    if (status != SerializeStatus::FW_SERIALIZE_OK) {
-        return status;
-    }
-    if (vcid > MAX_VCID) {
-        return SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-    }
-
-    // All values valid, assign to member
-    m_id.MCID.SCID = scid;
-    m_id.MCID.TFVN = tfvn;
-    m_id.VCID = vcid;
-
-    return SerializeStatus::FW_SERIALIZE_OK;
-    }
-
-}  // namespace Fw
+}  // namespace TMSpaceDataLink

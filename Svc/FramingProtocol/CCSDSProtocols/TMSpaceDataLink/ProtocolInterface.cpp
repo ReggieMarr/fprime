@@ -15,6 +15,7 @@
 #include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
+#include "ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
@@ -25,20 +26,13 @@
 
 namespace TMSpaceDataLink {
 
-ProtocolEntity::ProtocolEntity(ManagedParameters_t const& params) : m_params(params) {}
+ProtocolEntity::ProtocolEntity(ManagedParameters_t& params)
+    : m_params(params), m_physicalChannel(params.physicalParams) {}
 
 bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
-    // Forward data to the appropriate Virtual Channel
-    U8 mcId = (context >> 8) & 0xFF;
-    U8 vcId = context & 0xFF;
-    // TODO should have some sort of routing function here that takes the context
-    // and gets the MCID and GVCID
-    bool channelStatus = true;
-    VirtualChannelParams_t vcParams = m_params.physicalParams.subChannels.at(0).subChannels.at(0);
-    MCID_t mcid = {m_params.physicalParams.transferFrameVersion, 0};
-    GVCID_t gvcid = {mcid, 0};
-    FwSizeType transferFrameSize;
-    VirtualChannel virtualChannel(vcParams, transferFrameSize, gvcid);
+    // Determine the channel mapping from context
+    GVCID_t gvcid;
+    GVCID_t::fromVal(gvcid, context);
 
     // This will transfer through the following services and functions
     // PacketProcessing() (If VCP Service is supported)
@@ -48,35 +42,23 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
     // -> Takes the packets and secondary header and/or operational control field (if services support)
     // and then uses the Virtual Channel Framing Service to create a transfer frame
     // then sends it to the parent master channel via the queue for it to handle
-    Fw::ComBuffer com(data.getData(), data.getSize());
     // NOTE this implies that the virutal channel is setup to be synchronous
     // we should support async and periodic with queues as well.
-    virtualChannel.transfer(com);
+    // Specific implementation for VirtualChannel with no underlying services
+    VirtualChannel vc;
+    bool status = m_physicalChannel.getChannel(gvcid, vc);
+    FW_ASSERT(status == true, status);
 
-    return channelStatus;
+    Fw::ComBuffer com(data.getData(), data.getSize());
+    vc.transfer(com);
+
+    return true;
 }
 
 void ProtocolEntity::generateNextFrame() {
-    // Generate frames for Virtual Channels
-    // for (U8 mcId = 0; mcId < 8; mcId++) {
-    //     std::array<Fw::Buffer, 8> vcFrames;
-    //     for (U8 vcId = 0; vcId < 8; vcId++) {
-    //         Fw::Buffer sdu;
-    //         m_virtualChannels[mcId][vcId].propogate(sdu);
-    //         vcFrames[vcId] = sdu;
-    //     }
-    //     // Multiplex VC frames into Master Channel
-    //     Fw::Buffer mcFrame;
-    //     m_masterChannels[mcId].VirtualChannelMultiplexing_handler(vcFrames);
-    //     m_masterChannels[mcId].MasterChannelGeneration_handler(mcFrame);
-    // }
-
-    // Generate final Physical Channel frames
+    // Generate Physical Channel frames
     Fw::Buffer finalFrame;
-}
-
-void ProtocolEntity::generateIdleData(Fw::Buffer& frame) {
-    // Generate an idle frame with appropriate First Header Pointer
+    m_physicalChannel.transfer();
 }
 
 }  // namespace TMSpaceDataLink

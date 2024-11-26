@@ -49,7 +49,7 @@ namespace TMSpaceDataLink {
  */
 class ProtocolEntity {
   public:
-    ProtocolEntity(ManagedParameters_t const& params);
+    ProtocolEntity(ManagedParameters_t& params);
 
     // Process incoming telemetry data
     bool UserComIn_handler(Fw::Buffer data, U32 context);
@@ -58,13 +58,11 @@ class ProtocolEntity {
     // Implements constant rate transfer requirement from 2.3.1
     void generateNextFrame();
 
-    // Internal helper for idle frame generation
-    void generateIdleData(Fw::Buffer& frame);
-
   private:
-    ManagedParameters_t const m_params;
+    // NOTE could be made as a deserializer
+    ManagedParameters_t m_params;
 
-    // PhysicalChannelSender m_physicalChannel;
+    PhysicalChannel m_physicalChannel;
 };
 
 }  // namespace TMSpaceDataLink

@@ -1,8 +1,8 @@
 #ifndef TM_SPACE_DATA_LINK_TRANSFER_FRAME_QUEUE_H_
 #define TM_SPACE_DATA_LINK_TRANSFER_FRAME_QUEUE_H_
 
-#include "TransferFrame.hpp"
 #include <Os/Generic/PriorityQueue.hpp>
+#include "TransferFrame.hpp"
 
 namespace Os {
 namespace Generic {
@@ -10,7 +10,7 @@ namespace Generic {
 class TransformFrameQueue : public PriorityQueue {
   public:
     //! \brief default queue interface constructor
-  TransformFrameQueue() : m_serialBuffer(m_serializationBuffer, sizeof(m_serializationBuffer)) {}
+    TransformFrameQueue() : m_serialBuffer(m_serializationBuffer, sizeof(m_serializationBuffer)) {}
 
     //! \brief default queue destructor
     virtual ~TransformFrameQueue();
@@ -49,7 +49,7 @@ class TransformFrameQueue : public PriorityQueue {
     //! \param priority: priority of the message
     //! \param blockType: BLOCKING to block for space or NONBLOCKING to return error when queue is full
     //! \return: status of the send
-    Status send(TMSpaceDataLink::TransferFrame<> &transformFrame, FwQueuePriorityType priority, BlockingType blockType);
+    Status send(TMSpaceDataLink::TransferFrame<>& transformFrame, FwQueuePriorityType priority, BlockingType blockType);
 
     //! \brief receive a message from the queue
     //!
@@ -64,16 +64,18 @@ class TransformFrameQueue : public PriorityQueue {
     //! \param blockType: BLOCKING to wait for message or NONBLOCKING to return error when queue is empty
     //! \param priority: (output) priority of message read
     //! \return: status of the send
-  Status receive(TMSpaceDataLink::TransferFrame<> &transformFrame,
+    Status receive(TMSpaceDataLink::TransferFrame<>& transformFrame,
                    BlockingType blockType,
                    FwQueuePriorityType& priority);
-private:
+
+  private:
     // Pre-allocated buffer for serialization
     U8 m_serializationBuffer[TMSpaceDataLink::TransferFrame<>::SIZE];
-    Fw::SerializeBufferBase& m_serialBuffer;
+    // Fw::SerializeBufferBase m_serialBuffer;
+    Fw::ComBuffer m_serialBuffer;
 };
 
 }  // namespace Generic
 }  // namespace Os
 
-#endif // TM_SPACE_DATA_LINK_TRANSFER_FRAME_QUEUE_H_
+#endif  // TM_SPACE_DATA_LINK_TRANSFER_FRAME_QUEUE_H_

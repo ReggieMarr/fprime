@@ -109,7 +109,7 @@ typedef struct DataFieldStatus_s {
 // |        |   (10)     |     |   | Frame   | Frame   |     (16)       |
 // |        |            |     |   | Count(8)| Count(8)|                |
 // +--------+------------+-----+---+---------+---------+----------------+
-// |        Octet 1-2          |    Octet 3-4          |    Octet 5-6   |
+// |        Octet 1-2              | Octet 3-4          |    Octet 5-6   |
 // clang-format on
 class PrimaryHeader : public Fw::Serializable {
   public:
@@ -138,7 +138,7 @@ class PrimaryHeader : public Fw::Serializable {
     PrimaryHeader(MissionPhaseParameters_t const& params);
     PrimaryHeader(MissionPhaseParameters_t const& params, TransferData_t& transferData);
     ~PrimaryHeader() = default;
-    PrimaryHeader& operator=(const PrimaryHeader& other);
+    // PrimaryHeader& operator=(const PrimaryHeader& other);
 
     const ControlInformation_t getControlInfo() { return m_ci; };
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t& transferData);
@@ -187,7 +187,8 @@ class SecondaryHeader : public Fw::Buffer {
 
     SecondaryHeader() = default;
     ~SecondaryHeader() = default;
-    SecondaryHeader& operator=(const SecondaryHeader& other);
+    // SecondaryHeader& operator=(const SecondaryHeader& other) {
+    // };
 
     static constexpr FwSizeType SIZE = FieldSize;
     const ControlInformation_t getControlInfo() { return m_ci; };
@@ -217,7 +218,7 @@ class DataField : public Fw::Serializable {
     DataField() = default;
     DataField(Fw::Buffer const& data) : m_data(data){};
     ~DataField() = default;
-    DataField& operator=(const DataField& other);
+    // DataField& operator=(const DataField& other);
 
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, const U8* const data, const U32 size) const;
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override { return m_data.serialize(buffer); }
@@ -239,7 +240,7 @@ class DataField : public Fw::Serializable {
 // | 6 octets                | Up to 64 octets        | Varies                 | 4 octets                | 2 octets                |
 // +-------------------------+------------------------+------------------------+-------------------------+-------------------------+
 // clang-format on
-template <FwSizeType FrameSize = 1024, FwSizeType SecondaryHeaderSize = 0, FwSizeType TrailerSize = 2>
+template <FwSizeType FrameSize = 255, FwSizeType SecondaryHeaderSize = 0, FwSizeType TrailerSize = 2>
 class TransferFrame : public Fw::Buffer {
   public:
     TransferFrame() = default;
@@ -264,18 +265,20 @@ class TransferFrame : public Fw::Buffer {
                                   const U32 size);
 
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
-        return Fw::SerializeStatus::FW_SERIALIZE_OK;
+        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
+    }
+    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
+        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
     }
 
+    bool setFrameErrorControlField();
+
   private:
+    bool setFrameErrorControlField(U8* startPtr, Fw::SerializeBufferBase& buffer);
     PrimaryHeader m_primaryHeader;
     SecondaryHeader<SecondaryHeaderSize> m_secondaryHeader;
     DataField m_dataField;
     using CheckSum = Svc::FrameDetectors::TMSpaceDataLinkChecksum;
-
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
-        return Fw::SerializeStatus::FW_SERIALIZE_OK;
-    }
 };
 
 }  // namespace TMSpaceDataLink

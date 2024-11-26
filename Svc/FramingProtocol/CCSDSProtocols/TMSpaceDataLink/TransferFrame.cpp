@@ -19,7 +19,7 @@
 
 namespace TMSpaceDataLink {
 
-PrimaryHeader::PrimaryHeader(MissionPhaseParameters_t const& params, TransferData_t &transferData) {
+PrimaryHeader::PrimaryHeader(MissionPhaseParameters_t const& params, TransferData_t& transferData) {
     setControlInfo(transferData);
     setControlInfo(params);
 }
@@ -132,10 +132,11 @@ Fw::SerializeStatus DataField::serialize(Fw::SerializeBufferBase& buffer, const 
     return Fw::SerializeStatus::FW_SERIALIZE_OK;
 }
 
-Fw::SerializeStatus TransferFrame::serialize(Fw::SerializeBufferBase& buffer,
-                                             TransferData_t& transferData,
-                                             const U8* const data,
-                                             const U32 size) {
+template <>
+Fw::SerializeStatus TransferFrame<>::serialize(Fw::SerializeBufferBase& buffer,
+                                               TransferData_t& transferData,
+                                               const U8* const data,
+                                               const U32 size) {
     Fw::SerializeStatus status;
     // accounts for if any serialization has been performed yet
     U8* startPtr = buffer.getBuffAddrSer();
@@ -143,10 +144,10 @@ Fw::SerializeStatus TransferFrame::serialize(Fw::SerializeBufferBase& buffer,
     status = m_primaryHeader.serialize(buffer, transferData);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
-    if (m_primaryHeader.getControlInfo().dataFieldStatus.hasSecondaryHeader) {
-        status = m_secondaryHeader.serialize(buffer);
-        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-    }
+    // if (m_primaryHeader.getControlInfo().dataFieldStatus.hasSecondaryHeader) {
+    //     status = m_secondaryHeader.serialize(buffer);
+    //     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+    // }
 
     status = m_dataField.serialize(buffer, data, size);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
@@ -156,6 +157,13 @@ Fw::SerializeStatus TransferFrame::serialize(Fw::SerializeBufferBase& buffer,
         FW_ASSERT(0);
     }
 
+    // setFrameErrorControlField(startPtr, buffer);
+
+    return Fw::SerializeStatus::FW_SERIALIZE_OK;
+}
+
+template <>
+bool TransferFrame<>::setFrameErrorControlField(U8* startPtr, Fw::SerializeBufferBase& buffer) {
     // Add frame error control (CRC-16)
     CheckSum crc;
     // NATIVE_UINT_TYPE serializedSize = static_cast<NATIVE_UINT_TYPE>(buffer.getBuffAddrSer() - startPtr);
@@ -180,6 +188,7 @@ Fw::SerializeStatus TransferFrame::serialize(Fw::SerializeBufferBase& buffer,
 
     // since the CRC has to go on the end we place it there assuming that the buffer is sized correctly
     FwSizeType skipByteNum = FW_MAX((buffer.getBuffCapacity() - 2) - buffer.getBuffLength(), 0);
+    Fw::SerializeStatus status;
     status = buffer.serializeSkip(skipByteNum);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
@@ -190,7 +199,12 @@ Fw::SerializeStatus TransferFrame::serialize(Fw::SerializeBufferBase& buffer,
     status = buffer.serialize(crcValue);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
-    return Fw::SerializeStatus::FW_SERIALIZE_OK;
+    return true;
+}
+
+template <>
+bool TransferFrame<>::setFrameErrorControlField() {
+    return true;
 }
 
 }  // namespace TMSpaceDataLink
