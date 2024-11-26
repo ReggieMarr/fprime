@@ -74,7 +74,7 @@ class TMSpaceDataLinkProtocol : public FramingProtocol {
   public:
     TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams,
                             const FwSizeType dataFieldSize)
-        : m_transferFrame(TMSpaceDataLink::TransferFrame(missionParams)), m_dataFieldSize(dataFieldSize) {}
+        : m_transferFrame(TMSpaceDataLink::TransferFrame<>(missionParams)), m_dataFieldSize(dataFieldSize) {}
 
     void setup(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams, const FwSizeType dataFieldSize);
 
@@ -82,7 +82,7 @@ class TMSpaceDataLinkProtocol : public FramingProtocol {
 
   private:
     TMSpaceDataLink::TransferData_t m_transferData = {0};
-    TMSpaceDataLink::TransferFrame m_transferFrame;
+    TMSpaceDataLink::TransferFrame<> m_transferFrame;
     const FwSizeType m_dataFieldSize{Svc::TM_DATA_FIELD_DFLT_SIZE};
 };
 }  // namespace Svc

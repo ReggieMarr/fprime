@@ -36,7 +36,7 @@ using FSH_SDU_t = Fw::Buffer;
 using OCF_SDU_t = Fw::Buffer;
 
 // Operational Control Field Service Data Unit  3.2.6
-using FrameSDU_t = TransferFrame;
+using FrameSDU_t = TransferFrame<>;
 
 // CCSDS 132.0-B-3 3.4.2.3
 // The Packet Order Flag (1 bit) and Segment Length ID (2 bits) may be used to convey

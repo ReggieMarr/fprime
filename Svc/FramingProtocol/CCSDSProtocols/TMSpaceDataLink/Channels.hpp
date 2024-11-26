@@ -25,6 +25,7 @@
 namespace TMSpaceDataLink {
 constexpr FwSizeType CHANNEL_Q_DEPTH = 10;
 
+template<>
 constexpr FwSizeType TransferFrame<>::SIZE;
 using UserTransferFrame = TransferFrame<>;
 
