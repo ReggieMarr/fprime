@@ -195,10 +195,10 @@ class FrameService {
     }
 };
 
-// class VCPService : public TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {
+// class VCPService : public TMService<VCP_SDU_t, GVCID, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {
 //   public:
 //     VCPService(VCP_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-//         : TMService<VCP_SDU_t, GVCID_t, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
+//         : TMService<VCP_SDU_t, GVCID, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
 //         {}
 
 //   private:
@@ -207,10 +207,10 @@ class FrameService {
 // };
 
 // // All this really is is something that inserts the Operational Control Flag into a transfer frame
-// class OCFService : public TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS> {
+// class OCFService : public TMService<OCF_SDU_t, GVCID, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS> {
 //   public:
 //     OCFService(OCF_ServiceParameters_t const& serviceParams, FwSizeType const qDepth)
-//         : TMService<OCF_SDU_t, GVCID_t, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
+//         : TMService<OCF_SDU_t, GVCID, OCF_ServiceParameters_t, OCF_Request_t, SYNCHRONOUS>(serviceParams, qDepth)
 //         {}
 
 //   private:
