@@ -26,9 +26,6 @@
 
 namespace TMSpaceDataLink {
 
-ProtocolEntity::ProtocolEntity(ManagedParameters_t& params)
-    : m_params(params), m_physicalChannel(params.physicalParams) {}
-
 bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
     // Determine the channel mapping from context
     GVCID_t gvcid;
@@ -45,7 +42,7 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
     // NOTE this implies that the virutal channel is setup to be synchronous
     // we should support async and periodic with queues as well.
     // Specific implementation for VirtualChannel with no underlying services
-    VirtualChannel vc;
+    VirtualChannel<TransferFrameSize> vc;
     bool status = m_physicalChannel.getChannel(gvcid, vc);
     FW_ASSERT(status == true, status);
 

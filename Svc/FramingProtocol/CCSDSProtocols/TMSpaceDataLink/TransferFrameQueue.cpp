@@ -8,16 +8,19 @@
 
 namespace Os {
 namespace Generic {
-TransformFrameQueue::~TransformFrameQueue() {
+template<>
+TransformFrameQueue<>::~TransformFrameQueue() {
     // Base class destructor will handle cleanup
 }
 
-QueueInterface::Status TransformFrameQueue::create(const Fw::StringBase& name, FwSizeType depth) {
+template<>
+QueueInterface::Status TransformFrameQueue<>::create(const Fw::StringBase& name, FwSizeType depth) {
     // Create the underlying priority queue with the size of TransferFrame
     return PriorityQueue::create(name, depth, static_cast<FwSizeType>(TMSpaceDataLink::TransferFrame<>::SIZE));
 }
 
-QueueInterface::Status TransformFrameQueue::send(
+template<>
+QueueInterface::Status TransformFrameQueue<>::send(
     TMSpaceDataLink::TransferFrame<>& transferFrame,
     FwQueuePriorityType priority,
     BlockingType blockType
@@ -40,7 +43,8 @@ QueueInterface::Status TransformFrameQueue::send(
     );
 }
 
-QueueInterface::Status TransformFrameQueue::receive(
+template<>
+QueueInterface::Status TransformFrameQueue<>::receive(
     TMSpaceDataLink::TransferFrame<>& transferFrame,
     BlockingType blockType,
     FwQueuePriorityType& priority
