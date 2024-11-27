@@ -10,11 +10,13 @@
 #include <vector>
 #include "FpConfig.h"
 #include "Fw/Com/ComBuffer.hpp"
+#include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/SerialStatusEnumAc.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "Fw/Types/String.hpp"
 #include "ManagedParameters.hpp"
+#include "Os/Models/QueueBlockingTypeEnumAc.hpp"
 #include "Os/Queue.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
@@ -25,6 +27,35 @@
 
 namespace TMSpaceDataLink {
 constexpr FwSizeType CHANNEL_Q_DEPTH = 10;
+
+// template<FwSizeType TransferFramerSize>
+// void transferQueue<>(Os::Generic::TransformFrameQueue<TransferFramerSize> &src,
+//                      Os::Generic::TransformFrameQueue<TransferFramerSize> &dest) {
+
+//         // If we really wanted to we could transfer the queues some way like this
+//         Os::QueueInterface::Status other_queue_status = Os::QueueInterface::OP_OK;
+//         Os::QueueInterface::Status this_queue_status = Os::QueueInterface::OP_OK;
+//         // NOTE should carefully consider the perfomance implications here
+//         // also since we're potentially exiting when this instance's queue is full
+//         // that could result in dropped frames
+//         while (other_queue_status != Os::QueueInterface::Status::EMPTY &&
+//                this_queue_status != Os::QueueInterface::Status::FULL) {
+//             TransferOutType frame;
+//             FwQueuePriorityType priority = 0;
+//             other_queue_status = other.m_externalQueue.receive(other, frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
+//             FW_ASSERT(other_queue_status != Os::QueueInterface::Status::EMPTY ||
+//                           other_queue_status == Os::QueueInterface::Status::OP_OK,
+//                       other_queue_status);
+//             this_queue_status = m_externalQueue.send(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
+//             FW_ASSERT(this_queue_status != Os::QueueInterface::Status::FULL ||
+//                           this_queue_status == Os::QueueInterface::Status::OP_OK,
+//                       this_queue_status);
+//         }
+//         if (this_queue_status == Os::QueueInterface::Status::FULL) {
+//             Fw::Logger::log("[WARNING] Could not transfer entire queue. %d Messages left \n",
+//                             other.m_externalQueue.getMessagesAvailable());
+//         }
+// }
 
 template <FwSizeType TransferFrameSize = 255>
 class VirtualChannel : public VCAService, public FrameService {
@@ -45,10 +76,16 @@ class VirtualChannel : public VCAService, public FrameService {
     }
 
     VirtualChannel& operator=(const VirtualChannel& other) {
-        // NOTE can't really support this at the moment because we can't copy queues
-        FW_ASSERT(this == &other);
+        if (this == &other) {
+            return *this;
+        }
+
+        //Since we can't copy if there's a message in the queue we should assert
+        FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
+
         id = other.id;
-        // m_q = other.m_q;
+        m_channelCount = other.m_channelCount;
+
         return *this;
     }
 
@@ -72,14 +109,13 @@ class VirtualChannel : public VCAService, public FrameService {
 
         FwQueuePriorityType priority = 0;
         Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-        qStatus = m_externalQueue.send(frame, priority, Os::QueueInterface::BlockingType::BLOCKING);
+        qStatus = m_externalQueue.send(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
         return qStatus == Os::Queue::Status::OP_OK;
     }
 
     Os::Generic::TransformFrameQueue<TransferFrameSize> m_externalQueue;  // Queue for inter-task communication
   protected:
-    FwSizeType m_transferFrameSize;
-    U8 channelCount = 0;
+    U8 m_channelCount = 0;
     bool ChannelGeneration_handler(VCA_Request_t const& request, TransferOutType& channelOut) {
         bool status = true;
         // Was something like this originally
@@ -101,7 +137,7 @@ class VirtualChannel : public VCAService, public FrameService {
         // NOTE since we don't have the OCF or FSH services defined we don't
         // do anything to the secondary header or operational control frame
         PrimaryHeader primaryHeader(missionParams, transferData);
-        primaryHeader.setVirtualChannelCount(channelCount++);
+        primaryHeader.setVirtualChannelCount(m_channelCount++);
         TransferOutType frame(primaryHeader, dataField);
         // FIXME this I think is bad memory management
         channelOut = frame;
@@ -155,24 +191,29 @@ class MasterChannel {
     }
 
     MasterChannel& operator=(const MasterChannel& other) {
-        if (this != &other) {
-            // TODO set members
-            // m_registeredServices = other.m_registeredServices;
-            m_subChannels = other.m_subChannels;
-            id = other.id;
+        if (this == &other) {
+            return *this;
         }
+
+        //Since we can't copy if there's a message in the queue we should assert
+        FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
+
+        id = other.id;
+        m_params = other.m_params;
+        m_channelCount = other.m_channelCount;
+        m_subChannels = other.m_subChannels;
         return *this;
     }
 
     bool getChannel(GVCID_t const gvcid, VirtualChannel<TransferInSize>& vc) {
         FW_ASSERT(gvcid.MCID == id);
         NATIVE_UINT_TYPE i = 0;
-        while (i++ < m_subChannels.size()) {
+        do {
             if (m_subChannels.at(i).id == gvcid) {
                 vc = m_subChannels.at(i);
                 return true;
             }
-        }
+        } while (i++ < m_subChannels.size());
         return false;
     }
 
@@ -208,7 +249,7 @@ class MasterChannel {
   private:
     // NOTE should be const
     std::array<VirtualChannel<TransferInSize>, MAX_VIRTUAL_CHANNELS> m_subChannels{};
-    MasterChannelParams_t& m_params;
+    MasterChannelParams_t m_params;
     U8 m_channelCount = 0;
 
     bool VirtualChannelMultiplexing_handler(TransferInType& virtualChannelOut,
@@ -264,10 +305,16 @@ class PhysicalChannel {
     }
 
     PhysicalChannel& operator=(const PhysicalChannel& other) {
-        if (this != &other) {
-            m_subChannels = other.m_subChannels;
-            id = other.id;
+        if (this == &other) {
+            return *this;
         }
+
+        //Since we can't copy if there's a message in the queue we should assert
+        FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
+
+        id = other.id;
+        m_params = other.m_params;
+        m_subChannels = other.m_subChannels;
         return *this;
     }
 
@@ -307,8 +354,8 @@ class PhysicalChannel {
 
         Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
         for (NATIVE_UINT_TYPE i = 0; i < masterChannelTransferItems.size(); i++) {
-            qStatus = m_externalQueue.send(masterChannelTransferItems.at(i), priority,
-                                           Os::QueueInterface::BlockingType::BLOCKING);
+            qStatus = m_externalQueue.send(masterChannelTransferItems.at(i),
+                                           Os::QueueInterface::BlockingType::BLOCKING, priority);
             FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
         }
 
@@ -320,7 +367,7 @@ class PhysicalChannel {
     Os::Generic::TransformFrameQueue<TransferFrameSize> m_externalQueue;  // Queue for inter-task communication
 
   private:
-    PhysicalChannelParams_t& m_params;
+    PhysicalChannelParams_t m_params;
 
     void generateIdleData(Fw::Buffer& frame) {
         // Generate an idle frame with appropriate First Header Pointer

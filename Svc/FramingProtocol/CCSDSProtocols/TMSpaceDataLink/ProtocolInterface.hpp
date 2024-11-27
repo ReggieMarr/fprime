@@ -53,7 +53,7 @@ class ProtocolEntity {
     ProtocolEntity(ManagedParameters_t& params) : m_physicalChannel(params.physicalParams), m_params(params) {}
 
     // Process incoming telemetry data
-    bool UserComIn_handler(Fw::Buffer data, U32 context);
+    bool UserComIn_handler(Fw::Buffer &data, U32 context);
 
     // Generate the next TM Transfer Frame for transmission
     // Implements constant rate transfer requirement from 2.3.1

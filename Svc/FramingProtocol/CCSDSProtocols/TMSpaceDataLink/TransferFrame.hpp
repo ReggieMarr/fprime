@@ -140,7 +140,7 @@ class PrimaryHeader : public Fw::Serializable {
     ~PrimaryHeader() = default;
     // PrimaryHeader& operator=(const PrimaryHeader& other);
 
-    const ControlInformation_t getControlInfo() { return m_ci; };
+    const ControlInformation_t getControlInfo() const { return m_ci; };
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t& transferData);
 
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override;
@@ -220,10 +220,12 @@ class DataField : public Fw::Serializable {
     ~DataField() = default;
     // DataField& operator=(const DataField& other);
 
+    // NOTE should we maybe be inheriting from buffer instead ?
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, const U8* const data, const U32 size) const;
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override { return m_data.serialize(buffer); }
-
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override { return m_data.deserialize(buffer); }
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override;
+    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override;
+    Fw::SerializeStatus serialize(const U8* buff, FwSizeType length);
+    Fw::SerializeStatus deserialize(U8* buff, NATIVE_UINT_TYPE length);
 
   private:
     Fw::Buffer m_data;
@@ -265,16 +267,81 @@ class TransferFrame : public Fw::Buffer {
                                   const U32 size);
 
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
-        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
+        Fw::SerializeStatus status;
+        // accounts for if any serialization has been performed yet
+        U8* startPtr = buffer.getBuffAddrSer();
+
+        status = m_primaryHeader.serialize(buffer);
+        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+        if (m_primaryHeader.getControlInfo().dataFieldStatus.hasSecondaryHeader) {
+            // Not currently supported
+            FW_ASSERT(0);
+            status = m_secondaryHeader.serialize(buffer);
+            FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+        }
+        NATIVE_UINT_TYPE dataFieldSize = FrameSize - m_primaryHeader.SIZE - SecondaryHeaderSize - TrailerSize;
+
+        // status = m_dataField.serialize(buffer.getBuffAddrSer(), dataFieldSize);
+        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+        if (m_primaryHeader.getControlInfo().operationalControlFlag) {
+            // Not currently supported
+            FW_ASSERT(0);
+        }
+
+        setFrameErrorControlField(startPtr, buffer);
+
+        return Fw::SerializeStatus::FW_SERIALIZE_OK;
     }
+
     Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
         return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
     }
 
-    bool setFrameErrorControlField();
+    bool setFrameErrorControlField() { return true; };
 
   private:
-    bool setFrameErrorControlField(U8* startPtr, Fw::SerializeBufferBase& buffer);
+    // NOTE we should abstract this field as a class or struct
+    bool setFrameErrorControlField(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
+        // Add frame error control (CRC-16)
+        CheckSum crc;
+        // NATIVE_UINT_TYPE serializedSize = static_cast<NATIVE_UINT_TYPE>(buffer.getBuffAddrSer() - startPtr);
+        NATIVE_UINT_TYPE serializedSize = buffer.getBuffCapacity() - sizeof(U16);
+        Types::CircularBuffer circBuff(startPtr, serializedSize);
+        Fw::SerializeStatus stat = circBuff.serialize(startPtr, serializedSize);
+
+        Fw::Logger::log(
+            "TM Frame: Ver %d, SC_ID %d, VC_ID %d, OCF %d, MC_CNT %d, VC_CNT %d, Len %d TF_SIZE %d\n",
+            m_primaryHeader.getControlInfo().transferFrameVersion, m_primaryHeader.getControlInfo().spacecraftId,
+            m_primaryHeader.getControlInfo().virtualChannelId, m_primaryHeader.getControlInfo().operationalControlFlag,
+            m_primaryHeader.getControlInfo().masterChannelFrameCount,
+            m_primaryHeader.getControlInfo().virtualChannelFrameCount, serializedSize, buffer.getBuffCapacity());
+
+        circBuff.print();
+
+        // Calculate the CRC based off of the buffer serialized into the circBuff
+        FwSizeType sizeOut;
+        crc.calculate(circBuff, 0, sizeOut);
+        // Ensure we've checked the whole thing
+        FW_ASSERT(sizeOut == serializedSize, sizeOut);
+
+        // since the CRC has to go on the end we place it there assuming that the buffer is sized correctly
+        FwSizeType skipByteNum = FW_MAX((buffer.getBuffCapacity() - 2) - buffer.getBuffLength(), 0);
+        Fw::SerializeStatus status;
+        status = buffer.serializeSkip(skipByteNum);
+        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+        U16 crcValue = crc.getExpected();
+        Fw::Logger::log("framed CRC val %d\n", crcValue);
+        FW_ASSERT(crcValue);
+
+        status = buffer.serialize(crcValue);
+        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+        return true;
+    }
+
     PrimaryHeader m_primaryHeader;
     SecondaryHeader<SecondaryHeaderSize> m_secondaryHeader;
     DataField m_dataField;
