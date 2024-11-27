@@ -23,7 +23,7 @@
 // have one master channel per physical channel
 constexpr FwSizeType MAX_MASTER_CHANNELS = 1;
 // Per Master Channel
-constexpr FwSizeType MAX_VIRTUAL_CHANNELS = 8;
+constexpr FwSizeType MAX_VIRTUAL_CHANNELS = 1;
 // FIXME See the SANA Packet Version Number registry @ https://sanaregistry.org/r/packet_version_number/
 constexpr FwSizeType NUM_SUPPORTED_PACKET_VERSIONS = 1;
 

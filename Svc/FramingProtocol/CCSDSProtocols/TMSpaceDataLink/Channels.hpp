@@ -30,10 +30,23 @@ constexpr FwSizeType CHANNEL_Q_DEPTH = 10;
 
 template <typename ChannelType, FwSizeType ChannelSize>
 using ChannelList = std::array<ChannelType, ChannelSize>;
+// class ChannelList {
+//     std::array<ChannelType, ChannelSize> channels;
+// public:
+//     // Construct channels in-place
+//     template<typename... Args>
+//     void constructChannel(FwSizeType idx, Args&&... args) {
+//         FW_ASSERT(idx < ChannelSize);
+//         channels[idx] = ChannelType(std::forward<Args>(args)...);
+//     }
+
+//     ChannelType& get(FwSizeType idx) {
+//         return channels.at(idx);
+//     }
+// };
 
 // NOTE use trait struct here
-template <typename ChannelParams_t,
-          typename UserDataService,
+template <typename UserDataService,
           typename UserDataServiceRequest,
           typename FramingService,
           typename TransferInType,
@@ -43,11 +56,24 @@ class BaseVirtualChannel : public UserDataService, public FramingService {
   public:
     using TransferIn_t = TransferInType;
     using TransferOut_t = TransferOutType;
-    // require parameterless construction to make an array of virtual channels
-    BaseVirtualChannel() : UserDataService({}), FrameService({}), id({}), m_externalQueue() {}
 
-    BaseVirtualChannel(ChannelParams_t const& params, GVCID_t id);
-    BaseVirtualChannel& operator=(const BaseVirtualChannel& other);
+    BaseVirtualChannel(GVCID_t id);
+    // Copy constructor/ =operator is needed for passing to master class
+    // or accessing from UserData_handler
+    BaseVirtualChannel(BaseVirtualChannel const& other);
+    BaseVirtualChannel& operator=(const BaseVirtualChannel& other) {
+        if (this == &other) {
+            return *this;
+        }
+
+        // Since we can't copy if there's a message in the queue we should assert
+        FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
+
+        id = other.id;
+        m_channelTransferCount = other.m_channelTransferCount;
+
+        return *this;
+    }
 
     // NOTE should be const
     IdType id;
@@ -56,46 +82,49 @@ class BaseVirtualChannel : public UserDataService, public FramingService {
 
     Os::Generic::TransformFrameQueue<255> m_externalQueue;  // Queue for inter-task communication
   protected:
-    virtual bool ChannelGeneration_handler(UserDataServiceRequest const &request, TransferOut_t& channelOut) = 0;
+    virtual bool ChannelGeneration_handler(UserDataServiceRequest const& request, TransferOut_t& channelOut) = 0;
     U8 m_channelTransferCount = 0;
 };
 
-template <typename ChannelParams_t,
-          typename SubChannelType,
+template <typename ChannelType,
           typename TransferInType,
           typename TransferOutType,
-          typename IdType>
+          typename IdType,
+          FwSizeType NumChannels>
 class BaseMasterChannel {
   public:
     using TransferIn_t = TransferInType;
     using TransferOut_t = TransferOutType;
-    // require parameterless construction to make an array of virtual channels
-    BaseMasterChannel() : id({}), m_externalQueue() {}
 
-    BaseMasterChannel(ChannelParams_t& params);
-    BaseMasterChannel(ChannelParams_t& params, IdType id);
-
+    // Updated constructor to take ChannelList
+    BaseMasterChannel(const ChannelList<ChannelType, NumChannels>& channelList, IdType id);
+    // This is generic but could be made virtual if need be
     BaseMasterChannel(const BaseMasterChannel& other);
+    BaseMasterChannel& operator=(const BaseMasterChannel& other) {
+        if (this == &other) {
+            return *this;
+        }
 
-    BaseMasterChannel& operator=(const BaseMasterChannel& other);
+        // Since we can't copy if there's a message in the queue we should assert
+        FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
 
-    // NOTE should be const
+        id = other.id;
+        m_channelTransferCount = other.m_channelTransferCount;
+
+        return *this;
+    }
+
     IdType id;
-
     virtual bool transfer() = 0;
+    Os::Generic::TransformFrameQueue<255> m_externalQueue;
 
-    Os::Generic::TransformFrameQueue<255> m_externalQueue;  // Queue for inter-task communication
   protected:
-
-    // NOTE should be const
-    ChannelList<SubChannelType, MAX_MASTER_CHANNELS> m_subChannels{};
-    ChannelParams_t m_params;
     FwQueuePriorityType priority = 0;
     U8 m_channelTransferCount = 0;
+    ChannelList<ChannelType, NumChannels> m_subChannels;
 };
 
-class VirtualChannel : public BaseVirtualChannel<VirtualChannelParams_t,
-                                                 VCAService,
+class VirtualChannel : public BaseVirtualChannel<VCAService,
                                                  VCAService::RequestPrimitive_t,
                                                  FrameService,
                                                  Fw::ComBuffer,
@@ -103,8 +132,7 @@ class VirtualChannel : public BaseVirtualChannel<VirtualChannelParams_t,
                                                  GVCID_t> {
   public:
     // Inherit parent's type definitions
-    using Base = BaseVirtualChannel<VirtualChannelParams_t,
-                                    VCAService,
+    using Base = BaseVirtualChannel<VCAService,
                                     VCAService::RequestPrimitive_t,
                                     FrameService,
                                     Fw::ComBuffer,
@@ -126,24 +154,22 @@ class VirtualChannel : public BaseVirtualChannel<VirtualChannelParams_t,
     bool transfer(typename Base::TransferIn_t& transferBuffer) override;
 
   protected:
-    bool ChannelGeneration_handler(VCAService::RequestPrimitive_t const &request, TransferOut_t& channelOut) override;
+    bool ChannelGeneration_handler(VCAService::RequestPrimitive_t const& request, TransferOut_t& channelOut) override;
 };
 
 // Master Channel Implementation
-class MasterChannel : public BaseMasterChannel<MasterChannelParams_t,
-                                               VirtualChannel,
+class MasterChannel : public BaseMasterChannel<VirtualChannel,
                                                typename VirtualChannel::TransferOutType,
                                                typename VirtualChannel::TransferOutType,
-                                               MCID_t> {
-    MasterChannelParams_t dfltParams{};
-
+                                               MCID_t,
+                                               MAX_VIRTUAL_CHANNELS> {
   public:
     // Inherit parent's type definitions
-    using Base = BaseMasterChannel<MasterChannelParams_t,
-                                   VirtualChannel,
+    using Base = BaseMasterChannel<VirtualChannel,
                                    typename VirtualChannel::TransferOutType,
                                    typename VirtualChannel::TransferOutType,
-                                   MCID_t>;
+                                   MCID_t,
+                                   MAX_VIRTUAL_CHANNELS>;
     // Inherit constructors
     using Base::BaseMasterChannel;
 
@@ -173,18 +199,19 @@ class MasterChannel : public BaseMasterChannel<MasterChannelParams_t,
 };
 
 // Physical Channel Implementation
-class PhysicalChannel : public BaseMasterChannel<PhysicalChannelParams_t,
-                                                 MasterChannel,
+class PhysicalChannel : public BaseMasterChannel<MasterChannel,
                                                  typename MasterChannel::TransferOutType,
                                                  std::array<typename MasterChannel::TransferOutType, 10>,
-                                                 Fw::String> {
+                                                 Fw::String,
+                                                 MAX_MASTER_CHANNELS> {
   public:
     // Inherit parent's type definitions
-    using Base = BaseMasterChannel<PhysicalChannelParams_t,
-                                   MasterChannel,
+    using Base = BaseMasterChannel<MasterChannel,
                                    typename MasterChannel::TransferOutType,
-                                   std::array<typename VirtualChannel::TransferOutType, 10>,
-                                   Fw::String>;
+                                   std::array<typename MasterChannel::TransferOutType, 10>,
+                                   Fw::String,
+                                   MAX_MASTER_CHANNELS>;
+    //
     // Inherit constructors
     using Base::BaseMasterChannel;
 
