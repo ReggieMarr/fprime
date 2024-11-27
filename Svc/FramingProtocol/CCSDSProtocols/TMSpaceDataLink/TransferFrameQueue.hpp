@@ -2,11 +2,13 @@
 #define TM_SPACE_DATA_LINK_TRANSFER_FRAME_QUEUE_H_
 
 #include <Os/Generic/PriorityQueue.hpp>
+#include "FpConfig.h"
 #include "TransferFrame.hpp"
 
 namespace Os {
 namespace Generic {
 
+template <FwSizeType TransferFrameSize = 255>
 class TransformFrameQueue : public PriorityQueue {
   public:
     //! \brief default queue interface constructor
@@ -49,7 +51,9 @@ class TransformFrameQueue : public PriorityQueue {
     //! \param priority: priority of the message
     //! \param blockType: BLOCKING to block for space or NONBLOCKING to return error when queue is full
     //! \return: status of the send
-    Status send(TMSpaceDataLink::TransferFrame<>& transformFrame, FwQueuePriorityType priority, BlockingType blockType);
+    Status send(TMSpaceDataLink::TransferFrame<TransferFrameSize>& transformFrame,
+                FwQueuePriorityType priority,
+                BlockingType blockType);
 
     //! \brief receive a message from the queue
     //!
@@ -64,13 +68,13 @@ class TransformFrameQueue : public PriorityQueue {
     //! \param blockType: BLOCKING to wait for message or NONBLOCKING to return error when queue is empty
     //! \param priority: (output) priority of message read
     //! \return: status of the send
-    Status receive(TMSpaceDataLink::TransferFrame<>& transformFrame,
+    Status receive(TMSpaceDataLink::TransferFrame<TransferFrameSize>& transformFrame,
                    BlockingType blockType,
                    FwQueuePriorityType& priority);
 
   private:
     // Pre-allocated buffer for serialization
-    U8 m_serializationBuffer[TMSpaceDataLink::TransferFrame<>::SIZE];
+    U8 m_serializationBuffer[TMSpaceDataLink::TransferFrame<TransferFrameSize>::SIZE];
     // Fw::SerializeBufferBase m_serialBuffer;
     Fw::ComBuffer m_serialBuffer;
 };
