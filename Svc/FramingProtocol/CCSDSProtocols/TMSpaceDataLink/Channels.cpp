@@ -1,6 +1,8 @@
 #include "Channels.hpp"
 #include "FpConfig.h"
 #include "Fw/Com/ComBuffer.hpp"
+#include "Fw/Logger/Logger.hpp"
+#include "Fw/Types/Assert.hpp"
 #include "Fw/Types/String.hpp"
 #include "Os/Models/QueueBlockingTypeEnumAc.hpp"
 #include "Os/Models/QueueStatusEnumAc.hpp"
@@ -12,20 +14,61 @@
 namespace TMSpaceDataLink {
 
 template <>
-BaseVirtualChannel<VirtualChannelParams_t, VCAService, VCAService::RequestPrimitive_t, FrameService, Fw::ComBuffer, TransferFrame<255>, GVCID_t>::
-    BaseVirtualChannel(VirtualChannelParams_t const& params, GVCID_t id)
+BaseVirtualChannel<VCAService,
+                   VCAService::RequestPrimitive_t,
+                   FrameService,
+                   Fw::ComBuffer,
+                   TransferFrame<255>,
+                   GVCID_t>::BaseVirtualChannel(GVCID_t id)
     : VCAService(id), FrameService(id), id(id), m_externalQueue() {
     Os::Queue::Status status;
     // NOTE add id to this
     Fw::String name = "Base Channel";
-    m_externalQueue.create(name, CHANNEL_Q_DEPTH);
+    status = m_externalQueue.create(name, CHANNEL_Q_DEPTH);
+    Fw::Logger::log("Created VC for Id %d %d %d \n", id.MCID.TFVN, id.MCID.SCID, id.VCID);
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 }
 
 template <>
-BaseVirtualChannel<VirtualChannelParams_t, VCAService, VCAService::RequestPrimitive_t, FrameService, Fw::ComBuffer, TransferFrame<255>, GVCID_t>&
-BaseVirtualChannel<VirtualChannelParams_t, VCAService, VCAService::RequestPrimitive_t, FrameService, Fw::ComBuffer, TransferFrame<255>, GVCID_t>::
-operator=(const BaseVirtualChannel& other) {
+BaseVirtualChannel<VCAService,
+                   VCAService::RequestPrimitive_t,
+                   FrameService,
+                   Fw::ComBuffer,
+                   TransferFrame<255>,
+                   GVCID_t>::BaseVirtualChannel(const BaseVirtualChannel& other)
+    : VCAService(other.id)  // Initialize base classes
+      ,
+      FrameService(other.id),
+      id(other.id),
+      m_externalQueue() {  // Create a new queue for the copied object
+
+    // Since we can't copy if there's a message in the queue we should assert
+    FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
+
+    // Create a new queue for this instance
+    Os::Queue::Status status;
+    Fw::String name = "Base Channel";
+    status = m_externalQueue.create(name, CHANNEL_Q_DEPTH);
+    Fw::Logger::log("Created VC (copy) for Id %d %d %d \n", id.MCID.TFVN, id.MCID.SCID, id.VCID);
+    FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
+
+    // Copy other member variables
+    m_channelTransferCount = other.m_channelTransferCount;
+}
+
+template <>
+BaseVirtualChannel<VCAService,
+                   VCAService::RequestPrimitive_t,
+                   FrameService,
+                   Fw::ComBuffer,
+                   TransferFrame<255>,
+                   GVCID_t>&
+BaseVirtualChannel<VCAService,
+                   VCAService::RequestPrimitive_t,
+                   FrameService,
+                   Fw::ComBuffer,
+                   TransferFrame<255>,
+                   GVCID_t>::operator=(const BaseVirtualChannel& other) {
     if (this == &other) {
         return *this;
     }
@@ -58,7 +101,8 @@ bool VirtualChannel::transfer(TransferInType& transferBuffer) {
     return qStatus == Os::Queue::Status::OP_OK;
 }
 
-bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t const& request, TransferOutType& channelOut) {
+bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t const& request,
+                                               TransferOutType& channelOut) {
     bool status = true;
     // Was something like this originally
     // FrameSDU_t framePrim;
@@ -89,65 +133,37 @@ bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t co
 }
 
 template <>
-BaseMasterChannel<MasterChannelParams_t,
-                  VirtualChannel,
+BaseMasterChannel<VirtualChannel,
                   typename VirtualChannel::TransferOutType,
                   typename VirtualChannel::TransferOutType,
-                  MCID_t>::BaseMasterChannel(MasterChannelParams_t& params, MCID_t id)
-    : id(id), m_params(params) {
+                  MCID_t,
+                  MAX_VIRTUAL_CHANNELS>::BaseMasterChannel(ChannelList<VirtualChannel, MAX_VIRTUAL_CHANNELS> const&
+                                                               subChannels,
+                                                           MCID_t id)
+    : id(id), m_subChannels(subChannels) {
     Os::Queue::Status status;
     Fw::String name = "Master Channel";
     // NOTE this is very wrong at the moment
-    m_externalQueue.create(name, CHANNEL_Q_DEPTH);
+    status = m_externalQueue.create(name, CHANNEL_Q_DEPTH);
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
-
-    for (U8 i = 0; i < params.numSubChannels; i++) {
-        GVCID_t vcid = {id, i};
-        m_subChannels.at(i) = VirtualChannel(params.subChannels[i], vcid);
-    }
 }
 
 template <>
-BaseMasterChannel<MasterChannelParams_t,
-                  VirtualChannel,
+BaseMasterChannel<VirtualChannel,
                   typename VirtualChannel::TransferOutType,
+                  // For now we're just passing along the virtual channels
                   typename VirtualChannel::TransferOutType,
-                  MCID_t>::BaseMasterChannel(const BaseMasterChannel& other)
-    : m_params(other.m_params), id(other.id) {
-    for (U8 i = 0; i < m_params.numSubChannels; i++) {
-        GVCID_t vcid = {id, i};
-        m_subChannels.at(i) = VirtualChannel(m_params.subChannels[i], vcid);
-    }
-}
-
-template <>
-BaseMasterChannel<MasterChannelParams_t,
-                  VirtualChannel,
-                  typename VirtualChannel::TransferOutType,
-                  typename VirtualChannel::TransferOutType,
-                  MCID_t>&
-BaseMasterChannel<MasterChannelParams_t,
-                  VirtualChannel,
-                  typename VirtualChannel::TransferOutType,
-                  typename VirtualChannel::TransferOutType,
-                  MCID_t>::operator=(const BaseMasterChannel& other) {
-    if (this == &other) {
-        return *this;
-    }
-
-    // Since we can't copy if there's a message in the queue we should assert
-    FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
-
-    id = other.id;
-    m_channelTransferCount = other.m_channelTransferCount;
-
-    return *this;
-}
+                  MCID_t,
+                  MAX_VIRTUAL_CHANNELS>::BaseMasterChannel(const BaseMasterChannel& other)
+    : id(other.id), m_subChannels(other.m_subChannels) {}
 
 bool MasterChannel::getChannel(GVCID_t const gvcid, VirtualChannel& vc) {
     FW_ASSERT(gvcid.MCID == id);
     NATIVE_UINT_TYPE i = 0;
     do {
+        Fw::Logger::log("%d Looking for Id %d %d %d -> %d %d %d\n", i, gvcid.MCID.TFVN, gvcid.MCID.SCID, gvcid.VCID,
+                        m_subChannels.at(i).id.MCID.TFVN, m_subChannels.at(i).id.MCID.SCID,
+                        m_subChannels.at(i).id.VCID);
         if (m_subChannels.at(i).id == gvcid) {
             vc = m_subChannels.at(i);
             return true;
@@ -161,7 +177,7 @@ bool MasterChannel::transfer() {
     // TransferOutType masterChannelTransferItems;
     std::array<TransferInType, MAX_VIRTUAL_CHANNELS> masterChannelTransferItems;
     FwQueuePriorityType priority = 0;
-    for (NATIVE_UINT_TYPE i = 0; i < m_params.numSubChannels; i++) {
+    for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
         // This collects frames from various virtual channels and muxes them
         TransferInType frame;
         FwSizeType actualsize;
@@ -176,7 +192,7 @@ bool MasterChannel::transfer() {
     MasterChannelGeneration_handler(masterChannelTransferItems);
 
     Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-    for (NATIVE_UINT_TYPE i = 0; i < m_params.numSubChannels; i++) {
+    for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
         qStatus = m_externalQueue.send(masterChannelTransferItems.at(i), Os::QueueInterface::BlockingType::BLOCKING,
                                        this->priority);
         FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
@@ -204,22 +220,18 @@ bool MasterChannel::MasterChannelGeneration_handler(InternalTransferOutType& mas
 };
 
 template <>
-BaseMasterChannel<PhysicalChannelParams_t,
-                  MasterChannel,
+BaseMasterChannel<MasterChannel,
                   typename MasterChannel::TransferOutType,
                   std::array<typename MasterChannel::TransferOutType, 10>,
-                  Fw::String>::BaseMasterChannel(PhysicalChannelParams_t& params)
-    : id(params.channelName), m_params(params) {
+                  Fw::String,
+                  MAX_MASTER_CHANNELS>::BaseMasterChannel(ChannelList<MasterChannel, MAX_MASTER_CHANNELS> const&
+                                                              subChannels,
+                                                          Fw::String id)
+    : id(id), m_subChannels(subChannels) {
     Os::Queue::Status status;
-    Fw::String name = "Master Channel";
     // NOTE this is very wrong at the moment
-    m_externalQueue.create(name, CHANNEL_Q_DEPTH);
+    m_externalQueue.create(id, CHANNEL_Q_DEPTH);
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
-
-    for (U8 i = 0; i < params.numSubChannels; i++) {
-        MCID_t mcid = {m_params.subChannels.at(i).spaceCraftId, m_params.transferFrameVersion};
-        m_subChannels.at(i) = MasterChannel(params.subChannels[i], mcid);
-    }
 }
 
 bool PhysicalChannel::getChannel(MCID_t const mcid, VirtualChannel& vc) {
@@ -244,7 +256,7 @@ bool PhysicalChannel::transfer() {
     // Specific implementation for VirtualChannel with no underlying services
     TransferOutType masterChannelTransferItems;
     FwQueuePriorityType priority = 0;
-    for (NATIVE_UINT_TYPE i = 0; i < m_params.numSubChannels; i++) {
+    for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
         // This collects frames from various virtual channels and muxes them
         TransferInType frame;
         Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
