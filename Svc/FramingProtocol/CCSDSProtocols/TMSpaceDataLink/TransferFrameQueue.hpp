@@ -52,8 +52,8 @@ class TransformFrameQueue : public PriorityQueue {
     //! \param blockType: BLOCKING to block for space or NONBLOCKING to return error when queue is full
     //! \return: status of the send
     Status send(TMSpaceDataLink::TransferFrame<TransferFrameSize>& transformFrame,
-                FwQueuePriorityType priority,
-                BlockingType blockType);
+                BlockingType blockType,
+                FwQueuePriorityType priority);
 
     //! \brief receive a message from the queue
     //!

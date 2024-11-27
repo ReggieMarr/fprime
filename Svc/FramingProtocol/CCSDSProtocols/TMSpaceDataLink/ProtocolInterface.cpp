@@ -26,7 +26,7 @@
 
 namespace TMSpaceDataLink {
 
-bool ProtocolEntity::UserComIn_handler(Fw::Buffer data, U32 context) {
+bool ProtocolEntity::UserComIn_handler(Fw::Buffer &data, U32 context) {
     // Determine the channel mapping from context
     GVCID_t gvcid;
     GVCID_t::fromVal(gvcid, context);

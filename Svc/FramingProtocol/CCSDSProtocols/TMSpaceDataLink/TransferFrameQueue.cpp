@@ -22,8 +22,8 @@ QueueInterface::Status TransformFrameQueue<>::create(const Fw::StringBase& name,
 template<>
 QueueInterface::Status TransformFrameQueue<>::send(
     TMSpaceDataLink::TransferFrame<>& transferFrame,
-    FwQueuePriorityType priority,
-    BlockingType blockType
+                                                   BlockingType blockType,
+    FwQueuePriorityType priority
 ) {
     // Stack allocation of temporary buffer
     U8 buffer[TMSpaceDataLink::TransferFrame<>::SIZE];

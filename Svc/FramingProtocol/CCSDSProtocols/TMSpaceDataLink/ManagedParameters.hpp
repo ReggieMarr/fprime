@@ -188,17 +188,8 @@ typedef struct GVCID_s {
     }
 
     static void fromVal(GVCID_s& gvcid, U32 const val) {
-        U16 scid = (val >> SCID_OFFSET) & SCID_MASK;
-        U8 tfvn = (val >> TFVN_OFFSET) & TFVN_MASK;
-        U8 vcid = (val >> VCID_OFFSET) & VCID_MASK;
-
-        FW_ASSERT(scid <= MAX_SCID, scid);
-        FW_ASSERT(tfvn <= MAX_TFVN, tfvn);
-        FW_ASSERT(vcid <= MAX_VCID, vcid);
-
-        gvcid.MCID.SCID = scid;
-        gvcid.MCID.TFVN = tfvn;
-        gvcid.VCID = vcid;
+        U16 valU16 = static_cast<U16>(val >> GVCID_OFFSET);
+        fromVal(gvcid, valU16);
     }
 } GVCID_t;
 
