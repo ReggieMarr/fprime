@@ -78,6 +78,35 @@ class TransformFrameQueue : public PriorityQueue {
     // Fw::SerializeBufferBase m_serialBuffer;
     Fw::ComBuffer m_serialBuffer;
 };
+// template<FwSizeType TransferFramerSize>
+// void transferQueue<>(Os::Generic::TransformFrameQueue<TransferFramerSize> &src,
+//                      Os::Generic::TransformFrameQueue<TransferFramerSize> &dest) {
+
+//         // If we really wanted to we could transfer the queues some way like this
+//         Os::QueueInterface::Status other_queue_status = Os::QueueInterface::OP_OK;
+//         Os::QueueInterface::Status this_queue_status = Os::QueueInterface::OP_OK;
+//         // NOTE should carefully consider the perfomance implications here
+//         // also since we're potentially exiting when this instance's queue is full
+//         // that could result in dropped frames
+//         while (other_queue_status != Os::QueueInterface::Status::EMPTY &&
+//                this_queue_status != Os::QueueInterface::Status::FULL) {
+//             TransferOutType frame;
+//             FwQueuePriorityType priority = 0;
+//             other_queue_status = other.m_externalQueue.receive(other, frame,
+//             Os::QueueInterface::BlockingType::BLOCKING, priority); FW_ASSERT(other_queue_status !=
+//             Os::QueueInterface::Status::EMPTY ||
+//                           other_queue_status == Os::QueueInterface::Status::OP_OK,
+//                       other_queue_status);
+//             this_queue_status = m_externalQueue.send(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
+//             FW_ASSERT(this_queue_status != Os::QueueInterface::Status::FULL ||
+//                           this_queue_status == Os::QueueInterface::Status::OP_OK,
+//                       this_queue_status);
+//         }
+//         if (this_queue_status == Os::QueueInterface::Status::FULL) {
+//             Fw::Logger::log("[WARNING] Could not transfer entire queue. %d Messages left \n",
+//                             other.m_externalQueue.getMessagesAvailable());
+//         }
+// }
 
 }  // namespace Generic
 }  // namespace Os
