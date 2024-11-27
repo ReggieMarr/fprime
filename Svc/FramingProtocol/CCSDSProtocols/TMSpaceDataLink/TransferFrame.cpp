@@ -150,6 +150,38 @@ Fw::SerializeStatus DataField::deserialize(U8* buff, NATIVE_UINT_TYPE length) {
     return serBuff.deserialize(buff, length);
 }
 
+bool FrameErrorControlField::set(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
+    // Add frame error control (CRC-16)
+    CheckSum crc;
+    // NATIVE_UINT_TYPE serializedSize = static_cast<NATIVE_UINT_TYPE>(buffer.getBuffAddrSer() - startPtr);
+    NATIVE_UINT_TYPE serializedSize = buffer.getBuffCapacity() - sizeof(U16);
+    Types::CircularBuffer circBuff(startPtr, serializedSize);
+    Fw::SerializeStatus stat = circBuff.serialize(startPtr, serializedSize);
+
+    circBuff.print();
+
+    // Calculate the CRC based off of the buffer serialized into the circBuff
+    FwSizeType sizeOut;
+    crc.calculate(circBuff, 0, sizeOut);
+    // Ensure we've checked the whole thing
+    FW_ASSERT(sizeOut == serializedSize, sizeOut);
+
+    // since the CRC has to go on the end we place it there assuming that the buffer is sized correctly
+    FwSizeType skipByteNum = FW_MAX((buffer.getBuffCapacity() - 2) - buffer.getBuffLength(), 0);
+    Fw::SerializeStatus status;
+    status = buffer.serializeSkip(skipByteNum);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+    U16 crcValue = crc.getExpected();
+    Fw::Logger::log("framed CRC val %d\n", crcValue);
+    FW_ASSERT(crcValue);
+
+    status = buffer.serialize(crcValue);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+    return true;
+}
+
 template <FwSizeType FrameSize, FwSizeType SecondaryHeaderSize, FwSizeType TrailerSize>
 Fw::SerializeStatus TransferFrame<FrameSize, SecondaryHeaderSize, TrailerSize>::serialize(
     Fw::SerializeBufferBase& buffer,

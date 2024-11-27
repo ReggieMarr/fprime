@@ -48,13 +48,6 @@ typedef struct VCAStatusFields_s {
     U16 firstHeaderPointer : 11;
 } __attribute__((packed)) VCAStatusFields_t;
 
-// CCSDS 132.0-B-3 3.4.3.2
-typedef struct VCARequest_s {
-    VCA_SDU_t sdu;
-    VCAStatusFields_t statusFields;
-    GVCID_t sap;
-} VCA_Request_t;
-
 typedef NATIVE_UINT_TYPE VCP_Request_t;
 typedef NATIVE_UINT_TYPE OCF_Request_t;
 typedef NATIVE_UINT_TYPE FSH_Request_t;
@@ -164,11 +157,18 @@ class VCAService {
   public:
     VCAService(GVCID_t gvcid) : sap(gvcid){};
 
+    // CCSDS 132.0-B-3 3.4.3.2
+    typedef struct VCARequest_s {
+        VCA_SDU_t sdu;
+        VCAStatusFields_t statusFields;
+        GVCID_t sap;
+    } RequestPrimitive_t;
+
     const Fw::String serviceName = "DEFAULT SERVICE";
     const SERVICE_TRANSFER_TYPE_t serviceTransferType = SYNCHRONOUS;
     const GVCID_t sap;
 
-    bool generateVCAPrimitive(Fw::ComBuffer& transferBuffer, VCA_Request_t& prim) {
+    bool generateVCAPrimitive(Fw::ComBuffer& transferBuffer, RequestPrimitive_t& prim) {
         // NOTE should handle this in some way that respect const
         prim.sdu.serialize(transferBuffer);
         prim.sap = sap;

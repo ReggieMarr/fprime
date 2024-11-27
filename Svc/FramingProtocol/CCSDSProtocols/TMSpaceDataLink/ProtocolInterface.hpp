@@ -48,12 +48,11 @@ namespace TMSpaceDataLink {
  * (TM Transfer Frames) at a constant rate.
  */
 class ProtocolEntity {
-    static constexpr FwSizeType TransferFrameSize = 255;
   public:
     ProtocolEntity(ManagedParameters_t& params) : m_physicalChannel(params.physicalParams), m_params(params) {}
 
     // Process incoming telemetry data
-    bool UserComIn_handler(Fw::Buffer &data, U32 context);
+    bool UserComIn_handler(Fw::Buffer& data, U32 context);
 
     // Generate the next TM Transfer Frame for transmission
     // Implements constant rate transfer requirement from 2.3.1
@@ -63,7 +62,7 @@ class ProtocolEntity {
     // NOTE could be made as a deserializer
     ManagedParameters_t m_params;
 
-    PhysicalChannel<TransferFrameSize> m_physicalChannel;
+    PhysicalChannel m_physicalChannel;
 };
 
 }  // namespace TMSpaceDataLink
