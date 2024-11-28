@@ -1,4 +1,5 @@
 #include "Channels.hpp"
+#include <memory>
 #include "FpConfig.h"
 #include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Logger/Logger.hpp"
@@ -83,7 +84,7 @@ BaseVirtualChannel<VCAService,
 }
 
 bool VirtualChannel::transfer(TransferInType& transferBuffer) {
-    VCA_SDU_t vcaSDU;
+    VCA_SDU_t vcaSDU(m_userDataTemporaryBuff.data(), m_userDataTemporaryBuff.size());
     VCAService::RequestPrimitive_t vcaRequest;
 
     bool status = false;
@@ -91,7 +92,7 @@ bool VirtualChannel::transfer(TransferInType& transferBuffer) {
     status = generateVCAPrimitive(transferBuffer, vcaRequest);
     FW_ASSERT(status, status);
 
-    TransferOutType frame;
+    TransferOutType frame(vcaSDU);
     status = ChannelGeneration_handler(vcaRequest, frame);
     FW_ASSERT(status, status);
 
@@ -101,13 +102,12 @@ bool VirtualChannel::transfer(TransferInType& transferBuffer) {
     return qStatus == Os::Queue::Status::OP_OK;
 }
 
-bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t const& request,
-                                               TransferOutType& channelOut) {
+bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t& request, TransferOutType& channelOut) {
     bool status = true;
     // Was something like this originally
     // FrameSDU_t framePrim;
     // status = sender->generateFramePrimitive(request, framePrim);
-    DataField dataField(request.sdu);
+    DataField<TransferOutType::DATA_FIELD_SIZE> dataField(request.sdu);
     // TODO the ManagedParameters should propogate to this
     MissionPhaseParameters_t missionParams = {
         .transferFrameVersion = 0x00,
@@ -186,28 +186,32 @@ VirtualChannel& MasterChannel::getChannel(GVCID_t const gvcid) {
 bool MasterChannel::transfer() {
     // Specific implementation for VirtualChannel with no underlying services
     // TransferOutType masterChannelTransferItems;
-    std::array<TransferInType, MAX_VIRTUAL_CHANNELS> masterChannelTransferItems;
-    FwQueuePriorityType priority = 0;
-    for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
-        // This collects frames from various virtual channels and muxes them
-        TransferInType frame;
-        FwSizeType actualsize;
-        Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-        qStatus =
-            m_subChannels.at(i).m_externalQueue.receive(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
-        // If this were to fail we should create an only idle data (OID) transfer frame as per CCSDS 4.2.4.4
-        FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
-        // TODO do some sort of id matching
-        VirtualChannelMultiplexing_handler(frame, i, masterChannelTransferItems);
-    }
-    MasterChannelGeneration_handler(masterChannelTransferItems);
 
-    Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-    for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
-        qStatus = m_externalQueue.send(masterChannelTransferItems.at(i), Os::QueueInterface::BlockingType::BLOCKING,
-                                       this->priority);
-        FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
-    }
+    // std::array<TransferInType, MAX_VIRTUAL_CHANNELS> masterChannelTransferItems;
+    // FwQueuePriorityType priority = 0;
+    // for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
+    //     // This collects frames from various virtual channels and muxes them
+    //     // allocate a local buff on the stack
+    //     std::array<U8, TransferInType::SERIALIZED_SIZE> frameFieldBytes;
+    //     Fw::Buffer frameFieldBuff(frameFieldBytes.data(), frameFieldBytes.size());
+    //     TransferInType frame(frameFieldBuff);
+    //     FwSizeType actualsize;
+    //     Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
+    //     qStatus =
+    //         m_subChannels.at(i).m_externalQueue.receive(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
+    //     // If this were to fail we should create an only idle data (OID) transfer frame as per CCSDS 4.2.4.4
+    //     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+    //     // TODO do some sort of id matching
+    //     VirtualChannelMultiplexing_handler(frame, i, masterChannelTransferItems);
+    // }
+    // MasterChannelGeneration_handler(masterChannelTransferItems);
+
+    // Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
+    // for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
+    //     qStatus = m_externalQueue.send(masterChannelTransferItems.at(i), Os::QueueInterface::BlockingType::BLOCKING,
+    //                                    this->priority);
+    //     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+    // }
 
     return true;
 }
@@ -233,7 +237,7 @@ bool MasterChannel::MasterChannelGeneration_handler(InternalTransferOutType& mas
 template <>
 BaseMasterChannel<MasterChannel,
                   typename MasterChannel::TransferOutType,
-                  std::array<typename MasterChannel::TransferOutType, 10>,
+                  typename MasterChannel::TransferOutType,
                   Fw::String,
                   MAX_MASTER_CHANNELS>::BaseMasterChannel(ChannelList<MasterChannel, MAX_MASTER_CHANNELS> const&
                                                               subChannels,
@@ -269,26 +273,36 @@ VirtualChannel& PhysicalChannel::getChannel(GVCID_t const gvcid) {
 
 bool PhysicalChannel::transfer() {
     // Specific implementation for VirtualChannel with no underlying services
-    TransferOutType masterChannelTransferItems;
-    FwQueuePriorityType priority = 0;
-    for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
-        // This collects frames from various virtual channels and muxes them
-        TransferInType frame;
-        Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-        qStatus =
-            m_subChannels.at(i).m_externalQueue.receive(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
-        // If this were to fail we should create a transfer frame as per CCSDS 4.2.4.4
-        FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
-        MasterChannelMultiplexing_handler(frame, i, masterChannelTransferItems);
-    }
-    AllFramesChannelGeneration_handler(masterChannelTransferItems);
+    // std::array<U8, TransferInType::SERIALIZED_SIZE> frameFieldBytes_1;
+    // Fw::Buffer frameFieldBuff_1(frameFieldBytes_1.data(), frameFieldBytes_1.size());
+    // std::array<U8, TransferInType::SERIALIZED_SIZE> frameFieldBytes_2;
+    // Fw::Buffer frameFieldBuff_2(frameFieldBytes_2.data(), frameFieldBytes_2.size());
+    // std::array<U8, TransferInType::SERIALIZED_SIZE> frameFieldBytes_3;
+    // Fw::Buffer frameFieldBuff_3(frameFieldBytes_3.data(), frameFieldBytes_3.size());
 
-    Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-    for (NATIVE_UINT_TYPE i = 0; i < masterChannelTransferItems.size(); i++) {
-        qStatus = m_externalQueue.send(masterChannelTransferItems.at(i), Os::QueueInterface::BlockingType::BLOCKING,
-                                       priority);
-        FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
-    }
+    // TransferOutType masterChannelTransferItems(
+    //     {TransferInType(frameFieldBuff_1), TransferInType(frameFieldBuff_2), TransferInType(frameFieldBuff_3)});
+    // FwQueuePriorityType priority = 0;
+    // for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
+    //     // This collects frames from various virtual channels and muxes them
+    //     std::array<U8, TransferInType::SERIALIZED_SIZE> inFrameFieldBytes;
+    //     Fw::Buffer inFrameFieldBuff(inFrameFieldBytes.data(), inFrameFieldBytes.size());
+    //     TransferInType frame(inFrameFieldBuff);
+    //     Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
+    //     qStatus =
+    //         m_subChannels.at(i).m_externalQueue.receive(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
+    //     // If this were to fail we should create a transfer frame as per CCSDS 4.2.4.4
+    //     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+    //     MasterChannelMultiplexing_handler(frame, i, masterChannelTransferItems);
+    // }
+    // AllFramesChannelGeneration_handler(masterChannelTransferItems);
+
+    // Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
+    // for (NATIVE_UINT_TYPE i = 0; i < masterChannelTransferItems.size(); i++) {
+    //     qStatus = m_externalQueue.send(masterChannelTransferItems.at(i), Os::QueueInterface::BlockingType::BLOCKING,
+    //                                    priority);
+    //     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+    // }
 
     return true;
 }

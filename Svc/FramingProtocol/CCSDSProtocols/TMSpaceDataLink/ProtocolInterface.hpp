@@ -32,21 +32,11 @@
 #include "Fw/Types/Serializable.hpp"
 #include "ManagedParameters.hpp"
 #include "Os/Queue.hpp"
+#include "ProtocolDataUnits.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "TransferFrame.hpp"
 #include "config/FpConfig.h"
-
-namespace Svc {
-namespace FrameDetectors {
-using TMSpaceDataLinkStartWord = StartToken<U16, static_cast<U16>(0 | TM_SCID_VAL_TO_FIELD(CCSDS_SCID)), TM_SCID_MASK>;
-using TMSpaceDataLinkLength =
-    LengthToken<FwSizeType, sizeof(FwSizeType), TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), TM_LENGTH_MASK>;
-using TMSpaceDataLinkChecksum = CRC<U16, TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), -2, CRC16_CCITT>;
-using TMSpaceDataLinkDetector =
-    StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
-}  // namespace FrameDetectors
-}  // namespace Svc
 
 namespace TMSpaceDataLink {
 
@@ -103,8 +93,8 @@ class TMSpaceDataLinkProtocol : public FramingProtocol {
     void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
 
   private:
-    std::array<U8, TMSpaceDataLink::TransferFrame<>::SIZE> m_dataFieldBuffer;
-    // Fw::Buffr
+    std::array<U8, TMSpaceDataLink::TransferFrame<>::SERIALIZED_SIZE> m_dataFieldBuffer;
+    // Fw::Buffer
     TMSpaceDataLink::TransferData_t m_transferData = {0};
     TMSpaceDataLink::TransferFrame<> m_transferFrame;
     const FwSizeType m_dataFieldSize{Svc::TM_DATA_FIELD_DFLT_SIZE};

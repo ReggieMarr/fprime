@@ -44,24 +44,25 @@ class TransferFrame : public Fw::Buffer {
     // NOTE should become static assert
     // if (m_primaryHeader.getControlInfo().dataFieldStatus.hasSecondaryHeader) {
     // if (m_primaryHeader.getControlInfo().operationalControlFlag) {
-  private:
-    static constexpr FwSizeType DATA_FIELD_SIZE = FrameSize - PrimaryHeader::SERIALIZED_SIZE - SecondaryHeaderSize - TrailerSize;
+  public:
+    static constexpr FwSizeType DATA_FIELD_SIZE =
+        FrameSize - PrimaryHeader::SERIALIZED_SIZE - SecondaryHeaderSize - TrailerSize;
 
+  private:
     FrameErrorControlField m_errorControlField;
     PrimaryHeader m_primaryHeader;
     SecondaryHeader<SecondaryHeaderSize> m_secondaryHeader;
     DataField<DATA_FIELD_SIZE> m_dataField;
-  public:
 
+  public:
     enum {
-        SERIALIZED_SIZE = FrameSize, //!< Size of DataField when serialized
+        SERIALIZED_SIZE = FrameSize,  //!< Size of DataField when serialized
     };
 
-    TransferFrame(const MissionPhaseParameters_t& missionParams, Fw::Buffer &dataBuff)
-    : m_primaryHeader(missionParams), m_secondaryHeader(), m_dataField(dataBuff, DATA_FIELD_SIZE) {}
+    TransferFrame(const MissionPhaseParameters_t& missionParams, Fw::Buffer& dataBuff)
+        : m_primaryHeader(missionParams), m_secondaryHeader(), m_dataField(dataBuff) {}
 
-    TransferFrame(Fw::Buffer &dataBuff)
-    : m_primaryHeader(), m_secondaryHeader(), m_dataField(dataBuff, DATA_FIELD_SIZE) {}
+    TransferFrame(Fw::Buffer& dataBuff) : m_primaryHeader(), m_secondaryHeader(), m_dataField(dataBuff) {}
 
     TransferFrame(PrimaryHeader& primaryHeader, DataField<DATA_FIELD_SIZE>& dataField)
         : m_primaryHeader(primaryHeader), m_secondaryHeader(), m_dataField(dataField) {}
