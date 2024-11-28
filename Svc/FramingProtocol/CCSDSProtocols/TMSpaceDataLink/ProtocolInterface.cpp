@@ -26,6 +26,21 @@
 #include "Utils/Types/CircularBuffer.hpp"
 
 namespace TMSpaceDataLink {
+// Explicit instantiations for TransferFrame
+template class TransferFrame<255, 0, 2>;
+
+// Explicit instantiations for BaseMasterChannel variations
+template class BaseMasterChannel<VirtualChannel,
+                               TransferFrame<255>,
+                               TransferFrame<255>,
+                               MCID_t,
+                               1>;
+
+template class BaseMasterChannel<MasterChannel,
+                               TransferFrame<255>,
+                               std::array<TransferFrame<255>, 3>,
+                               Fw::String,
+                               1>;
 
 bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // Determine the channel mapping from context

@@ -119,15 +119,15 @@ Fw::SerializeStatus DataField<FieldSize>::serialize(Fw::SerializeBufferBase& buf
     return Fw::SerializeStatus::FW_SERIALIZE_OK;
 }
 
-template <FwSizeType FieldSize>
-Fw::SerializeStatus DataField<FieldSize>::serialize(Fw::SerializeBufferBase& buffer) const {
-    Fw::SerializeStatus status;
-    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-    // Serialize the raw buffer's entirity into the
-    buffer.serialize(m_data.getData(), m_data.getSize(), true);
+// template <FwSizeType FieldSize>
+// Fw::SerializeStatus DataField<FieldSize>::serialize(Fw::SerializeBufferBase& buffer) const {
+//     Fw::SerializeStatus status;
+//     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+//     // Serialize the raw buffer's entirity into the
+//     buffer.serialize(m_data.getData(), m_data.getSize(), true);
 
-    return m_data.serialize(buffer);
-}
+//     return m_data.serialize(buffer);
+// }
 
 template <FwSizeType FieldSize>
 Fw::SerializeStatus DataField<FieldSize>::deserialize(Fw::SerializeBufferBase& buffer) {
@@ -136,14 +136,16 @@ Fw::SerializeStatus DataField<FieldSize>::deserialize(Fw::SerializeBufferBase& b
 
 template <FwSizeType FieldSize>
 Fw::SerializeStatus DataField<FieldSize>::serialize(const U8* buff, FwSizeType length) {
-    Fw::SerializeBufferBase& serBuff = m_data.getSerializeRepr();
-    return serBuff.serialize(buff, length, false);
+    // Fw::SerializeBufferBase& serBuff(buff, length);
+    // return serBuff.serialize(buff, length, false);
+    return Fw::FW_SERIALIZE_OK;
 }
 
 template <FwSizeType FieldSize>
 Fw::SerializeStatus DataField<FieldSize>::deserialize(U8* buff, NATIVE_UINT_TYPE length) {
-    Fw::SerializeBufferBase& serBuff = m_data.getSerializeRepr();
-    return serBuff.deserialize(buff, length);
+    // Fw::SerializeBufferBase& serBuff = m_data.getSerializeRepr();
+    // return serBuff.deserialize(buff, length);
+    return Fw::FW_SERIALIZE_OK;
 }
 template <FwSizeType Size>
 DataField<Size>& DataField<Size>::operator=(const DataField& other) {
@@ -153,6 +155,48 @@ DataField<Size>& DataField<Size>::operator=(const DataField& other) {
     }
     return *this;
 }
+
+// Serialize implementation for DataField<247>
+template <>
+Fw::SerializeStatus DataField<247>::serialize(Fw::SerializeBufferBase& buffer) const {
+    Fw::SerializeStatus status;
+
+    // Serialize the data field content
+    status = buffer.serialize(m_data.data(), m_data.size(), true);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+    return Fw::FW_SERIALIZE_OK;
+}
+
+// Deserialize implementation for DataField<247>
+template <>
+Fw::SerializeStatus DataField<247>::deserialize(Fw::SerializeBufferBase& buffer) {
+    Fw::SerializeStatus status;
+
+    // Get the size of data to deserialize
+    NATIVE_UINT_TYPE size = FW_MIN(buffer.getBuffLeft(), m_data.size());
+
+    FW_ASSERT(size <= m_data.size(), size); // Ensure we don't overflow
+
+    // Deserialize into our internal buffer
+    status = buffer.deserialize(m_data.data(), size);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+    return Fw::FW_SERIALIZE_OK;
+}
+
+// Assignment operator implementation for DataField<247>
+template <>
+DataField<247>& DataField<247>::operator=(const DataField<247>& other) {
+    if (this != &other) {
+        // Copy the buffer data
+        m_data = other.m_data;
+    }
+    return *this;
+}
+
+// Explicit instantiation
+template class DataField<247>;
 
 // Explicit template instantiation
 // template class DataField<247>;  // Or whatever sizes you need

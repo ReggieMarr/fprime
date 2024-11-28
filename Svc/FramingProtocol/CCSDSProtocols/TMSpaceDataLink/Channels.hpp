@@ -30,20 +30,6 @@ static constexpr FwSizeType TRANSFER_FRAME_SIZE = 255;
 
 template <typename ChannelType, FwSizeType ChannelSize>
 using ChannelList = std::array<ChannelType, ChannelSize>;
-// class ChannelList {
-//     std::array<ChannelType, ChannelSize> channels;
-// public:
-//     // Construct channels in-place
-//     template<typename... Args>
-//     void constructChannel(FwSizeType idx, Args&&... args) {
-//         FW_ASSERT(idx < ChannelSize);
-//         channels[idx] = ChannelType(std::forward<Args>(args)...);
-//     }
-
-//     ChannelType& get(FwSizeType idx) {
-//         return channels.at(idx);
-//     }
-// };
 
 // NOTE use trait struct here
 template <typename UserDataService,

@@ -325,5 +325,66 @@ bool PhysicalChannel::AllFramesChannelGeneration_handler(TransferOutType& master
     }
     return true;
 }
+template <>
+BaseMasterChannel<MasterChannel,
+                  TransferFrame<TRANSFER_FRAME_SIZE>,
+                  std::array<TransferFrame<TRANSFER_FRAME_SIZE>, 3>,
+                  Fw::String,
+                  1>::BaseMasterChannel(const std::array<MasterChannel, 1>& channels, Fw::String id)
+    : id(id), m_subChannels(channels), m_externalQueue() {
+    Os::Queue::Status status;
+    // Create queue with specified name and depth
+    status = m_externalQueue.create(id, CHANNEL_Q_DEPTH);
+    FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
+
+    // Log creation
+    Fw::Logger::log("Created MC with ID %s\n", id.toChar());
+}
+
+template <>
+BaseMasterChannel<MasterChannel,
+                  TransferFrame<TRANSFER_FRAME_SIZE>,
+                  std::array<TransferFrame<TRANSFER_FRAME_SIZE>, 3>,
+                  Fw::String,
+                  1>::BaseMasterChannel(const BaseMasterChannel& other)
+    : id(other.id), m_subChannels(other.m_subChannels), m_externalQueue() {
+    // Since we can't copy if there's a message in the queue we should assert
+    FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
+
+    // Create a new queue for this instance
+    Os::Queue::Status status;
+    status = m_externalQueue.create(id, CHANNEL_Q_DEPTH);
+    FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
+
+    // Copy other member variables
+    m_channelTransferCount = other.m_channelTransferCount;
+    priority = other.priority;
+}
+
+template <>
+BaseMasterChannel<MasterChannel,
+                  TransferFrame<TRANSFER_FRAME_SIZE>,
+                  std::array<TransferFrame<TRANSFER_FRAME_SIZE>, 3>,
+                  Fw::String,
+                  1>&
+BaseMasterChannel<MasterChannel,
+                  TransferFrame<TRANSFER_FRAME_SIZE>,
+                  std::array<TransferFrame<TRANSFER_FRAME_SIZE>, 3>,
+                  Fw::String,
+                  1>::operator=(const BaseMasterChannel& other) {
+    if (this == &other) {
+        return *this;
+    }
+
+    // Since we can't copy if there's a message in the queue we should assert
+    FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
+
+    id = other.id;
+    m_subChannels = other.m_subChannels;
+    m_channelTransferCount = other.m_channelTransferCount;
+    priority = other.priority;
+
+    return *this;
+}
 
 }  // namespace TMSpaceDataLink

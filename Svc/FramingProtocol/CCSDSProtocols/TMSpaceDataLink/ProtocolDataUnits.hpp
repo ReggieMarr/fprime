@@ -198,7 +198,7 @@ class SecondaryHeader : public Fw::Buffer {
 };
 
 template <FwSizeType FieldSize = 64>
-class DataField : public Fw::Buffer {
+class DataField : public Fw::Serializable {
   public:
     // At least one byte of transfer frame data units must be associated with the header for it to be used
     static constexpr FwSizeType MIN_FSDU_LEN = 1;
@@ -218,12 +218,27 @@ class DataField : public Fw::Buffer {
 
     ~DataField() = default;
     DataField& operator=(const DataField& other);
-
-    // NOTE should we maybe be inheriting from buffer instead ?
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, const U8* const data, const U32 size) const;
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override;
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override;
+    // Keep only one serialize method that overrides the base class method
     Fw::SerializeStatus serialize(const U8* buff, FwSizeType length);
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer,
+                                                    const U8* const data,
+                                  const U32 size) const;
+
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
+        Fw::SerializeStatus status;
+        // Serialize the data field content
+        status = buffer.serialize(m_data.data(), m_data.size(), true);
+        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+        return Fw::FW_SERIALIZE_OK;
+    }
+
+    // Other methods to handle different serialization cases (not overrides)
+    Fw::SerializeStatus serializeWithData(Fw::SerializeBufferBase& buffer,
+                                        const U8* const data,
+                                        const U32 size) const;
+    Fw::SerializeStatus serializeRaw(const U8* buff, FwSizeType length);
+
+    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override;
     Fw::SerializeStatus deserialize(U8* buff, NATIVE_UINT_TYPE length);
 
   private:

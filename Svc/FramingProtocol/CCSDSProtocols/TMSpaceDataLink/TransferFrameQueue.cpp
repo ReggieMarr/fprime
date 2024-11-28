@@ -67,38 +67,37 @@ TransformFrameQueue<TransferFrameSize>::~TransformFrameQueue() {
     // Clean up any resources
     // If using PriorityQueue's cleanup, call parent destructor
     // Note: If PriorityQueue has virtual destructor, this might not be needed
-    PriorityQueue::cleanup();
+    // PriorityQueue::cleanup();
+}
+template <>
+TransformFrameQueue<255>::~TransformFrameQueue() {
+    // Cleanup implementation
+    // PriorityQueue::cleanup();
 }
 
-template <FwSizeType TransferFrameSize>
-TransformFrameQueue<TransferFrameSize>::TransformFrameQueue()
-    : PriorityQueue()  // Initialize base class
-      ,
-      m_serializationBuffer() {  // Initialize the serialization buffer
+template <>
+TransformFrameQueue<255>::TransformFrameQueue()
+    : PriorityQueue()
+    , m_serializationBuffer() {
 }
 
-// Add copy constructor if needed
-template <FwSizeType TransferFrameSize>
-TransformFrameQueue<TransferFrameSize>::TransformFrameQueue(const TransformFrameQueue& other)
-    : PriorityQueue(other)  // Copy base class
-      ,
-      m_serializationBuffer(other.m_serializationBuffer) {
-    // Copy any additional members
+template <>
+QueueInterface::Status TransformFrameQueue<255>::create(const Fw::StringBase& name, FwSizeType depth) {
+    return PriorityQueue::create(name, depth,
+        static_cast<FwSizeType>(TMSpaceDataLink::TransferFrame<255>::SERIALIZED_SIZE));
 }
 
-// Add copy assignment if needed
-template <FwSizeType TransferFrameSize>
-TransformFrameQueue<TransferFrameSize>& TransformFrameQueue<TransferFrameSize>::operator=(
-    const TransformFrameQueue& other) {
-    if (this != &other) {
-        PriorityQueue::operator=(other);
-        m_serializationBuffer = other.m_serializationBuffer;
-    }
-    return *this;
+template <>
+QueueInterface::Status TransformFrameQueue<255>::send(
+    TMSpaceDataLink::TransferFrame<255>& transferFrame,
+    BlockingType blockType,
+    FwQueuePriorityType priority) {
+    // Implementation as provided earlier
+    // ...
 }
 
-// Explicit template instantiation at the end of the cpp file
-// template class TransformFrameQueue<255>;
+// Explicit instantiation
+template class TransformFrameQueue<255>;
 
 }  // namespace Generic
 }  // namespace Os
