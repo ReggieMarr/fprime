@@ -69,6 +69,7 @@ TransformFrameQueue<TransferFrameSize>::~TransformFrameQueue() {
     // Note: If PriorityQueue has virtual destructor, this might not be needed
     // PriorityQueue::cleanup();
 }
+
 template <>
 TransformFrameQueue<255>::~TransformFrameQueue() {
     // Cleanup implementation
@@ -94,6 +95,7 @@ QueueInterface::Status TransformFrameQueue<255>::send(
     FwQueuePriorityType priority) {
     // Implementation as provided earlier
     // ...
+    return QueueInterface::Status::OP_OK;
 }
 
 // Explicit instantiation

@@ -73,40 +73,11 @@ class TransferFrame : public Fw::Buffer {
     // What this constitutes could also become optional
     DataField<DATA_FIELD_SIZE> getDataField() { return m_dataField; };
 
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer,
-                                  TransferData_t& transferData,
-                                  const U8* const data,
-                                  const U32 size);
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t transferData, const U8* const data, const U32 size);
 
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
-        Fw::SerializeStatus status;
-        FW_ASSERT(buffer.getBuffLeft() >= FrameSize, buffer.getBuffLeft(), FrameSize);
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer);
 
-        // accounts for serialization later on
-        U8* startPtr = buffer.getBuffAddrSer();
-
-        // Resize to just the portion of the buffer that fits a transfer frame
-        // TODO this introduces a side effect (resizing the input buffer) be sure
-        // that is made clear and doesn't cause problems
-        // Fw::ComBuffer serBuff(startPtr, FrameSize);
-        // serBuff.setBuffLen(FrameSize);
-
-        status = m_primaryHeader.serialize(buffer);
-        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-
-        status = m_dataField.serialize(buffer);
-        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-
-        // insert the error control field into the buffer
-        bool setStatus = m_errorControlField.set(startPtr, buffer);
-        FW_ASSERT(setStatus, setStatus);
-
-        return Fw::SerializeStatus::FW_SERIALIZE_OK;
-    }
-
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
-        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-    }
+    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer);
 
     bool setFrameErrorControlField() { return false; };
 };

@@ -24,6 +24,64 @@ using TMSpaceDataLinkDetector =
 }  // namespace Svc
 
 namespace TMSpaceDataLink {
+
+template <FwSizeType FieldSize, typename FieldValueType>
+class ProtocolDataUnitBase {
+public:
+    using FieldValue_t = FieldValueType;
+    enum { SERIALIZED_SIZE = FieldSize };
+
+    ProtocolDataUnitBase();
+    ProtocolDataUnitBase(FieldValueType srcVal);
+    virtual ~ProtocolDataUnitBase() = default;
+    ProtocolDataUnitBase& operator=(const ProtocolDataUnitBase& other);
+
+    void get(FieldValueType& val) const;
+    void set(FieldValueType const& val);
+    bool insert(Fw::SerializeBufferBase& buffer) const;
+    bool insert(Fw::SerializeBufferBase& buffer, FieldValueType& val);
+    bool extract(Fw::SerializeBufferBase& buffer);
+    bool extract(Fw::SerializeBufferBase& buffer, FieldValueType& val);
+
+protected:
+    FieldValueType m_value;
+    virtual Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const = 0;
+    virtual Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) = 0;
+};
+
+template <FwSizeType FieldSize, typename FieldValueType>
+class ProtocolDataUnit : public ProtocolDataUnitBase<FieldSize, FieldValueType> {
+public:
+    using Base = ProtocolDataUnitBase<FieldSize, FieldValueType>;
+    using typename Base::FieldValue_t;  // Need typename here
+    using Base::ProtocolDataUnitBase;   // Inheriting constructor
+    using Base::operator=;              // Inheriting assignment
+
+    void get(FieldValue_t& val) const;
+    void set(FieldValue_t const& val);
+
+protected:
+    Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
+    Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) override;
+};
+
+template <FwSizeType FieldSize>
+class ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>
+    : public ProtocolDataUnitBase<FieldSize, std::array<U8, FieldSize>> {
+public:
+    using Base = ProtocolDataUnitBase<FieldSize, std::array<U8, FieldSize>>;
+    using typename Base::FieldValue_t;
+    using Base::ProtocolDataUnitBase;
+    using Base::operator=;
+
+    void get(FieldValue_t& val) const;
+    void set(FieldValue_t const& val);
+
+protected:
+    Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
+    Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) override;
+};
+
 // These contain a set of non-contiguous parameters which are mutually agreed upon
 // between sender and receiver and do not change over the course of the mission phase
 // as defined by CCSDS 132.0-B-3 1.6.1.3
@@ -100,7 +158,7 @@ typedef struct DataFieldStatus_s {
 // +--------+------------+-----+---+---------+---------+----------------+
 // |        Octet 1-2              | Octet 3-4          |    Octet 5-6   |
 // clang-format on
-class PrimaryHeader : public Fw::Buffer {
+class PrimaryHeader {
   public:
     // TM Primary Header: 6 octets (CCSDS 132.0-B-3, Section 4.1.2)
     enum {
@@ -134,16 +192,14 @@ class PrimaryHeader : public Fw::Buffer {
     const ControlInformation_t getControlInfo() const { return m_ci; };
     Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t& transferData);
 
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override;
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
-        return Fw::SerializeStatus::FW_SERIALIZE_OK;
-    }
+    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const;
+    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer);
 
+    void setControlInfo(TransferData_t& transferData);
     void setMasterChannelCount(U8 channelCount) { m_ci.masterChannelFrameCount = channelCount; };
     void setVirtualChannelCount(U8 channelCount) { m_ci.virtualChannelFrameCount = channelCount; };
 
   private:
-    void setControlInfo(TransferData_t& transferData);
     void setControlInfo(MissionPhaseParameters_t const& params);
 
     ControlInformation_t m_ci;
@@ -198,66 +254,56 @@ class SecondaryHeader : public Fw::Buffer {
 };
 
 template <FwSizeType FieldSize = 64>
-class DataField : public Fw::Serializable {
+class DataField : public ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>> {
   public:
+    // Inherit parent's type definitions
+    using Base = ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>;
+
+    // Inherit constructors
+    using Base::ProtocolDataUnit;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
+
     // At least one byte of transfer frame data units must be associated with the header for it to be used
-    static constexpr FwSizeType MIN_FSDU_LEN = 1;
-    // TM Secondary Header is up to 64 octets (CCSDS 132.0-B-3, Section 4.1.3)
-    static constexpr FwSizeType MAX_SIZE = 64;
-    enum {
-        SERIALIZED_SIZE = FieldSize,  //!< Size of DataField when serialized
-    };
+    static constexpr FwSizeType MIN_SIZE = 1;
+    static_assert(FieldSize >= MIN_SIZE, "FieldSize must be at least MIN_FSDU_LEN");
 
-    DataField() : m_data() {}
-
-    DataField(std::array<U8, FieldSize> srcBuff) : m_data(srcBuff) {}
     DataField(Fw::Buffer& srcBuff) {
         FW_ASSERT(srcBuff.getSize() == FieldSize, srcBuff.getSize());
-        // srcBuff.deserialize(m_data.data(), SERIALIZED_SIZE);
+        FW_ASSERT(this->extract(srcBuff.getSerializeRepr()));
     }
-
-    ~DataField() = default;
-    DataField& operator=(const DataField& other);
-    // Keep only one serialize method that overrides the base class method
-    Fw::SerializeStatus serialize(const U8* buff, FwSizeType length);
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer,
-                                                    const U8* const data,
-                                  const U32 size) const;
-
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
-        Fw::SerializeStatus status;
-        // Serialize the data field content
-        status = buffer.serialize(m_data.data(), m_data.size(), true);
-        FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-        return Fw::FW_SERIALIZE_OK;
-    }
-
-    // Other methods to handle different serialization cases (not overrides)
-    Fw::SerializeStatus serializeWithData(Fw::SerializeBufferBase& buffer,
-                                        const U8* const data,
-                                        const U32 size) const;
-    Fw::SerializeStatus serializeRaw(const U8* buff, FwSizeType length);
-
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override;
-    Fw::SerializeStatus deserialize(U8* buff, NATIVE_UINT_TYPE length);
-
-  private:
-    std::array<U8, SERIALIZED_SIZE> m_data;
 };
 
 // This could become an optional template class
 class FrameErrorControlField {
+  public:
+    using FieldValueType = U16;
     enum {
-        SERIALIZED_SIZE = sizeof(U16),  //!< Size of Field when serialized
+        SERIALIZED_SIZE = sizeof(FieldValueType),  //!< Size of Field when serialized
     };
 
-  public:
     FrameErrorControlField() = default;
     ~FrameErrorControlField() = default;
-    bool set(U8* const startPtr, Fw::SerializeBufferBase& buffer) const;
+    // Set this instances value from a value
+    bool set(FieldValueType const val);
+
+    bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
+    bool insert(Fw::SerializeBufferBase& buffer) const;
+
+    // bool extract(Fw::SerializeBufferBase& buffer);
+    // bool extract(Fw::SerializeBufferBase& buffer, FieldValueType &val);
+
+    // bool get(FieldValueType &val);
+    // bool get(Fw::SerializeBufferBase& buffer, FieldValueType &val);
+
+  protected:
+    FieldValueType m_value;
 
   private:
-    U16 m_Value;
+    // Determines the fields value from a provided buffer and startPoint
+    bool set(U8 const* const startPtr, Fw::SerializeBufferBase& buffer);
+    bool calc_value(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
+
     using CheckSum = Svc::FrameDetectors::TMSpaceDataLinkChecksum;
 };
 
