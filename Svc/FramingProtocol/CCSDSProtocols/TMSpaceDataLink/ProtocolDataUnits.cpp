@@ -1,6 +1,109 @@
 #include "ProtocolDataUnits.hpp"
+#include <cstring>
 
 namespace TMSpaceDataLink {
+
+template <FwSizeType FieldSize, typename FieldValueType>
+ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase() : m_value() {}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase(FieldValueType srcVal) : m_value(srcVal) {}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+void ProtocolDataUnitBase<FieldSize, FieldValueType>::set(FieldValueType const& val) {
+    m_value = val;
+}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+void ProtocolDataUnitBase<FieldSize, FieldValueType>::get(FieldValueType& val) const {
+    val = m_value;
+}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+bool ProtocolDataUnitBase<FieldSize, FieldValueType>::insert(Fw::SerializeBufferBase& buffer) const {
+    return serializeValue(buffer) == Fw::FW_SERIALIZE_OK;
+}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+bool ProtocolDataUnitBase<FieldSize, FieldValueType>::insert(Fw::SerializeBufferBase& buffer, FieldValueType& val) {
+    FieldValueType lastVal = m_value;
+    set(val);
+    if (!insert(buffer)) {
+        set(lastVal);
+        return false;
+    }
+    return true;
+}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+bool ProtocolDataUnitBase<FieldSize, FieldValueType>::extract(Fw::SerializeBufferBase& buffer) {
+    return deserializeValue(buffer) == Fw::FW_SERIALIZE_OK;
+}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+bool ProtocolDataUnitBase<FieldSize, FieldValueType>::extract(Fw::SerializeBufferBase& buffer, FieldValueType& val) {
+    FieldValueType lastVal = m_value;
+    // NOTE in practice this won't actually be handled given the way we currently setup FW_ASSERT
+    // TODO configure FW_ASSERT to get something like exception handling here;
+    if (!extract(buffer)) {
+        m_value = lastVal;
+        return false;
+    }
+    val = m_value;
+    return true;
+}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+ProtocolDataUnitBase<FieldSize, FieldValueType>& ProtocolDataUnitBase<FieldSize, FieldValueType>::operator=(
+    const ProtocolDataUnitBase<FieldSize, FieldValueType>& other) {
+    if (this != &other) {
+        set(other.m_value);
+    }
+    return *this;
+}
+
+// Primitive type template implementations
+template <FwSizeType FieldSize, typename FieldValueType>
+Fw::SerializeStatus ProtocolDataUnit<FieldSize, FieldValueType>::serializeValue(Fw::SerializeBufferBase& buffer) const {
+    return buffer.serialize(this->m_value);
+}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+Fw::SerializeStatus ProtocolDataUnit<FieldSize, FieldValueType>::deserializeValue(Fw::SerializeBufferBase& buffer) {
+    return buffer.deserialize(this->m_value);
+}
+
+// Array specialization implementations
+template <FwSizeType FieldSize>
+Fw::SerializeStatus ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::serializeValue(
+    Fw::SerializeBufferBase& buffer) const {
+    U8 const* buffPtr = this->m_value.data();
+    NATIVE_UINT_TYPE buffSize = this->m_value.size();
+    return buffer.serialize(buffPtr, buffSize, true);
+}
+
+template <FwSizeType FieldSize>
+Fw::SerializeStatus ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::deserializeValue(
+    Fw::SerializeBufferBase& buffer) {
+    U8* buffPtr = this->m_value.data();
+    NATIVE_UINT_TYPE buffSize = this->m_value.size();
+    return buffer.deserialize(buffPtr, buffSize, true);
+}
+
+template <FwSizeType FieldSize>
+void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::set(FieldValue_t const& val) {
+    // To set the internal state we need to have a value that is the same size
+    FW_ASSERT(val.size() == this->m_value.size(), val.size(), this->m_value.size());
+    (void)std::memcpy(this->m_value.data(), val.data(), val.size());
+}
+
+template <FwSizeType FieldSize>
+void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::get(FieldValue_t& val) const {
+    // To set the internal state we need to have a value that is the same size
+    FW_ASSERT(val.size() == this->m_value.size(), val.size(), this->m_value.size());
+    (void)std::memcpy(val.data(), this->m_value.data(), val.size());
+}
+
 PrimaryHeader::PrimaryHeader(MissionPhaseParameters_t const& params, TransferData_t& transferData) {
     // NOTE This order is important since the mission params affect how we interpret the transferData
     setControlInfo(params);
@@ -9,6 +112,10 @@ PrimaryHeader::PrimaryHeader(MissionPhaseParameters_t const& params, TransferDat
 
 PrimaryHeader::PrimaryHeader(MissionPhaseParameters_t const& params) {
     setControlInfo(params);
+}
+
+Fw::SerializeStatus PrimaryHeader::deserialize(Fw::SerializeBufferBase& buffer) {
+    return Fw::SerializeStatus::FW_SERIALIZE_OK;
 }
 
 Fw::SerializeStatus PrimaryHeader::serialize(Fw::SerializeBufferBase& buffer) const {
@@ -99,109 +206,26 @@ void PrimaryHeader::setControlInfo(TransferData_t& transferData) {
     }
 }
 
-Fw::SerializeStatus PrimaryHeader::serialize(Fw::SerializeBufferBase& buffer, TransferData_t& transferData) {
-    setControlInfo(transferData);
+// NOTE this should probably be done on the instatiation side of things
+// Instantiate the base class
+template class ProtocolDataUnitBase<247, std::array<U8, 247>>;
 
-    // Serialize the actual buffer now that the internal state is correct
-    return serialize(buffer);
-}
+// Instantiate the primary template (if needed)
+// FIXME I get linter errors here but they don't seem to affect compilation:
+// In template: dependent using declaration resolved to type without 'typename' (lsp)
+template class ProtocolDataUnit<247, std::array<U8, 247>>;
 
-template <FwSizeType FieldSize>
-Fw::SerializeStatus DataField<FieldSize>::serialize(Fw::SerializeBufferBase& buffer,
-                                                    const U8* const data,
-                                                    const U32 size) const {
-    Fw::SerializeStatus status;
-
-    // TODO add some extra check here, adding size maybe something else
-    status = buffer.serialize(data, size);
-    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-
-    return Fw::SerializeStatus::FW_SERIALIZE_OK;
-}
-
-// template <FwSizeType FieldSize>
-// Fw::SerializeStatus DataField<FieldSize>::serialize(Fw::SerializeBufferBase& buffer) const {
-//     Fw::SerializeStatus status;
-//     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-//     // Serialize the raw buffer's entirity into the
-//     buffer.serialize(m_data.getData(), m_data.getSize(), true);
-
-//     return m_data.serialize(buffer);
-// }
-
-template <FwSizeType FieldSize>
-Fw::SerializeStatus DataField<FieldSize>::deserialize(Fw::SerializeBufferBase& buffer) {
-    return m_data.deserialize(buffer);
-}
-
-template <FwSizeType FieldSize>
-Fw::SerializeStatus DataField<FieldSize>::serialize(const U8* buff, FwSizeType length) {
-    // Fw::SerializeBufferBase& serBuff(buff, length);
-    // return serBuff.serialize(buff, length, false);
-    return Fw::FW_SERIALIZE_OK;
-}
-
-template <FwSizeType FieldSize>
-Fw::SerializeStatus DataField<FieldSize>::deserialize(U8* buff, NATIVE_UINT_TYPE length) {
-    // Fw::SerializeBufferBase& serBuff = m_data.getSerializeRepr();
-    // return serBuff.deserialize(buff, length);
-    return Fw::FW_SERIALIZE_OK;
-}
-template <FwSizeType Size>
-DataField<Size>& DataField<Size>::operator=(const DataField& other) {
-    if (this != &other) {
-        // Copy the buffer data
-        m_data = other.m_data;
-    }
-    return *this;
-}
-
-// Serialize implementation for DataField<247>
-template <>
-Fw::SerializeStatus DataField<247>::serialize(Fw::SerializeBufferBase& buffer) const {
-    Fw::SerializeStatus status;
-
-    // Serialize the data field content
-    status = buffer.serialize(m_data.data(), m_data.size(), true);
-    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-
-    return Fw::FW_SERIALIZE_OK;
-}
-
-// Deserialize implementation for DataField<247>
-template <>
-Fw::SerializeStatus DataField<247>::deserialize(Fw::SerializeBufferBase& buffer) {
-    Fw::SerializeStatus status;
-
-    // Get the size of data to deserialize
-    NATIVE_UINT_TYPE size = FW_MIN(buffer.getBuffLeft(), m_data.size());
-
-    FW_ASSERT(size <= m_data.size(), size); // Ensure we don't overflow
-
-    // Deserialize into our internal buffer
-    status = buffer.deserialize(m_data.data(), size);
-    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-
-    return Fw::FW_SERIALIZE_OK;
-}
-
-// Assignment operator implementation for DataField<247>
-template <>
-DataField<247>& DataField<247>::operator=(const DataField<247>& other) {
-    if (this != &other) {
-        // Copy the buffer data
-        m_data = other.m_data;
-    }
-    return *this;
-}
-
-// Explicit instantiation
+// Instantiate DataField
 template class DataField<247>;
 
-// Explicit template instantiation
-// template class DataField<247>;  // Or whatever sizes you need
+// If you're using other sizes, add those too, for example:
+template class ProtocolDataUnitBase<64, std::array<U8, 64>>;
+// FIXME I get linter errors here but they don't seem to affect compilation:
+// In template: dependent using declaration resolved to type without 'typename' (lsp)
+template class ProtocolDataUnit<64, std::array<U8, 64>>;
+template class DataField<64>;
 
-bool FrameErrorControlField::set(U8* const startPtr, Fw::SerializeBufferBase& buffer) const {
+bool FrameErrorControlField::calc_value(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
     FW_ASSERT(startPtr);
 
     // Assumes the startPtr indicates where the serialization started in the buffer
@@ -226,15 +250,59 @@ bool FrameErrorControlField::set(U8* const startPtr, Fw::SerializeBufferBase& bu
     // Ensure we've checked the whole thing
     FW_ASSERT(sizeOut == postFieldInsertionSize, sizeOut, postFieldInsertionSize);
 
-    U16 crcValue = crc.getExpected();
-    Fw::Logger::log("framed CRC val %d\n", crcValue);
-    FW_ASSERT(crcValue);
-
-    Fw::SerializeStatus status;
-    status = buffer.serialize(crcValue);
-    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+    U16 crc_value = crc.getExpected();
+    Fw::Logger::log("framed CRC val %d\n", crc_value);
+    // Crc value should always be non-zero
+    FW_ASSERT(m_value);
 
     return true;
 }
+
+bool FrameErrorControlField::set(FieldValueType const val) {
+    m_value = val;
+    return true;
+}
+
+bool FrameErrorControlField::insert(Fw::SerializeBufferBase& buffer) const {
+    Fw::SerializeStatus status;
+    status = buffer.serialize(m_value);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+    return true;
+}
+
+bool FrameErrorControlField::insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
+    bool selfStatus = calc_value(startPtr, buffer);
+    FW_ASSERT(selfStatus);
+
+    return true;
+}
+
+// bool FrameErrorControlField::extract(Fw::SerializeBufferBase& buffer) {
+//     Fw::SerializeStatus status;
+//     status = buffer.deserialize(m_value);
+//     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+//     return true;
+// }
+
+// bool FrameErrorControlField::get(FieldValueType &val) {
+//     val = m_value;
+//     return true;
+// }
+
+// bool FrameErrorControlField::extract(Fw::SerializeBufferBase& buffer, U16 &val) {
+//     Fw::SerializeStatus status;
+//     status = buffer.deserialize(m_value);
+//     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+//     get(val);
+
+//     return true;
+// }
+
+// bool FrameErrorControlField::get(Fw::SerializeBufferBase& buffer, FieldValueType &val) {
+//     extract(buffer);
+//     get(val);
+//     return true;
+// }
 
 }  // namespace TMSpaceDataLink
