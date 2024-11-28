@@ -11,6 +11,7 @@ set(SOURCE_FILES
   "${CMAKE_CURRENT_LIST_DIR}/FramingProtocol.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/FprimeProtocol.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/ProtocolInterface.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/ProtocolDataUnits.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/TransferFrame.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/TransferFrameQueue.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/Services.cpp"

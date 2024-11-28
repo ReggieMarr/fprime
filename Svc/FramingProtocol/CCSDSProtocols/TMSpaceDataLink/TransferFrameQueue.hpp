@@ -10,9 +10,17 @@ namespace Generic {
 
 template <FwSizeType TransferFrameSize = 255>
 class TransformFrameQueue : public PriorityQueue {
+  private:
+    // Pre-allocated buffer for serialization
+    std::array<U8, TMSpaceDataLink::TransferFrame<TransferFrameSize>::SERIALIZED_SIZE> m_serializationBuffer;
+
   public:
+    enum {
+        SERIALIZED_SIZE = TransferFrameSize,  //!< Size of DataField when serialized
+    };
+
     //! \brief default queue interface constructor
-    TransformFrameQueue() : m_serialBuffer(m_serializationBuffer, sizeof(m_serializationBuffer)) {}
+    TransformFrameQueue() = default;
 
     //! \brief default queue destructor
     virtual ~TransformFrameQueue();
@@ -71,12 +79,6 @@ class TransformFrameQueue : public PriorityQueue {
     Status receive(TMSpaceDataLink::TransferFrame<TransferFrameSize>& transformFrame,
                    BlockingType blockType,
                    FwQueuePriorityType& priority);
-
-  private:
-    // Pre-allocated buffer for serialization
-    U8 m_serializationBuffer[TMSpaceDataLink::TransferFrame<TransferFrameSize>::SIZE];
-    // Fw::SerializeBufferBase m_serialBuffer;
-    Fw::ComBuffer m_serialBuffer;
 };
 // template<FwSizeType TransferFramerSize>
 // void transferQueue<>(Os::Generic::TransformFrameQueue<TransferFramerSize> &src,

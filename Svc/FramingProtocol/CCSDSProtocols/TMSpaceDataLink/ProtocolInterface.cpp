@@ -59,10 +59,11 @@ void ProtocolEntity::generateNextFrame() {
 }  // namespace TMSpaceDataLink
 
 namespace Svc {
-TMSpaceDataLinkProtocol::TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams)
-    :  {
-    m_transferFrame = TMSpaceDataLink::TransferFrame<>(missionParams, Fw::Buffer(m_dataFieldBuffer, m_dataFieldBuffer.size()));
-}
+// TMSpaceDataLinkProtocol::TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams)
+// :   {
+//     m_transferFrame = TMSpaceDataLink::TransferFrame<>(missionParams, Fw::Buffer(m_dataFieldBuffer.data(),
+//     m_dataFieldBuffer.size()));
+// }
 
 void TMSpaceDataLinkProtocol::frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) {
     FW_ASSERT(data != nullptr);

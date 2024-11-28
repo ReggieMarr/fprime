@@ -27,7 +27,7 @@ using VCP_SDU_t = Fw::ComPacket;
 // Virtual Access Service Data Unit 3.2.3
 using VCA_SDU_t = Fw::Buffer;
 // template<FwSizeType DATA_LENGTH>
-// using VCA_SDU_t=std::array<U8, DATA_LENGTH>;
+// using VCA_SDU_t=std::array<U8, TransferFrame<>::SERIALIZED_SIZE>;
 
 // Frame Secondary Header Service Data Unit  3.2.4
 using FSH_SDU_t = Fw::Buffer;

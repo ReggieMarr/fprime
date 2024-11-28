@@ -16,7 +16,6 @@
 #include "Fw/Types/Serializable.hpp"
 #include "Fw/Types/String.hpp"
 #include "ManagedParameters.hpp"
-#include "Os/Models/QueueBlockingTypeEnumAc.hpp"
 #include "Os/Queue.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
@@ -83,7 +82,7 @@ class BaseVirtualChannel : public UserDataService, public FramingService {
 
     Os::Generic::TransformFrameQueue<TRANSFER_FRAME_SIZE> m_externalQueue;  // Queue for inter-task communication
   protected:
-    virtual bool ChannelGeneration_handler(UserDataServiceRequest const& request, TransferOut_t& channelOut) = 0;
+    virtual bool ChannelGeneration_handler(UserDataServiceRequest& request, TransferOut_t& channelOut) = 0;
     U8 m_channelTransferCount = 0;
 };
 
@@ -155,8 +154,8 @@ class VirtualChannel : public BaseVirtualChannel<VCAService,
     bool transfer(typename Base::TransferIn_t& transferBuffer) override;
 
   protected:
-    Fw::Buffer m_userDataTemporaryBuff[TRANSFER_FRAME_SIZE];
-    bool ChannelGeneration_handler(VCAService::RequestPrimitive_t const& request, TransferOut_t& channelOut) override;
+    std::array<U8, TRANSFER_FRAME_SIZE> m_userDataTemporaryBuff;
+    bool ChannelGeneration_handler(VCAService::RequestPrimitive_t& request, TransferOut_t& channelOut) override;
 };
 
 // Master Channel Implementation
@@ -203,14 +202,14 @@ class MasterChannel : public BaseMasterChannel<VirtualChannel,
 // Physical Channel Implementation
 class PhysicalChannel : public BaseMasterChannel<MasterChannel,
                                                  typename MasterChannel::TransferOutType,
-                                                 std::array<typename MasterChannel::TransferOutType, 10>,
+                                                 std::array<typename MasterChannel::TransferOutType, 3>,
                                                  Fw::String,
                                                  MAX_MASTER_CHANNELS> {
   public:
     // Inherit parent's type definitions
     using Base = BaseMasterChannel<MasterChannel,
                                    typename MasterChannel::TransferOutType,
-                                   std::array<typename MasterChannel::TransferOutType, 10>,
+                                   std::array<typename MasterChannel::TransferOutType, 3>,
                                    Fw::String,
                                    MAX_MASTER_CHANNELS>;
     //
