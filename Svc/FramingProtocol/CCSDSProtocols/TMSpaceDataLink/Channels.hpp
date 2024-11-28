@@ -27,6 +27,7 @@
 
 namespace TMSpaceDataLink {
 constexpr FwSizeType CHANNEL_Q_DEPTH = 10;
+static constexpr FwSizeType TRANSFER_FRAME_SIZE = 255;
 
 template <typename ChannelType, FwSizeType ChannelSize>
 using ChannelList = std::array<ChannelType, ChannelSize>;
@@ -80,7 +81,7 @@ class BaseVirtualChannel : public UserDataService, public FramingService {
 
     virtual bool transfer(TransferInType& transferBuffer) = 0;
 
-    Os::Generic::TransformFrameQueue<255> m_externalQueue;  // Queue for inter-task communication
+    Os::Generic::TransformFrameQueue<TRANSFER_FRAME_SIZE> m_externalQueue;  // Queue for inter-task communication
   protected:
     virtual bool ChannelGeneration_handler(UserDataServiceRequest const& request, TransferOut_t& channelOut) = 0;
     U8 m_channelTransferCount = 0;
@@ -116,7 +117,7 @@ class BaseMasterChannel {
 
     IdType id;
     virtual bool transfer() = 0;
-    Os::Generic::TransformFrameQueue<255> m_externalQueue;
+    Os::Generic::TransformFrameQueue<TRANSFER_FRAME_SIZE> m_externalQueue;
 
   protected:
     FwQueuePriorityType priority = 0;
@@ -128,7 +129,7 @@ class VirtualChannel : public BaseVirtualChannel<VCAService,
                                                  VCAService::RequestPrimitive_t,
                                                  FrameService,
                                                  Fw::ComBuffer,
-                                                 TransferFrame<255>,
+                                                 TransferFrame<TRANSFER_FRAME_SIZE>,
                                                  GVCID_t> {
   public:
     // Inherit parent's type definitions
@@ -136,7 +137,7 @@ class VirtualChannel : public BaseVirtualChannel<VCAService,
                                     VCAService::RequestPrimitive_t,
                                     FrameService,
                                     Fw::ComBuffer,
-                                    TransferFrame<255>,
+                                    TransferFrame<TRANSFER_FRAME_SIZE>,
                                     GVCID_t>;
 
     // Inherit constructors
@@ -154,6 +155,7 @@ class VirtualChannel : public BaseVirtualChannel<VCAService,
     bool transfer(typename Base::TransferIn_t& transferBuffer) override;
 
   protected:
+    Fw::Buffer m_userDataTemporaryBuff[TRANSFER_FRAME_SIZE];
     bool ChannelGeneration_handler(VCAService::RequestPrimitive_t const& request, TransferOut_t& channelOut) override;
 };
 
@@ -186,7 +188,7 @@ class MasterChannel : public BaseMasterChannel<VirtualChannel,
 
     using Base::operator=;
 
-    bool getChannel(GVCID_t const gvcid, VirtualChannel& vc);
+    VirtualChannel& getChannel(GVCID_t const gvcid);
 
     bool transfer() override;
 
@@ -221,9 +223,9 @@ class PhysicalChannel : public BaseMasterChannel<MasterChannel,
 
     using Base::operator=;
 
-    bool getChannel(MCID_t const mcid, VirtualChannel& vc);
+    bool getChannel(MCID_t const mcid, NATIVE_UINT_TYPE& channelIdx);
 
-    bool getChannel(GVCID_t const gvcid, VirtualChannel& vc);
+    VirtualChannel& getChannel(GVCID_t const gvcid);
 
     bool transfer();
 

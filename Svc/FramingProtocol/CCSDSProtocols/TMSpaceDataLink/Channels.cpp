@@ -18,7 +18,7 @@ BaseVirtualChannel<VCAService,
                    VCAService::RequestPrimitive_t,
                    FrameService,
                    Fw::ComBuffer,
-                   TransferFrame<255>,
+                   TransferFrame<TRANSFER_FRAME_SIZE>,
                    GVCID_t>::BaseVirtualChannel(GVCID_t id)
     : VCAService(id), FrameService(id), id(id), m_externalQueue() {
     Os::Queue::Status status;
@@ -34,7 +34,7 @@ BaseVirtualChannel<VCAService,
                    VCAService::RequestPrimitive_t,
                    FrameService,
                    Fw::ComBuffer,
-                   TransferFrame<255>,
+                   TransferFrame<TRANSFER_FRAME_SIZE>,
                    GVCID_t>::BaseVirtualChannel(const BaseVirtualChannel& other)
     : VCAService(other.id)  // Initialize base classes
       ,
@@ -61,13 +61,13 @@ BaseVirtualChannel<VCAService,
                    VCAService::RequestPrimitive_t,
                    FrameService,
                    Fw::ComBuffer,
-                   TransferFrame<255>,
+                   TransferFrame<TRANSFER_FRAME_SIZE>,
                    GVCID_t>&
 BaseVirtualChannel<VCAService,
                    VCAService::RequestPrimitive_t,
                    FrameService,
                    Fw::ComBuffer,
-                   TransferFrame<255>,
+                   TransferFrame<TRANSFER_FRAME_SIZE>,
                    GVCID_t>::operator=(const BaseVirtualChannel& other) {
     if (this == &other) {
         return *this;
@@ -109,21 +109,30 @@ bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t co
     // status = sender->generateFramePrimitive(request, framePrim);
     DataField dataField(request.sdu);
     // TODO the ManagedParameters should propogate to this
-    MissionPhaseParameters_t missionParams;
+    MissionPhaseParameters_t missionParams = {
+        .transferFrameVersion = 0x00,
+        .spaceCraftId = CCSDS_SCID,
+        .hasOperationalControlFlag = false,
+        .hasSecondaryHeader = false,
+        // Indicates this is for VCA
+        .isSyncFlagEnabled = true,
+    };
+    DataFieldStatus_t dataFieldStatus = {
+        // Indicates this is for VCA
+        .isSyncFlagEnabled = true,
+    };
     TransferData_t transferData;
-    // TODO do this
-    // transferData.dataFieldDesc = request.statusFields
     // NOTE could just as easily get this from the id but this matches the spec better
     transferData.virtualChannelId = request.sap.VCID;
+    // transferData.virtualChannelId = id.VCID;
     // Explicitly do not set this
     // transferData.masterChannelFrameCount
-    // TODO this should some how be propogated from the transfer call or the masterChannel parent
-    static U8 vcFrameCount = 0;
-    transferData.virtualChannelFrameCount = vcFrameCount++;
+    transferData.virtualChannelFrameCount = m_channelTransferCount++;
     // NOTE since we don't have the OCF or FSH services defined we don't
     // do anything to the secondary header or operational control frame
     PrimaryHeader primaryHeader(missionParams, transferData);
     primaryHeader.setVirtualChannelCount(this->m_channelTransferCount++);
+    // NOTE this should be done by the "FramingService" to most closely adhere to the spec
     TransferOutType frame(primaryHeader, dataField);
     // FIXME this I think is bad memory management
     channelOut = frame;
@@ -157,7 +166,7 @@ BaseMasterChannel<VirtualChannel,
                   MAX_VIRTUAL_CHANNELS>::BaseMasterChannel(const BaseMasterChannel& other)
     : id(other.id), m_subChannels(other.m_subChannels) {}
 
-bool MasterChannel::getChannel(GVCID_t const gvcid, VirtualChannel& vc) {
+VirtualChannel& MasterChannel::getChannel(GVCID_t const gvcid) {
     FW_ASSERT(gvcid.MCID == id);
     NATIVE_UINT_TYPE i = 0;
     do {
@@ -165,11 +174,13 @@ bool MasterChannel::getChannel(GVCID_t const gvcid, VirtualChannel& vc) {
                         m_subChannels.at(i).id.MCID.TFVN, m_subChannels.at(i).id.MCID.SCID,
                         m_subChannels.at(i).id.VCID);
         if (m_subChannels.at(i).id == gvcid) {
-            vc = m_subChannels.at(i);
-            return true;
+            return m_subChannels.at(i);
         }
     } while (i++ < m_subChannels.size());
-    return false;
+    FW_ASSERT(0, gvcid.MCID.SCID, gvcid.MCID.TFVN, gvcid.VCID);
+    // FIXME this is here so the compiler won't complain,
+    // the above line should keep this from ever happenening tho
+    return m_subChannels.at(0);
 }
 
 bool MasterChannel::transfer() {
@@ -230,26 +241,30 @@ BaseMasterChannel<MasterChannel,
     : id(id), m_subChannels(subChannels) {
     Os::Queue::Status status;
     // NOTE this is very wrong at the moment
-    m_externalQueue.create(id, CHANNEL_Q_DEPTH);
+    status = m_externalQueue.create(id, CHANNEL_Q_DEPTH);
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 }
 
-bool PhysicalChannel::getChannel(MCID_t const mcid, VirtualChannel& vc) {
-    for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
-        if (m_subChannels.at(i).id == mcid) {
+bool PhysicalChannel::getChannel(MCID_t const mcid, NATIVE_UINT_TYPE& channelIdx) {
+    for (channelIdx = 0; channelIdx < m_subChannels.size(); channelIdx++) {
+        if (m_subChannels.at(channelIdx).id == mcid) {
             return true;
         }
     }
     return false;
 }
 
-bool PhysicalChannel::getChannel(GVCID_t const gvcid, VirtualChannel& vc) {
-    for (NATIVE_UINT_TYPE i = 0; i < m_subChannels.size(); i++) {
-        if (m_subChannels.at(i).getChannel(gvcid, vc)) {
-            return true;
+VirtualChannel& PhysicalChannel::getChannel(GVCID_t const gvcid) {
+    NATIVE_UINT_TYPE i = 0;
+    NATIVE_UINT_TYPE mcIdx = 0;
+    // First get the Master Channel index, then use that to find
+    // the Virtual Channel
+    for (mcIdx = 0; mcIdx < m_subChannels.size(); i++) {
+        if (getChannel(gvcid.MCID, mcIdx)) {
+            break;
         }
     }
-    return false;
+    return m_subChannels.at(mcIdx).getChannel(gvcid);
 }
 
 bool PhysicalChannel::transfer() {

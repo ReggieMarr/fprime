@@ -37,6 +37,17 @@
 #include "TransferFrame.hpp"
 #include "config/FpConfig.h"
 
+namespace Svc {
+namespace FrameDetectors {
+using TMSpaceDataLinkStartWord = StartToken<U16, static_cast<U16>(0 | TM_SCID_VAL_TO_FIELD(CCSDS_SCID)), TM_SCID_MASK>;
+using TMSpaceDataLinkLength =
+    LengthToken<FwSizeType, sizeof(FwSizeType), TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), TM_LENGTH_MASK>;
+using TMSpaceDataLinkChecksum = CRC<U16, TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), -2, CRC16_CCITT>;
+using TMSpaceDataLinkDetector =
+    StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
+}  // namespace FrameDetectors
+}  // namespace Svc
+
 namespace TMSpaceDataLink {
 
 /**
@@ -49,8 +60,8 @@ namespace TMSpaceDataLink {
  */
 class ProtocolEntity {
   public:
-    ProtocolEntity(ManagedParameters_t& params);
-    // : m_params(params), m_physicalChannel(createPhysicalChannel(params.physicalParams)) {}
+    ProtocolEntity(ManagedParameters_t& params)
+        : m_params(params), m_physicalChannel(createPhysicalChannel(params.physicalParams)) {}
 
     // Process incoming telemetry data
     bool UserComIn_handler(Fw::Buffer& data, U32 context);
@@ -63,8 +74,21 @@ class ProtocolEntity {
     // NOTE could be made as a deserializer
     ManagedParameters_t m_params;
 
-    // PhysicalChannel m_physicalChannel;
-    PhysicalChannel createPhysicalChannel(PhysicalChannelParams_t& params);
+    PhysicalChannel m_physicalChannel;
+    static PhysicalChannel createPhysicalChannel(PhysicalChannelParams_t& params) {
+        MCID_t mcid = {
+            .SCID = CCSDS_SCID,
+            .TFVN = params.transferFrameVersion,
+        };
+        GVCID_t gvcid = {
+            .MCID = mcid,
+            .VCID = 0,
+        };
+
+        ChannelList<VirtualChannel, 1> vcs = {VirtualChannel(gvcid)};
+        MasterChannel mc(vcs, gvcid.MCID);
+        return PhysicalChannel({mc}, params.channelName.toChar());
+    }
 };
 
 }  // namespace TMSpaceDataLink
@@ -72,15 +96,15 @@ class ProtocolEntity {
 namespace Svc {
 class TMSpaceDataLinkProtocol : public FramingProtocol {
   public:
-    TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams,
-                            const FwSizeType dataFieldSize)
-        : m_transferFrame(TMSpaceDataLink::TransferFrame<>(missionParams)), m_dataFieldSize(dataFieldSize) {}
+    TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams);
 
     void setup(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams, const FwSizeType dataFieldSize);
 
     void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
 
   private:
+    std::array<U8, TMSpaceDataLink::TransferFrame<>::SIZE> m_dataFieldBuffer;
+    // Fw::Buffr
     TMSpaceDataLink::TransferData_t m_transferData = {0};
     TMSpaceDataLink::TransferFrame<> m_transferFrame;
     const FwSizeType m_dataFieldSize{Svc::TM_DATA_FIELD_DFLT_SIZE};

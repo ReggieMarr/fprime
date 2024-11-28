@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include "FpConfig.h"
 #include "FpConfig.hpp"
+#include "Fw/Buffer/Buffer.hpp"
 #include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Com/ComPacket.hpp"
 #include "Fw/Logger/Logger.hpp"
@@ -25,46 +26,6 @@
 #include "Utils/Types/CircularBuffer.hpp"
 
 namespace TMSpaceDataLink {
-
-ProtocolEntity::ProtocolEntity(ManagedParameters_t& params) {
-    // Determine the channel mapping from context
-    VirtualChannelParams_t virtualChannelParams = {
-        .virtualChannelId = 0,
-        .VCA_SDULength = 4,
-        .VC_FSHLength = 0,
-        .isVC_OCFPresent = false,
-    };
-    MasterChannelParams_t masterChannelParams = {
-        .spaceCraftId = CCSDS_SCID,
-        .numSubChannels = 1,
-        .subChannels = {virtualChannelParams},
-        .vcMuxScheme = VC_MUX_TYPE::VC_MUX_TIME_DIVSION,
-        .MC_FSHLength = 0,
-        .isMC_OCFPresent = false,
-    };
-
-    PhysicalChannelParams_t physicalChannelParams = {
-        .channelName = "Loopback Channel",
-        .transferFrameSize = 255,
-        .transferFrameVersion = 0x00,
-        .numSubChannels = 1,
-        .subChannels = {masterChannelParams},
-        .mcMuxScheme = MC_MUX_TYPE::MC_MUX_TIME_DIVSION,
-        .isFrameErrorControlEnabled = true,
-    };
-    MCID_t mcid = {
-        .SCID = CCSDS_SCID,
-        .TFVN = physicalChannelParams.transferFrameVersion,
-    };
-    GVCID_t gvcid = {
-        .MCID = mcid,
-        .VCID = 0,
-    };
-
-    ChannelList<VirtualChannel, 1> vcs = {VirtualChannel(gvcid)};
-    MasterChannel mc(vcs, gvcid.MCID);
-    // return PhysicalChannel({mc}, physicalChannelParams.channelName);
-}
 
 bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // Determine the channel mapping from context
@@ -82,12 +43,9 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // NOTE this implies that the virutal channel is setup to be synchronous
     // we should support async and periodic with queues as well.
     // Specific implementation for VirtualChannel with no underlying services
-    // VirtualChannel vc;
-    // bool status = m_physicalChannel.getChannel(gvcid, vc);
-    // FW_ASSERT(status == true, status);
-
-    // Fw::ComBuffer com(data.getData(), data.getSize());
-    // vc.transfer(com);
+    VirtualChannel vc = m_physicalChannel.getChannel(gvcid);
+    Fw::ComBuffer com(data.getData(), data.getSize());
+    vc.transfer(com);
 
     return true;
 }
@@ -95,12 +53,16 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
 void ProtocolEntity::generateNextFrame() {
     // Generate Physical Channel frames
     Fw::Buffer finalFrame;
-    // m_physicalChannel.transfer();
+    m_physicalChannel.transfer();
 }
 
 }  // namespace TMSpaceDataLink
 
 namespace Svc {
+TMSpaceDataLinkProtocol::TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams)
+    :  {
+    m_transferFrame = TMSpaceDataLink::TransferFrame<>(missionParams, Fw::Buffer(m_dataFieldBuffer, m_dataFieldBuffer.size()));
+}
 
 void TMSpaceDataLinkProtocol::frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) {
     FW_ASSERT(data != nullptr);
