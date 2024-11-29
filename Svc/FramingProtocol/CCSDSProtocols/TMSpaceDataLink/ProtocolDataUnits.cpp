@@ -206,25 +206,6 @@ void PrimaryHeader::setControlInfo(TransferData_t& transferData) {
     }
 }
 
-// NOTE this should probably be done on the instatiation side of things
-// Instantiate the base class
-template class ProtocolDataUnitBase<247, std::array<U8, 247>>;
-
-// Instantiate the primary template (if needed)
-// FIXME I get linter errors here but they don't seem to affect compilation:
-// In template: dependent using declaration resolved to type without 'typename' (lsp)
-template class ProtocolDataUnit<247, std::array<U8, 247>>;
-
-// Instantiate DataField
-template class DataField<247>;
-
-// If you're using other sizes, add those too, for example:
-template class ProtocolDataUnitBase<64, std::array<U8, 64>>;
-// FIXME I get linter errors here but they don't seem to affect compilation:
-// In template: dependent using declaration resolved to type without 'typename' (lsp)
-template class ProtocolDataUnit<64, std::array<U8, 64>>;
-template class DataField<64>;
-
 bool FrameErrorControlField::calc_value(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
     FW_ASSERT(startPtr);
 
@@ -258,51 +239,31 @@ bool FrameErrorControlField::calc_value(U8* startPtr, Fw::SerializeBufferBase& b
     return true;
 }
 
-bool FrameErrorControlField::set(FieldValueType const val) {
-    m_value = val;
-    return true;
-}
-
-bool FrameErrorControlField::insert(Fw::SerializeBufferBase& buffer) const {
-    Fw::SerializeStatus status;
-    status = buffer.serialize(m_value);
-    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-    return true;
-}
-
 bool FrameErrorControlField::insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
     bool selfStatus = calc_value(startPtr, buffer);
     FW_ASSERT(selfStatus);
-
     return true;
 }
 
-// bool FrameErrorControlField::extract(Fw::SerializeBufferBase& buffer) {
-//     Fw::SerializeStatus status;
-//     status = buffer.deserialize(m_value);
-//     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-//     return true;
-// }
+// NOTE this should probably be done on the instatiation side of things
+// Instantiate the base class
+template class ProtocolDataUnitBase<247, std::array<U8, 247>>;
+    template class ProtocolDataUnitBase<sizeof(U16), U16>;
 
-// bool FrameErrorControlField::get(FieldValueType &val) {
-//     val = m_value;
-//     return true;
-// }
+// Instantiate the primary template (if needed)
+// FIXME I get linter errors here but they don't seem to affect compilation:
+// In template: dependent using declaration resolved to type without 'typename' (lsp)
+template class ProtocolDataUnit<247, std::array<U8, 247>>;
+template class ProtocolDataUnit<sizeof(U16), U16>;
 
-// bool FrameErrorControlField::extract(Fw::SerializeBufferBase& buffer, U16 &val) {
-//     Fw::SerializeStatus status;
-//     status = buffer.deserialize(m_value);
-//     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+// Instantiate DataField
+template class DataField<247>;
 
-//     get(val);
-
-//     return true;
-// }
-
-// bool FrameErrorControlField::get(Fw::SerializeBufferBase& buffer, FieldValueType &val) {
-//     extract(buffer);
-//     get(val);
-//     return true;
-// }
+// If you're using other sizes, add those too, for example:
+template class ProtocolDataUnitBase<64, std::array<U8, 64>>;
+// FIXME I get linter errors here but they don't seem to affect compilation:
+// In template: dependent using declaration resolved to type without 'typename' (lsp)
+template class ProtocolDataUnit<64, std::array<U8, 64>>;
+template class DataField<64>;
 
 }  // namespace TMSpaceDataLink
