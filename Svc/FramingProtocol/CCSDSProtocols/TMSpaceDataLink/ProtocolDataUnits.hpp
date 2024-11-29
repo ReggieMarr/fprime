@@ -274,34 +274,21 @@ class DataField : public ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>> 
     }
 };
 
-// This could become an optional template class
-class FrameErrorControlField {
+// NOTE This could leverage some optional template class
+class FrameErrorControlField : public ProtocolDataUnit<sizeof(U16), U16> {
   public:
-    using FieldValueType = U16;
-    enum {
-        SERIALIZED_SIZE = sizeof(FieldValueType),  //!< Size of Field when serialized
-    };
+    // Inherit parent's type definitions
+    using Base = ProtocolDataUnit<sizeof(U16), U16>;
 
-    FrameErrorControlField() = default;
-    ~FrameErrorControlField() = default;
-    // Set this instances value from a value
-    bool set(FieldValueType const val);
+    // Inherit constructors
+    using Base::ProtocolDataUnit;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
 
     bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
-    bool insert(Fw::SerializeBufferBase& buffer) const;
-
-    // bool extract(Fw::SerializeBufferBase& buffer);
-    // bool extract(Fw::SerializeBufferBase& buffer, FieldValueType &val);
-
-    // bool get(FieldValueType &val);
-    // bool get(Fw::SerializeBufferBase& buffer, FieldValueType &val);
-
-  protected:
-    FieldValueType m_value;
-
   private:
     // Determines the fields value from a provided buffer and startPoint
-    bool set(U8 const* const startPtr, Fw::SerializeBufferBase& buffer);
+    // bool set(U8 const* const startPtr, Fw::SerializeBufferBase& buffer);
     bool calc_value(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
 
     using CheckSum = Svc::FrameDetectors::TMSpaceDataLinkChecksum;
