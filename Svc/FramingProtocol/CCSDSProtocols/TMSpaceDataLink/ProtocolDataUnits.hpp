@@ -27,7 +27,7 @@ namespace TMSpaceDataLink {
 
 template <FwSizeType FieldSize, typename FieldValueType>
 class ProtocolDataUnitBase {
-public:
+  public:
     using FieldValue_t = FieldValueType;
     enum { SERIALIZED_SIZE = FieldSize };
 
@@ -43,7 +43,7 @@ public:
     bool extract(Fw::SerializeBufferBase& buffer);
     bool extract(Fw::SerializeBufferBase& buffer, FieldValueType& val);
 
-protected:
+  protected:
     FieldValueType m_value;
     virtual Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const = 0;
     virtual Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) = 0;
@@ -51,16 +51,16 @@ protected:
 
 template <FwSizeType FieldSize, typename FieldValueType>
 class ProtocolDataUnit : public ProtocolDataUnitBase<FieldSize, FieldValueType> {
-public:
+  public:
     using Base = ProtocolDataUnitBase<FieldSize, FieldValueType>;
-    using typename Base::FieldValue_t;  // Need typename here
     using Base::ProtocolDataUnitBase;   // Inheriting constructor
+    using typename Base::FieldValue_t;  // Need typename here
     using Base::operator=;              // Inheriting assignment
 
     void get(FieldValue_t& val) const;
     void set(FieldValue_t const& val);
 
-protected:
+  protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
     Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) override;
 };
@@ -68,16 +68,32 @@ protected:
 template <FwSizeType FieldSize>
 class ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>
     : public ProtocolDataUnitBase<FieldSize, std::array<U8, FieldSize>> {
-public:
+  public:
     using Base = ProtocolDataUnitBase<FieldSize, std::array<U8, FieldSize>>;
-    using typename Base::FieldValue_t;
     using Base::ProtocolDataUnitBase;
+    using typename Base::FieldValue_t;
     using Base::operator=;
 
     void get(FieldValue_t& val) const;
     void set(FieldValue_t const& val);
 
-protected:
+  protected:
+    Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
+    Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) override;
+};
+
+template <>
+class ProtocolDataUnit<0, std::nullptr_t> : public ProtocolDataUnitBase<0, std::nullptr_t> {
+  public:
+    using Base = ProtocolDataUnitBase<0, nullptr_t>;
+    using Base::ProtocolDataUnitBase;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
+
+    void get(FieldValue_t& val) const;
+    void set(FieldValue_t const& val);
+
+  protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
     Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) override;
 };
@@ -158,12 +174,46 @@ typedef struct DataFieldStatus_s {
 // +--------+------------+-----+---+---------+---------+----------------+
 // |        Octet 1-2              | Octet 3-4          |    Octet 5-6   |
 // clang-format on
-class PrimaryHeader {
+
+// NOTE __attribute__((packed)) is used here with bit specifications to express field mapping
+typedef struct PrimaryHeaderControlInfo_s {
+    U8 transferFrameVersion : 2;  // Constant for Mission Phase
+    U16 spacecraftId : 10;        // Constant for Mission Phase
+    U8 virtualChannelId : 3;
+    bool operationalControlFlag : 1;  // Constant for Mission Phase
+    U8 masterChannelFrameCount;
+    U8 virtualChannelFrameCount;
+    DataFieldStatus_t dataFieldStatus;
+} __attribute__((packed)) PrimaryHeaderControlInfo_t;
+// TM Primary Header: 6 octets (CCSDS 132.0-B-3, Section 4.1.2)
+static constexpr FwSizeType PRIMARY_HEADER_SERIALIZED_SIZE = 6;
+
+template <>
+class ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>
+    : public ProtocolDataUnitBase<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t> {
   public:
-    // TM Primary Header: 6 octets (CCSDS 132.0-B-3, Section 4.1.2)
-    enum {
-        SERIALIZED_SIZE = 6,  //!< Size of DataField when serialized
-    };
+    using Base = ProtocolDataUnitBase<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>;
+    using Base::ProtocolDataUnitBase;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
+
+    // void get(FieldValue_t& val) const;
+    // void set(FieldValue_t const& val);
+
+  protected:
+    Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
+    Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) override;
+};
+
+class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t> {
+  public:
+    // Inherit parent's type definitions
+    using Base = ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>;
+
+    // Inherit constructors
+    using Base::ProtocolDataUnit;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
     // If data field is an extension of some previous packet and the sync flag is 1
     // this should be the firstHeaderPointerField
     static constexpr U16 EXTEND_PACKET_TYPE = 0b11111111111;
@@ -171,38 +221,15 @@ class PrimaryHeader {
     // this should be the firstHeaderPointerField
     static constexpr U16 IDLE_TYPE = 0b11111111110;
 
-    // Describes the primary headers fields
-    // NOTE __attribute__((packed)) is used here with bit specifications to express field mapping
-    typedef struct ControlInformation_s {
-        U8 transferFrameVersion : 2;  // Constant for Mission Phase
-        U16 spacecraftId : 10;        // Constant for Mission Phase
-        U8 virtualChannelId : 3;
-        bool operationalControlFlag : 1;  // Constant for Mission Phase
-        U8 masterChannelFrameCount;
-        U8 virtualChannelFrameCount;
-        DataFieldStatus_t dataFieldStatus;
-    } __attribute__((packed)) ControlInformation_t;
-
-    PrimaryHeader() = default;
     PrimaryHeader(MissionPhaseParameters_t const& params);
     PrimaryHeader(MissionPhaseParameters_t const& params, TransferData_t& transferData);
-    ~PrimaryHeader() = default;
-    // PrimaryHeader& operator=(const PrimaryHeader& other);
-
-    const ControlInformation_t getControlInfo() const { return m_ci; };
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t& transferData);
-
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const;
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer);
 
     void setControlInfo(TransferData_t& transferData);
-    void setMasterChannelCount(U8 channelCount) { m_ci.masterChannelFrameCount = channelCount; };
-    void setVirtualChannelCount(U8 channelCount) { m_ci.virtualChannelFrameCount = channelCount; };
+    void setMasterChannelCount(U8 channelCount) { this->m_value.masterChannelFrameCount = channelCount; };
+    void setVirtualChannelCount(U8 channelCount) { this->m_value.virtualChannelFrameCount = channelCount; };
 
   private:
     void setControlInfo(MissionPhaseParameters_t const& params);
-
-    ControlInformation_t m_ci;
 };
 
 // clang-format off
@@ -218,8 +245,16 @@ class PrimaryHeader {
 // NOTE should leverage std::optional here
 // clang-format on
 // Currently we assume this isnt supported
-template <FwSizeType FieldSize = 0>
-class SecondaryHeader : public Fw::Buffer {
+// Note currently implemented but we want to support it architecturally
+class NullSecondaryHeader : public ProtocolDataUnit<0, std::nullptr_t> {
+  public:
+    // Inherit parent's type definitions
+    using Base = ProtocolDataUnit<0, std::nullptr_t>;
+
+    // Inherit constructors
+    using Base::ProtocolDataUnit;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
     // At least one byte of transfer frame data units must be associated with the header for it to be used
     static constexpr FwSizeType MIN_FSDU_LEN = 1;
     static constexpr FwSizeType MAX_SIZE =
@@ -231,26 +266,21 @@ class SecondaryHeader : public Fw::Buffer {
         U8 dataField[MAX_SIZE - 1];
     } __attribute__((packed)) ControlInformation_t;
 
-    SecondaryHeader() = default;
-    ~SecondaryHeader() = default;
-    // SecondaryHeader& operator=(const SecondaryHeader& other) {
-    // };
-
-    static constexpr FwSizeType SIZE = FieldSize;
-    const ControlInformation_t getControlInfo() { return m_ci; };
-
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer) const override {
-        // currently unsupported
-        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-    }
-
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer) override {
-        // currently unsupported
-        return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
-    }
+    // const ControlInformation_t getControlInfo() { return m_ci; };
 
   private:
     ControlInformation_t m_ci;
+};
+
+class NullOperationalControlField : public ProtocolDataUnit<0, std::nullptr_t> {
+  public:
+    // Inherit parent's type definitions
+    using Base = ProtocolDataUnit<0, std::nullptr_t>;
+
+    // Inherit constructors
+    using Base::ProtocolDataUnit;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
 };
 
 template <FwSizeType FieldSize = 64>
@@ -286,6 +316,7 @@ class FrameErrorControlField : public ProtocolDataUnit<sizeof(U16), U16> {
     using Base::operator=;
 
     bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
+
   private:
     // Determines the fields value from a provided buffer and startPoint
     // bool set(U8 const* const startPtr, Fw::SerializeBufferBase& buffer);
