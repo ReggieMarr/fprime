@@ -11,6 +11,7 @@
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "config/FpConfig.h"
+#include "TransferFrameDefs.hpp"
 
 namespace Svc {
 namespace FrameDetectors {
@@ -98,96 +99,6 @@ class ProtocolDataUnit<0, std::nullptr_t> : public ProtocolDataUnitBase<0, std::
     Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) override;
 };
 
-// These contain a set of non-contiguous parameters which are mutually agreed upon
-// between sender and receiver and do not change over the course of the mission phase
-// as defined by CCSDS 132.0-B-3 1.6.1.3
-typedef struct MissionPhaseParameters_s {
-    // CCSDS 132.0-B-3 4.1.2.2.2 recommends this be set to 00
-    U8 transferFrameVersion;
-    // Identifies the space craft associated with the transfer frame
-    U16 spaceCraftId;
-    // CCSDS 132.0-B-3 4.1.2.2.2 indicates whether
-    // the data field with be followed by an operational control field
-    bool hasOperationalControlFlag;
-    // CCSDS 132.0-B-3 4.1.2.7.3
-    // 1 bit field which indicates whether to include a secondary header or not
-    bool hasSecondaryHeader;
-    // CCSDS 132.0-B-3 4.1.2.7.3
-    // This 1 bit field expresses the type of data to be found in the data field
-    // '0' indicates that the data field contains packets or idle data
-    // (which should be octet-synchronized and forward ordered)
-    // '1' indicates that the data field contains virtual channel access service data units (VCA_SDU)
-    bool isSyncFlagEnabled;
-} MissionPhaseParameters_t;
-
-typedef struct {
-    bool isOnlyIdleData;
-    bool isFieldDataExtendedPacket;
-    U16 packetOffset;
-} DataFieldDesc_t;
-
-// The data which is specific to each transfer frame
-typedef struct {
-    U8 virtualChannelId;
-    U8 masterChannelFrameCount;
-    U8 virtualChannelFrameCount;
-    DataFieldDesc_t dataFieldDesc;
-} TransferData_t;
-
-// clang-format off
-// CCSDS Transfer Frame Data Field Status (16 bits)
-// +-----+-----+-----+-------+-----------------------------------+
-// | Sec | Syn | Pkt | Seg   |           First Header           |
-// | Hdr | ch  | Ord | Len   |            Pointer               |
-// | (1) | (1) | (1) | (2)   |              (11)                |
-// +-----+-----+-----+-------+-----------------------------------+
-// clang-format on
-typedef struct DataFieldStatus_s {
-    // See missionPhaseParameters_t.hasSecondaryHeader
-    bool hasSecondaryHeader : 1;  // Constant for Mission Phase
-    // See missionPhaseParameters_t.isSyncFlagEnabled
-    bool isSyncFlagEnabled : 1;  // Constant for Mission Phase
-    // CCSDS 132.0-B-3 4.1.2.7.4
-    // This field is reserved for future use (and is recommended to be set to 0)
-    // if set to 1 it's meaning is undefined
-    bool isPacketOrdered : 1;
-    // CCSDS 132.0-B-3 4.1.2.7.5
-    // If not isSyncFlagEnabled denotes non-use of source packet segments in previous (legacy) versions
-    // and should be set to 0b11
-    // If isSyncFlagEnabled is true then it's meaning is undefined.
-    U8 segmentLengthId : 3;
-    // CCSDS 4.1.2.7.6
-    // What this field expresses depends on the sync flag field (isSyncEnabled).
-    // If the sync flag field is 1 then this field is undefined.
-    // If the sync flag field is 0 then this field indicates the position of
-    // the first octet of the first packet in the transfer frame data field.
-    U16 firstHeaderPointer : 11;
-} __attribute__((packed)) DataFieldStatus_t;
-
-// clang-format off
-// CCSDS 132.0-B-3 4.1.2.7 Transfer Frame Primary Header (48 bits)
-// +--------+------------+-----+---+---------+---------+----------------+
-// |Version |  Spacecraft| VCID|OCF| Master  | Virtual |  Data Field    |
-// |  (2)   |    ID      | (3) |(1)| Channel | Channel |    Status      |
-// |        |   (10)     |     |   | Frame   | Frame   |     (16)       |
-// |        |            |     |   | Count(8)| Count(8)|                |
-// +--------+------------+-----+---+---------+---------+----------------+
-// |        Octet 1-2              | Octet 3-4          |    Octet 5-6   |
-// clang-format on
-
-// NOTE __attribute__((packed)) is used here with bit specifications to express field mapping
-typedef struct PrimaryHeaderControlInfo_s {
-    U8 transferFrameVersion : 2;  // Constant for Mission Phase
-    U16 spacecraftId : 10;        // Constant for Mission Phase
-    U8 virtualChannelId : 3;
-    bool operationalControlFlag : 1;  // Constant for Mission Phase
-    U8 masterChannelFrameCount;
-    U8 virtualChannelFrameCount;
-    DataFieldStatus_t dataFieldStatus;
-} __attribute__((packed)) PrimaryHeaderControlInfo_t;
-// TM Primary Header: 6 octets (CCSDS 132.0-B-3, Section 4.1.2)
-static constexpr FwSizeType PRIMARY_HEADER_SERIALIZED_SIZE = 6;
-
 template <>
 class ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>
     : public ProtocolDataUnitBase<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t> {
@@ -205,6 +116,16 @@ class ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_
     Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) override;
 };
 
+// clang-format off
+// CCSDS 132.0-B-3 4.1.2.7 Transfer Frame Primary Header (48 bits)
+// +--------+------------+-----+---+---------+---------+----------------+
+// |Version |  Spacecraft| VCID|OCF| Master  | Virtual |  Data Field    |
+// |  (2)   |    ID      | (3) |(1)| Channel | Channel |    Status      |
+// |        |   (10)     |     |   | Frame   | Frame   |     (16)       |
+// |        |            |     |   | Count(8)| Count(8)|                |
+// +--------+------------+-----+---+---------+---------+----------------+
+// |        Octet 1-2              | Octet 3-4          |    Octet 5-6   |
+// clang-format on
 class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t> {
   public:
     // Inherit parent's type definitions
