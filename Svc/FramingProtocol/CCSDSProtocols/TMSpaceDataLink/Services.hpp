@@ -27,7 +27,7 @@ using VCP_SDU_t = Fw::ComPacket;
 // Virtual Access Service Data Unit 3.2.3
 using VCA_SDU_t = Fw::Buffer;
 // template<FwSizeType DATA_LENGTH>
-// using VCA_SDU_t=std::array<U8, TransferFrame<>::SERIALIZED_SIZE>;
+// using VCA_SDU_t=std::array<U8, FPrimeTransferFrame::SERIALIZED_SIZE>;
 
 // Frame Secondary Header Service Data Unit  3.2.4
 using FSH_SDU_t = Fw::Buffer;
@@ -36,7 +36,7 @@ using FSH_SDU_t = Fw::Buffer;
 using OCF_SDU_t = Fw::Buffer;
 
 // Operational Control Field Service Data Unit  3.2.6
-using FrameSDU_t = TransferFrame<>;
+using FrameSDU_t = FPrimeTransferFrame;
 
 // CCSDS 132.0-B-3 3.4.2.3
 // The Packet Order Flag (1 bit) and Segment Length ID (2 bits) may be used to convey
@@ -190,7 +190,7 @@ class FrameService {
     const GVCID_t sap;
     bool generateFramePrimitive(Fw::ComBuffer& transferBuffer, FrameRequest_t& prim) {
         // NOTE should handle this in some way that respect const
-        prim.serialize(transferBuffer);
+        // prim.serialize(transferBuffer);
         return true;
     }
 };

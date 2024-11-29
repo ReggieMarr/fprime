@@ -278,6 +278,10 @@ bool FrameErrorControlField::insert(U8* startPtr, Fw::SerializeBufferBase& buffe
     return true;
 }
 
+// Instantiate DataField
+template class DataField<64>;
+template class DataField<247>;
+
 // NOTE this should probably be done on the instatiation side of things
 // Instantiate the base class
 template class ProtocolDataUnitBase<247, std::array<U8, 247>>;
@@ -293,14 +297,10 @@ template class ProtocolDataUnit<sizeof(U16), U16>;
 template class ProtocolDataUnit<6, PrimaryHeaderControlInfo_t>;
 template class ProtocolDataUnit<0, std::nullptr_t>;
 
-// Instantiate DataField
-template class DataField<247>;
-
 // If you're using other sizes, add those too, for example:
 template class ProtocolDataUnitBase<64, std::array<U8, 64>>;
 // FIXME I get linter errors here but they don't seem to affect compilation:
 // In template: dependent using declaration resolved to type without 'typename' (lsp)
 template class ProtocolDataUnit<64, std::array<U8, 64>>;
-template class DataField<64>;
 
 }  // namespace TMSpaceDataLink

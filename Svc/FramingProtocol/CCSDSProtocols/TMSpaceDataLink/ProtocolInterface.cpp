@@ -17,22 +17,44 @@
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "ManagedParameters.hpp"
+#include "Services.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
 #include "TransferFrame.hpp"
+#include "ProtocolDataUnits.hpp"
 #include "Utils/Hash/Hash.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
 
 namespace TMSpaceDataLink {
-// Explicit instantiations for TransferFrame
-template class TransferFrame<255, 0, 2>;
 
-// Explicit instantiations for BaseMasterChannel variations
-template class BaseMasterChannel<VirtualChannel, TransferFrame<255>, TransferFrame<255>, MCID_t, 1>;
+// Virtual Channel instantiations
+template class BaseVirtualChannel<
+    VCAService,
+    VCAService::VCARequest_s,
+    FrameService,
+    Fw::ComBuffer,
+    TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>,
+    GVCID_s
+>;
 
-template class BaseMasterChannel<MasterChannel, TransferFrame<255>, std::array<TransferFrame<255>, 3>, Fw::String, 1>;
+// Master Channel instantiations
+template class BaseMasterChannel<
+    VirtualChannel,
+    TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>,
+    TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>,
+    MCID_s,
+    1
+>;
+
+template class BaseMasterChannel<
+    MasterChannel,
+    TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>,
+    std::array<TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>, 3>,
+    Fw::String,
+    1
+>;
 
 bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // Determine the channel mapping from context
@@ -69,7 +91,7 @@ void ProtocolEntity::generateNextFrame() {
 namespace Svc {
 // TMSpaceDataLinkProtocol::TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams)
 // :   {
-//     m_transferFrame = TMSpaceDataLink::TransferFrame<>(missionParams, Fw::Buffer(m_dataFieldBuffer.data(),
+//     m_transferFrame = TMSpaceDataLink::FPrimeTransferFrame(missionParams, Fw::Buffer(m_dataFieldBuffer.data(),
 //     m_dataFieldBuffer.size()));
 // }
 
