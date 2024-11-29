@@ -10,8 +10,8 @@
 #include "Fw/Types/Serializable.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
-#include "config/FpConfig.h"
 #include "TransferFrameDefs.hpp"
+#include "config/FpConfig.h"
 
 namespace Svc {
 namespace FrameDetectors {
@@ -77,6 +77,7 @@ class ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>
 
     void get(FieldValue_t& val) const;
     void set(FieldValue_t const& val);
+    void set(U8 const *buffPtr, FwSizeType size);
 
   protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
@@ -114,6 +115,19 @@ class ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_
   protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
     Fw::SerializeStatus deserializeValue(Fw::SerializeBufferBase& buffer) override;
+};
+
+// NOTE this is used for optional fields when we want the option to not use them
+using NullProtocolDataUnit = ProtocolDataUnit<0, std::nullptr_t>;
+class NullField : public NullProtocolDataUnit {
+  public:
+    // Inherit parent's type definitions
+    using Base = NullProtocolDataUnit;
+
+    // Inherit constructors
+    using Base::ProtocolDataUnit;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
 };
 
 // clang-format off
@@ -167,11 +181,10 @@ class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, Pr
 // clang-format on
 // Currently we assume this isnt supported
 // Note currently implemented but we want to support it architecturally
-class NullSecondaryHeader : public ProtocolDataUnit<0, std::nullptr_t> {
+class NullSecondaryHeader : public NullProtocolDataUnit {
   public:
     // Inherit parent's type definitions
-    using Base = ProtocolDataUnit<0, std::nullptr_t>;
-
+    using Base = NullProtocolDataUnit;
     // Inherit constructors
     using Base::ProtocolDataUnit;
     using typename Base::FieldValue_t;
@@ -191,17 +204,6 @@ class NullSecondaryHeader : public ProtocolDataUnit<0, std::nullptr_t> {
 
   private:
     ControlInformation_t m_ci;
-};
-
-class NullOperationalControlField : public ProtocolDataUnit<0, std::nullptr_t> {
-  public:
-    // Inherit parent's type definitions
-    using Base = ProtocolDataUnit<0, std::nullptr_t>;
-
-    // Inherit constructors
-    using Base::ProtocolDataUnit;
-    using typename Base::FieldValue_t;
-    using Base::operator=;
 };
 
 template <FwSizeType FieldSize = 64>

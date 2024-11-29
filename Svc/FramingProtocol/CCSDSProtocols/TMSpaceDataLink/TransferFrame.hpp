@@ -40,14 +40,57 @@ namespace TMSpaceDataLink {
 // +-------------------------+------------------------+------------------------+-------------------------+-------------------------+
 // clang-format on
 // NOTE if we wanted to get really meta we could actually define this as a derived kind of pdu
-template <typename SecondaryHeaderType, typename DataFieldType, typename OperationalControlFieldType, typename ErrorControlFieldType>
+template <typename SecondaryHeaderType,
+          typename DataFieldType,
+          typename OperationalControlFieldType,
+          typename ErrorControlFieldType>
 class TransferFrameBase {
+    // // Type checking via static assertions
+    // static_assert(std::is_base_of_v<ProtocolDataUnitBase<
+    //     SecondaryHeaderType::SERIALIZED_SIZE,
+    //     typename SecondaryHeaderType::FieldValue_t>,
+    //     SecondaryHeaderType>,
+    //     "SecondaryHeaderType must inherit from ProtocolDataUnitBase");
+
+    // static_assert(std::is_base_of_v<ProtocolDataUnitBase<
+    //     DataFieldType::SERIALIZED_SIZE,
+    //     typename DataFieldType::FieldValue_t>,
+    //     DataFieldType>,
+    //     "DataFieldType must inherit from ProtocolDataUnitBase");
+  public:
     enum {
-        SERIALIZED_SIZE = PrimaryHeader::SERIALIZED_SIZE + SecondaryHeaderType::SERIALIZED_SIZE + DataFieldType::SERIALIZED_SIZE + ErrorControlFieldType::SERIALIZED_SIZE,  //!< Size of DataField when serialized
+        SERIALIZED_SIZE = PrimaryHeader::SERIALIZED_SIZE + SecondaryHeaderType::SERIALIZED_SIZE +
+                          DataFieldType::SERIALIZED_SIZE + +OperationalControlFieldType::SERIALIZED_SIZE +
+                          ErrorControlFieldType::SERIALIZED_SIZE,  //!< Size of DataField when serialized
     };
 
-    TransferFrameBase() = default;
+    TransferFrameBase();
     virtual ~TransferFrameBase() = default;
+
+    virtual bool insert(Fw::SerializeBufferBase& buffer) const;
+    virtual bool extract(Fw::SerializeBufferBase& buffer);
+
+    // NOTE It would be better at this point to return members
+    virtual PrimaryHeader& getPrimaryHeader();
+
+    virtual SecondaryHeaderType& getSecondaryHeader();
+
+    virtual DataFieldType& getDataField();
+
+    virtual ErrorControlFieldType& getErrorControlField();
+
+  protected:
+    PrimaryHeader m_primaryHeader;
+    // NOTE should probably actually be something like this:
+    // ProtocolDataUnitBase<SecondaryHeaderType::SERIALIZED_SIZE, SecondaryHeaderType::FieldValue_t> m_secondaryHeader;
+    // however that seems a bit recursive and could probably be done better
+    // by default these will act like so:
+    // ProtocolDataUnit<0, nullptr_t> m_secondaryHeader;
+
+    SecondaryHeaderType m_secondaryHeader;
+    DataFieldType m_dataField;
+    OperationalControlFieldType m_operationalControlField;
+    ErrorControlFieldType m_errorControlField;
 };
 
 }  // namespace TMSpaceDataLink
