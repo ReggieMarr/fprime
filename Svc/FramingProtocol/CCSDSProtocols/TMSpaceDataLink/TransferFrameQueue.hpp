@@ -8,22 +8,22 @@
 namespace Os {
 namespace Generic {
 
-template <FwSizeType TransferFrameSize = 255>
 class TransformFrameQueue : public PriorityQueue {
   private:
     // Pre-allocated buffer for serialization
-    std::array<U8, TMSpaceDataLink::TransferFrame<TransferFrameSize>::SERIALIZED_SIZE> m_serializationBuffer;
+    std::array<U8, TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE> m_serializationBuffer;
 
   public:
+    // FIXME this should be set at compile time and is FPRIMETMFRAME::SERIALIZED_SIZE
     enum {
-        SERIALIZED_SIZE = TransferFrameSize,  //!< Size of DataField when serialized
+        SERIALIZED_SIZE = 255 * 10,  //!< Size of DataField when serialized
     };
 
     //! \brief default queue interface constructor
     TransformFrameQueue() = default;
 
     //! \brief default queue destructor
-    virtual ~TransformFrameQueue();
+    virtual ~TransformFrameQueue() = default;
 
     //! \brief copy constructor is forbidden
     TransformFrameQueue(const QueueInterface& other) = delete;
@@ -59,7 +59,7 @@ class TransformFrameQueue : public PriorityQueue {
     //! \param priority: priority of the message
     //! \param blockType: BLOCKING to block for space or NONBLOCKING to return error when queue is full
     //! \return: status of the send
-    Status send(TMSpaceDataLink::TransferFrame<TransferFrameSize>& transformFrame,
+    Status send(TMSpaceDataLink::FPrimeTransferFrame& transformFrame,
                 BlockingType blockType,
                 FwQueuePriorityType priority);
 
@@ -76,7 +76,7 @@ class TransformFrameQueue : public PriorityQueue {
     //! \param blockType: BLOCKING to wait for message or NONBLOCKING to return error when queue is empty
     //! \param priority: (output) priority of message read
     //! \return: status of the send
-    Status receive(TMSpaceDataLink::TransferFrame<TransferFrameSize>& transformFrame,
+    Status receive(TMSpaceDataLink::FPrimeTransferFrame& transformFrame,
                    BlockingType blockType,
                    FwQueuePriorityType& priority);
 };

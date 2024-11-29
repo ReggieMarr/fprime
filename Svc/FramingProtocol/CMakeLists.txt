@@ -16,6 +16,7 @@ set(SOURCE_FILES
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/TransferFrameQueue.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/Services.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/Channels.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.cpp"
   # "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/TCSpaceDataLink.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSProtocols/SpacePacket/SpacePacketProtocol.cpp"
 )

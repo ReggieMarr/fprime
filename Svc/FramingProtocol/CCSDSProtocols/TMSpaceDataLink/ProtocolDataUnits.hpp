@@ -148,6 +148,7 @@ class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, Pr
     // Inherit constructors
     using Base::ProtocolDataUnit;
     using typename Base::FieldValue_t;
+    using Base::SERIALIZED_SIZE;
     using Base::operator=;
     // If data field is an extension of some previous packet and the sync flag is 1
     // this should be the firstHeaderPointerField
@@ -215,6 +216,7 @@ class DataField : public ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>> 
     // Inherit constructors
     using Base::ProtocolDataUnit;
     using typename Base::FieldValue_t;
+    using Base::SERIALIZED_SIZE;
     using Base::operator=;
 
     // At least one byte of transfer frame data units must be associated with the header for it to be used
@@ -236,6 +238,7 @@ class FrameErrorControlField : public ProtocolDataUnit<sizeof(U16), U16> {
     // Inherit constructors
     using Base::ProtocolDataUnit;
     using typename Base::FieldValue_t;
+    using Base::SERIALIZED_SIZE;
     using Base::operator=;
 
     bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const;

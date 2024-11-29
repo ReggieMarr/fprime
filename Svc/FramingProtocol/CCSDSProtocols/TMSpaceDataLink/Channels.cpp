@@ -19,7 +19,7 @@ BaseVirtualChannel<VCAService,
                    VCAService::RequestPrimitive_t,
                    FrameService,
                    Fw::ComBuffer,
-                   TransferFrame<TRANSFER_FRAME_SIZE>,
+                   FPrimeTransferFrame,
                    GVCID_t>::BaseVirtualChannel(GVCID_t id)
     : VCAService(id), FrameService(id), id(id), m_externalQueue() {
     Os::Queue::Status status;
@@ -35,7 +35,7 @@ BaseVirtualChannel<VCAService,
                    VCAService::RequestPrimitive_t,
                    FrameService,
                    Fw::ComBuffer,
-                   TransferFrame<TRANSFER_FRAME_SIZE>,
+                   FPrimeTransferFrame,
                    GVCID_t>::BaseVirtualChannel(const BaseVirtualChannel& other)
     : VCAService(other.id)  // Initialize base classes
       ,
@@ -62,13 +62,13 @@ BaseVirtualChannel<VCAService,
                    VCAService::RequestPrimitive_t,
                    FrameService,
                    Fw::ComBuffer,
-                   TransferFrame<TRANSFER_FRAME_SIZE>,
+                   FPrimeTransferFrame,
                    GVCID_t>&
 BaseVirtualChannel<VCAService,
                    VCAService::RequestPrimitive_t,
                    FrameService,
                    Fw::ComBuffer,
-                   TransferFrame<TRANSFER_FRAME_SIZE>,
+                   FPrimeTransferFrame,
                    GVCID_t>::operator=(const BaseVirtualChannel& other) {
     if (this == &other) {
         return *this;
@@ -83,31 +83,32 @@ BaseVirtualChannel<VCAService,
     return *this;
 }
 
-bool VirtualChannel::transfer(TransferInType& transferBuffer) {
+bool VirtualChannel::transfer(TransferIn_t& transferBuffer) {
     VCA_SDU_t vcaSDU(m_userDataTemporaryBuff.data(), m_userDataTemporaryBuff.size());
     VCAService::RequestPrimitive_t vcaRequest;
 
     bool status = false;
+    FPrimeTransferFrame frame;
+    FPrimeTransferFrame::DataField_t dataField df = frame.getDataField();
 
     status = generateVCAPrimitive(transferBuffer, vcaRequest);
     FW_ASSERT(status, status);
 
-    TransferOutType frame(vcaSDU);
+    // TransferOut_t frame(vcaSDU);
     status = ChannelGeneration_handler(vcaRequest, frame);
     FW_ASSERT(status, status);
 
-    FwQueuePriorityType priority = 0;
+    // FwQueuePriorityType priority = 0;
     Os::Queue::Status qStatus = Os::Queue::Status::OP_OK;
-    qStatus = this->m_externalQueue.send(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
+    // qStatus = this->m_externalQueue.send(frame, Os::QueueInterface::BlockingType::BLOCKING, priority);
     return qStatus == Os::Queue::Status::OP_OK;
 }
 
-bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t& request, TransferOutType& channelOut) {
+bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t& request, TransferOut_t& channelOut) {
     bool status = true;
-    // Was something like this originally
-    // FrameSDU_t framePrim;
-    // status = sender->generateFramePrimitive(request, framePrim);
-    DataField<TransferOutType::DATA_FIELD_SIZE> dataField(request.sdu);
+    FrameSDU_t framePrim;
+    DataField<TransferOut_t::DataField_t::FPrimeVCA::SERIALIZED_SIZE> dataField(request.sdu);
+
     // TODO the ManagedParameters should propogate to this
     MissionPhaseParameters_t missionParams = {
         .transferFrameVersion = 0x00,
@@ -127,15 +128,15 @@ bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t& r
     // transferData.virtualChannelId = id.VCID;
     // Explicitly do not set this
     // transferData.masterChannelFrameCount
-    transferData.virtualChannelFrameCount = m_channelTransferCount++;
+    transferData.virtualChannelFrameCount = this->m_channelTransferCount++;
     // NOTE since we don't have the OCF or FSH services defined we don't
     // do anything to the secondary header or operational control frame
     PrimaryHeader primaryHeader(missionParams, transferData);
     primaryHeader.setVirtualChannelCount(this->m_channelTransferCount++);
     // NOTE this should be done by the "FramingService" to most closely adhere to the spec
-    TransferOutType frame(primaryHeader, dataField);
+    // TransferOut_t frame(primaryHeader, dataField);
     // FIXME this I think is bad memory management
-    channelOut = frame;
+    // channelOut = frame;
 
     FW_ASSERT(status, status);
     return true;
@@ -143,8 +144,8 @@ bool VirtualChannel::ChannelGeneration_handler(VCAService::RequestPrimitive_t& r
 
 template <>
 BaseMasterChannel<VirtualChannel,
-                  typename VirtualChannel::TransferOutType,
-                  typename VirtualChannel::TransferOutType,
+                  typename VirtualChannel::TransferOut_t,
+                  typename VirtualChannel::TransferOut_t,
                   MCID_t,
                   MAX_VIRTUAL_CHANNELS>::BaseMasterChannel(ChannelList<VirtualChannel, MAX_VIRTUAL_CHANNELS> const&
                                                                subChannels,
@@ -159,9 +160,9 @@ BaseMasterChannel<VirtualChannel,
 
 template <>
 BaseMasterChannel<VirtualChannel,
-                  typename VirtualChannel::TransferOutType,
+                  typename VirtualChannel::TransferOut_t,
                   // For now we're just passing along the virtual channels
-                  typename VirtualChannel::TransferOutType,
+                  typename VirtualChannel::TransferOut_t,
                   MCID_t,
                   MAX_VIRTUAL_CHANNELS>::BaseMasterChannel(const BaseMasterChannel& other)
     : id(other.id), m_subChannels(other.m_subChannels) {}
@@ -216,7 +217,7 @@ bool MasterChannel::transfer() {
     return true;
 }
 
-bool MasterChannel::VirtualChannelMultiplexing_handler(TransferInType& virtualChannelOut,
+bool MasterChannel::VirtualChannelMultiplexing_handler(TransferIn_t& virtualChannelOut,
                                                        NATIVE_UINT_TYPE vcid,
                                                        InternalTransferOutType& masterChannelTransfer) {
     // Trivial for now
@@ -227,7 +228,7 @@ bool MasterChannel::VirtualChannelMultiplexing_handler(TransferInType& virtualCh
 
 bool MasterChannel::MasterChannelGeneration_handler(InternalTransferOutType& masterChannelTransfer) {
     for (NATIVE_UINT_TYPE i = 0; i < masterChannelTransfer.size(); i++) {
-        TransferInType inItem = masterChannelTransfer.at(i);
+        TransferIn_t inItem = masterChannelTransfer.at(i);
         PrimaryHeader primHeader = inItem.getPrimaryHeader();
         primHeader.setMasterChannelCount(m_channelTransferCount++);
     }
@@ -236,8 +237,8 @@ bool MasterChannel::MasterChannelGeneration_handler(InternalTransferOutType& mas
 
 template <>
 BaseMasterChannel<MasterChannel,
-                  typename MasterChannel::TransferOutType,
-                  typename MasterChannel::TransferOutType,
+                  typename MasterChannel::TransferOut_t,
+                  typename MasterChannel::TransferOut_t,
                   Fw::String,
                   MAX_MASTER_CHANNELS>::BaseMasterChannel(ChannelList<MasterChannel, MAX_MASTER_CHANNELS> const&
                                                               subChannels,
@@ -309,7 +310,7 @@ bool PhysicalChannel::transfer() {
 
 bool PhysicalChannel::MasterChannelMultiplexing_handler(TransferInType& masterChannelOut,
                                                         NATIVE_UINT_TYPE mcid,
-                                                        TransferOutType& physicalChannelOut) {
+                                                        TransferOut_t& physicalChannelOut) {
     // Trivial for now
     physicalChannelOut.at(mcid) = masterChannelOut;
     // TODO implement 4.2.6.4 here
@@ -318,7 +319,7 @@ bool PhysicalChannel::MasterChannelMultiplexing_handler(TransferInType& masterCh
     return true;
 }
 
-bool PhysicalChannel::AllFramesChannelGeneration_handler(TransferOutType& masterChannelTransfer) {
+bool PhysicalChannel::AllFramesChannelGeneration_handler(TransferOut_t& masterChannelTransfer) {
     for (NATIVE_UINT_TYPE i = 0; i < masterChannelTransfer.size(); i++) {
         TransferInType inItem = masterChannelTransfer.at(i);
         // inItem.setFrameErrorControlField();
@@ -326,11 +327,9 @@ bool PhysicalChannel::AllFramesChannelGeneration_handler(TransferOutType& master
     return true;
 }
 template <>
-BaseMasterChannel<MasterChannel,
-                  TransferFrame<TRANSFER_FRAME_SIZE>,
-                  std::array<TransferFrame<TRANSFER_FRAME_SIZE>, 3>,
-                  Fw::String,
-                  1>::BaseMasterChannel(const std::array<MasterChannel, 1>& channels, Fw::String id)
+BaseMasterChannel<MasterChannel, FPrimeTransferFrame, std::array<FPrimeTransferFrame, 3>, Fw::String, 1>::BaseMasterChannel(
+    const std::array<MasterChannel, 1>& channels,
+    Fw::String id)
     : id(id), m_subChannels(channels), m_externalQueue() {
     Os::Queue::Status status;
     // Create queue with specified name and depth
@@ -342,11 +341,8 @@ BaseMasterChannel<MasterChannel,
 }
 
 template <>
-BaseMasterChannel<MasterChannel,
-                  TransferFrame<TRANSFER_FRAME_SIZE>,
-                  std::array<TransferFrame<TRANSFER_FRAME_SIZE>, 3>,
-                  Fw::String,
-                  1>::BaseMasterChannel(const BaseMasterChannel& other)
+BaseMasterChannel<MasterChannel, FPrimeTransferFrame, std::array<FPrimeTransferFrame, 3>, Fw::String, 1>::BaseMasterChannel(
+    const BaseMasterChannel& other)
     : id(other.id), m_subChannels(other.m_subChannels), m_externalQueue() {
     // Since we can't copy if there's a message in the queue we should assert
     FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
@@ -362,16 +358,9 @@ BaseMasterChannel<MasterChannel,
 }
 
 template <>
-BaseMasterChannel<MasterChannel,
-                  TransferFrame<TRANSFER_FRAME_SIZE>,
-                  std::array<TransferFrame<TRANSFER_FRAME_SIZE>, 3>,
-                  Fw::String,
-                  1>&
-BaseMasterChannel<MasterChannel,
-                  TransferFrame<TRANSFER_FRAME_SIZE>,
-                  std::array<TransferFrame<TRANSFER_FRAME_SIZE>, 3>,
-                  Fw::String,
-                  1>::operator=(const BaseMasterChannel& other) {
+BaseMasterChannel<MasterChannel, FPrimeTransferFrame, std::array<FPrimeTransferFrame, 3>, Fw::String, 1>&
+BaseMasterChannel<MasterChannel, FPrimeTransferFrame, std::array<FPrimeTransferFrame, 3>, Fw::String, 1>::operator=(
+    const BaseMasterChannel& other) {
     if (this == &other) {
         return *this;
     }
@@ -386,5 +375,32 @@ BaseMasterChannel<MasterChannel,
 
     return *this;
 }
+
+// Virtual Channel instantiations
+template class BaseVirtualChannel<
+    VCAService,
+    VCAService::VCARequest_s,
+    FrameService,
+    Fw::ComBuffer,
+    TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>,
+    GVCID_s
+>;
+
+// Master Channel instantiations
+template class BaseMasterChannel<
+    VirtualChannel,
+    TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>,
+    TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>,
+    MCID_s,
+    1
+>;
+
+template class BaseMasterChannel<
+    MasterChannel,
+    TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>,
+    std::array<TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>, 3>,
+    Fw::String,
+    1
+>;
 
 }  // namespace TMSpaceDataLink

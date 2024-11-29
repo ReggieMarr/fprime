@@ -19,6 +19,7 @@
 #include "Os/Queue.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameQueue.hpp"
@@ -64,9 +65,9 @@ class BaseVirtualChannel : public UserDataService, public FramingService {
     // NOTE should be const
     IdType id;
 
-    virtual bool transfer(TransferInType& transferBuffer) = 0;
+    virtual bool transfer(TransferIn_t& transferBuffer) = 0;
 
-    Os::Generic::TransformFrameQueue<TRANSFER_FRAME_SIZE> m_externalQueue;  // Queue for inter-task communication
+    Os::Generic::TransformFrameQueue m_externalQueue;  // Queue for inter-task communication
   protected:
     virtual bool ChannelGeneration_handler(UserDataServiceRequest& request, TransferOut_t& channelOut) = 0;
     U8 m_channelTransferCount = 0;
@@ -102,7 +103,7 @@ class BaseMasterChannel {
 
     IdType id;
     virtual bool transfer() = 0;
-    Os::Generic::TransformFrameQueue<TRANSFER_FRAME_SIZE> m_externalQueue;
+    Os::Generic::TransformFrameQueue m_externalQueue;
 
   protected:
     FwQueuePriorityType priority = 0;
@@ -114,7 +115,7 @@ class VirtualChannel : public BaseVirtualChannel<VCAService,
                                                  VCAService::RequestPrimitive_t,
                                                  FrameService,
                                                  Fw::ComBuffer,
-                                                 TransferFrame<TRANSFER_FRAME_SIZE>,
+                                                 FPrimeTransferFrame,
                                                  GVCID_t> {
   public:
     // Inherit parent's type definitions
@@ -122,15 +123,15 @@ class VirtualChannel : public BaseVirtualChannel<VCAService,
                                     VCAService::RequestPrimitive_t,
                                     FrameService,
                                     Fw::ComBuffer,
-                                    TransferFrame<TRANSFER_FRAME_SIZE>,
+                                    FPrimeTransferFrame,
                                     GVCID_t>;
 
     // Inherit constructors
     using Base::BaseVirtualChannel;
 
     // not sure if this is needed
-    using TransferInType = typename Base::TransferIn_t;
-    using TransferOutType = typename Base::TransferOut_t;
+    using typename Base::TransferIn_t;
+    using typename Base::TransferOut_t;
 
     using Base::operator=;
     // NOTE this should use the sizeof operator or something else similar
@@ -146,30 +147,30 @@ class VirtualChannel : public BaseVirtualChannel<VCAService,
 
 // Master Channel Implementation
 class MasterChannel : public BaseMasterChannel<VirtualChannel,
-                                               typename VirtualChannel::TransferOutType,
-                                               typename VirtualChannel::TransferOutType,
+                                               typename VirtualChannel::TransferOut_t,
+                                               typename VirtualChannel::TransferOut_t,
                                                MCID_t,
                                                MAX_VIRTUAL_CHANNELS> {
   public:
     // Inherit parent's type definitions
     using Base = BaseMasterChannel<VirtualChannel,
-                                   typename VirtualChannel::TransferOutType,
-                                   typename VirtualChannel::TransferOutType,
+                                   typename VirtualChannel::TransferOut_t,
+                                   typename VirtualChannel::TransferOut_t,
                                    MCID_t,
                                    MAX_VIRTUAL_CHANNELS>;
     // Inherit constructors
     using Base::BaseMasterChannel;
 
     // not sure if this is needed
-    using TransferInType = typename Base::TransferIn_t;
-    using TransferOutType = typename Base::TransferOut_t;
+    using typename Base::TransferIn_t;
+    using typename Base::TransferOut_t;
     // it's actually a q but each item contains all virtual channels that we are connected to
     // NOTE replace MAX_VIRTUAL_CHANNELS with some init param
     // using TransferOutItemType = std::array<TransferInType, MAX_VIRTUAL_CHANNELS>;
     // how many transfers we'll hold internally before we have to dump
     // note this is basically just an internal queue
     static constexpr FwSizeType InternalTransferOutLength = MAX_VIRTUAL_CHANNELS;
-    using InternalTransferOutType = std::array<TransferInType, InternalTransferOutLength>;
+    using InternalTransferOutType = std::array<TransferIn_t, InternalTransferOutLength>;
 
     using Base::operator=;
 
@@ -178,7 +179,7 @@ class MasterChannel : public BaseMasterChannel<VirtualChannel,
     bool transfer() override;
 
   private:
-    bool VirtualChannelMultiplexing_handler(TransferInType& virtualChannelOut,
+    bool VirtualChannelMultiplexing_handler(TransferIn_t& virtualChannelOut,
                                             NATIVE_UINT_TYPE vcid,
                                             InternalTransferOutType& masterChannelTransfer);
 
@@ -187,15 +188,15 @@ class MasterChannel : public BaseMasterChannel<VirtualChannel,
 
 // Physical Channel Implementation
 class PhysicalChannel : public BaseMasterChannel<MasterChannel,
-                                                 typename MasterChannel::TransferOutType,
-                                                 std::array<typename MasterChannel::TransferOutType, 3>,
+                                                 typename MasterChannel::TransferOut_t,
+                                                 std::array<typename MasterChannel::TransferOut_t, 3>,
                                                  Fw::String,
                                                  MAX_MASTER_CHANNELS> {
   public:
     // Inherit parent's type definitions
     using Base = BaseMasterChannel<MasterChannel,
-                                   typename MasterChannel::TransferOutType,
-                                   std::array<typename MasterChannel::TransferOutType, 3>,
+                                   typename MasterChannel::TransferOut_t,
+                                   std::array<typename MasterChannel::TransferOut_t, 3>,
                                    Fw::String,
                                    MAX_MASTER_CHANNELS>;
     //
@@ -215,11 +216,11 @@ class PhysicalChannel : public BaseMasterChannel<MasterChannel,
     bool transfer();
 
   private:
-    bool MasterChannelMultiplexing_handler(TransferInType& masterChannelOut,
+    bool MasterChannelMultiplexing_handler(TransferIn_t& masterChannelOut,
                                            NATIVE_UINT_TYPE mcid,
-                                           TransferOutType& physicalChannelOut);
+                                           TransferOut_t& physicalChannelOut);
 
-    bool AllFramesChannelGeneration_handler(TransferOutType& masterChannelTransfer);
+    bool AllFramesChannelGeneration_handler(TransferOut_t& masterChannelTransfer);
 };
 
 }  // namespace TMSpaceDataLink

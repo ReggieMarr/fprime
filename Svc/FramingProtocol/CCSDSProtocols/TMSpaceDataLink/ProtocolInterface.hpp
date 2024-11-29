@@ -93,10 +93,10 @@ class TMSpaceDataLinkProtocol : public FramingProtocol {
     void frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) override;
 
   private:
-    std::array<U8, TMSpaceDataLink::TransferFrame<>::SERIALIZED_SIZE> m_dataFieldBuffer;
+    std::array<U8, TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE> m_dataFieldBuffer;
     // Fw::Buffer
     TMSpaceDataLink::TransferData_t m_transferData = {0};
-    TMSpaceDataLink::TransferFrame<> m_transferFrame;
+    TMSpaceDataLink::FPrimeTransferFrame m_transferFrame;
     const FwSizeType m_dataFieldSize{Svc::TM_DATA_FIELD_DFLT_SIZE};
 };
 }  // namespace Svc

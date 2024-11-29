@@ -62,7 +62,7 @@ bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFie
     }
 
     // Calculate and serialize error control field
-    return m_errorControlField.insert(startPtr, buffer);
+    return true; //m_errorControlField.insert(startPtr, buffer);
 }
 
 template <typename SecondaryHeaderType,
@@ -140,15 +140,13 @@ TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldTyp
     return m_errorControlField;
 }
 
-// using DefaultSecondaryHeader = ProtocolDataUnit<0, nullptr_t>;
-// using DefaultDataField = ProtocolDataUnit<DEFAULT_DATA_FIELD_SIZE, std::array<U8, DEFAULT_DATA_FIELD_SIZE>>;
-// using DefaultErrorControlField = ProtocolDataUnit<2, U16>;
-
-// template class TransferFrameBase<
-//     DefaultSecondaryHeader,
-//     DefaultDataField,
-//     DefaultOpControlField,
-//     DefaultErrorControlField
-// >;
+// template class DataField<FPRIME_VCA_DATA_FIELD_SIZE>;
+// Explicit instantiation of the specific TransferFrameBase being used
+template class TransferFrameBase<
+    NullField,
+    FPrimeVCA,
+    NullField,
+    FrameErrorControlField
+>;
 
 }  // namespace TMSpaceDataLink

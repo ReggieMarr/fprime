@@ -21,12 +21,28 @@
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/SerialStatusEnumAc.hpp"
 #include "Fw/Types/Serializable.hpp"
+#include "ProtocolDataUnits.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolDataUnits.hpp"
 #include "config/FpConfig.h"
 
 namespace TMSpaceDataLink {
+
+constexpr FwSizeType FPRIME_VCA_DATA_FIELD_SIZE = 64;
+
+class FPrimeVCA : public DataField<FPRIME_VCA_DATA_FIELD_SIZE> {
+  public:
+    // Inherit parent's type definitions
+    using Base = DataField<FPRIME_VCA_DATA_FIELD_SIZE>;
+
+    // Inherit constructors
+    using Base::DataField;
+    // This might get overwritten here
+    using typename Base::FieldValue_t;
+    using Base::operator=;
+    using Base::SERIALIZED_SIZE;
+};
 
 // clang-format off
 // TM Transfer Frame Structural Components
@@ -58,6 +74,13 @@ class TransferFrameBase {
     //     DataFieldType>,
     //     "DataFieldType must inherit from ProtocolDataUnitBase");
   public:
+
+    using PrimaryHeader_t = PrimaryHeader;
+    using SecondaryHeader_t = SecondaryHeaderType;
+    using DataField_t = DataFieldType;
+    using OperationalControlFieldType_t = OperationalControlFieldType;
+    using ErrorControlFieldType_t = ErrorControlFieldType;
+
     enum {
         SERIALIZED_SIZE = PrimaryHeader::SERIALIZED_SIZE + SecondaryHeaderType::SERIALIZED_SIZE +
                           DataFieldType::SERIALIZED_SIZE + +OperationalControlFieldType::SERIALIZED_SIZE +
@@ -92,6 +115,8 @@ class TransferFrameBase {
     OperationalControlFieldType m_operationalControlField;
     ErrorControlFieldType m_errorControlField;
 };
+
+using FPrimeTransferFrame = TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>;
 
 }  // namespace TMSpaceDataLink
 
