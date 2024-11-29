@@ -39,47 +39,15 @@ namespace TMSpaceDataLink {
 // | 6 octets                | Up to 64 octets        | Varies                 | 4 octets                | 2 octets                |
 // +-------------------------+------------------------+------------------------+-------------------------+-------------------------+
 // clang-format on
-template <FwSizeType FrameSize = 255, FwSizeType SecondaryHeaderSize = 0, FwSizeType TrailerSize = 2>
-class TransferFrame : public Fw::Buffer {
-    // NOTE should become static assert
-    // if (m_primaryHeader.getControlInfo().dataFieldStatus.hasSecondaryHeader) {
-    // if (m_primaryHeader.getControlInfo().operationalControlFlag) {
-  public:
-    static constexpr FwSizeType DATA_FIELD_SIZE =
-        FrameSize - PrimaryHeader::SERIALIZED_SIZE - SecondaryHeaderSize - TrailerSize;
-
-  private:
-    FrameErrorControlField m_errorControlField;
-    PrimaryHeader m_primaryHeader;
-    SecondaryHeader<SecondaryHeaderSize> m_secondaryHeader;
-    DataField<DATA_FIELD_SIZE> m_dataField;
-
-  public:
+// NOTE if we wanted to get really meta we could actually define this as a derived kind of pdu
+template <typename SecondaryHeaderType, typename DataFieldType, typename OperationalControlFieldType, typename ErrorControlFieldType>
+class TransferFrameBase {
     enum {
-        SERIALIZED_SIZE = FrameSize,  //!< Size of DataField when serialized
+        SERIALIZED_SIZE = PrimaryHeader::SERIALIZED_SIZE + SecondaryHeaderType::SERIALIZED_SIZE + DataFieldType::SERIALIZED_SIZE + ErrorControlFieldType::SERIALIZED_SIZE,  //!< Size of DataField when serialized
     };
 
-    TransferFrame(const MissionPhaseParameters_t& missionParams, Fw::Buffer& dataBuff)
-        : m_primaryHeader(missionParams), m_secondaryHeader(), m_dataField(dataBuff) {}
-
-    TransferFrame(Fw::Buffer& dataBuff) : m_primaryHeader(), m_secondaryHeader(), m_dataField(dataBuff) {}
-
-    TransferFrame(PrimaryHeader& primaryHeader, DataField<DATA_FIELD_SIZE>& dataField)
-        : m_primaryHeader(primaryHeader), m_secondaryHeader(), m_dataField(dataField) {}
-    ~TransferFrame() = default;
-
-    PrimaryHeader getPrimaryHeader() { return m_primaryHeader; };
-
-    // What this constitutes could also become optional
-    DataField<DATA_FIELD_SIZE> getDataField() { return m_dataField; };
-
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer, TransferData_t transferData, const U8* const data, const U32 size);
-
-    Fw::SerializeStatus serialize(Fw::SerializeBufferBase& buffer);
-
-    Fw::SerializeStatus deserialize(Fw::SerializeBufferBase& buffer);
-
-    bool setFrameErrorControlField() { return false; };
+    TransferFrameBase() = default;
+    virtual ~TransferFrameBase() = default;
 };
 
 }  // namespace TMSpaceDataLink
