@@ -93,27 +93,38 @@ Fw::SerializeStatus ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::dese
 
 template <FwSizeType FieldSize>
 void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::set(FieldValue_t const& val) {
-    // To set the internal state we need to have a value that is the same size
-    FW_ASSERT(val.size() == this->m_value.size(), val.size(), this->m_value.size());
+    // To set the internal state we need to have a value that is the same size or smaller
+    FW_ASSERT(val.size() <= this->m_value.size(), val.size(), this->m_value.size());
     (void)std::memcpy(this->m_value.data(), val.data(), val.size());
 }
 
 template <FwSizeType FieldSize>
 void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::get(FieldValue_t& val) const {
-    // To set the internal state we need to have a value that is the same size
-    FW_ASSERT(val.size() == this->m_value.size(), val.size(), this->m_value.size());
+    // To set the internal state we need to have a value that is the same size or smaller
+    FW_ASSERT(val.size() <= this->m_value.size(), val.size(), this->m_value.size());
     (void)std::memcpy(val.data(), this->m_value.data(), val.size());
+}
+
+template <FwSizeType FieldSize>
+void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::set(U8 const *buffPtr, FwSizeType size) {
+    // To set the internal state we need to have a value that is the same size
+    FW_ASSERT(buffPtr != nullptr, size);
+    FW_ASSERT(size <= this->m_value.size(), size, this->m_value.size());
+    (void)std::memcpy(this->m_value.data(), buffPtr, size);
 }
 
 // nullptr specialization implementations
 Fw::SerializeStatus ProtocolDataUnit<0, std::nullptr_t>::serializeValue(Fw::SerializeBufferBase& buffer) const {
-    FW_ASSERT(0);
-    return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
+    return Fw::SerializeStatus::FW_SERIALIZE_OK;
+    // FW_ASSERT(0);
+    // return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
 }
 
 Fw::SerializeStatus ProtocolDataUnit<0, std::nullptr_t>::deserializeValue(Fw::SerializeBufferBase& buffer) {
-    FW_ASSERT(0);
-    return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
+    // allow this no-op for now
+    return Fw::SerializeStatus::FW_SERIALIZE_OK;
+    // FW_ASSERT(0);
+    // return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
 }
 
 void ProtocolDataUnit<0, std::nullptr_t>::set(FieldValue_t const& buffer) {
