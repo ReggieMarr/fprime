@@ -110,20 +110,42 @@ typedef struct MissionPhaseParameters_s {
     bool isSyncFlagEnabled;
 } MissionPhaseParameters_t;
 
-typedef struct {
-    bool isOnlyIdleData;
-    bool isFieldDataExtendedPacket;
-    U16 packetOffset;
-} DataFieldDesc_t;
+// typedef struct {
+//     bool isOnlyIdleData;
+//     bool isFieldDataExtendedPacket;
+//     U16 packetOffset;
+// } DataFieldDesc_t;
 
-// The data which is specific to each transfer frame
-typedef struct {
-    U8 virtualChannelId;
-    U8 masterChannelFrameCount;
-    U8 virtualChannelFrameCount;
-    DataFieldDesc_t dataFieldDesc;
-} TransferData_t;
+// // The data which is specific to each transfer frame
+// typedef struct {
+//     U8 virtualChannelId;
+//     U8 masterChannelFrameCount;
+//     U8 virtualChannelFrameCount;
+//     DataFieldDesc_t dataFieldDesc;
+// } TransferData_t;
 
+// clang-format off
+// CCSDS Transfer Frame Secondary Header (1-64 octets)
+// +----------------------+-------------------------------+
+// |    Secondary Header  |      Secondary Header         |
+// |    ID Field (8)      |      Data Field               |
+// |  +---------+--------+|     (8-504 bits)              |
+// |  |Version  | Length ||    [1-63 octets]              |
+// |  |  (2)    |  (6)   ||                               |
+// +--+---------+--------++-------------------------------+
+// |     Octet 1         |       Octets 2-64              |
+// NOTE should leverage std::optional here
+// clang-format on
+// Currently we assume this isnt supported
+// Note currently implemented but we want to support it architecturally
+// At least one byte of transfer frame data units must be associated with the header for it to be used
+static constexpr FwSizeType MIN_FSDU_LEN = 1;
+static constexpr FwSizeType MAX_SIZE = 64;  // TM Secondary Header is up to 64 octets (CCSDS 132.0-B-3, Section 4.1.3)
+typedef struct SecondaryHeaderControlInformation_s {
+    U8 version : 2;
+    bool length : 6;
+    U8 dataField[MAX_SIZE - 1];
+} __attribute__((packed)) SecondaryHeaderControlInformation_t;
 
 // clang-format off
 // CCSDS Transfer Frame Data Field Status (16 bits)
@@ -176,9 +198,10 @@ typedef struct PrimaryHeaderControlInfo_s {
     U8 virtualChannelFrameCount;
     DataFieldStatus_t dataFieldStatus;
 } __attribute__((packed)) PrimaryHeaderControlInfo_t;
+
 // TM Primary Header: 6 octets (CCSDS 132.0-B-3, Section 4.1.2)
 static constexpr FwSizeType PRIMARY_HEADER_SERIALIZED_SIZE = 6;
 
 }  // namespace TMSpaceDataLink
 
-#endif // TRANSFERFRAMEDEFS_H_
+#endif  // TRANSFERFRAMEDEFS_H_

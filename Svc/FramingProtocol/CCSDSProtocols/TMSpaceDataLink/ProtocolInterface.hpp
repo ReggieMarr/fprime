@@ -51,7 +51,9 @@ namespace TMSpaceDataLink {
 class ProtocolEntity {
   public:
     ProtocolEntity(ManagedParameters_t& params)
-        : m_params(params), m_physicalChannel(createPhysicalChannel(params.physicalParams)) {}
+        : m_params(params)  //,
+    // m_physicalChannel(createPhysicalChannel(params.physicalParams))
+    {}
 
     // Process incoming telemetry data
     bool UserComIn_handler(Fw::Buffer& data, U32 context);
@@ -64,21 +66,21 @@ class ProtocolEntity {
     // NOTE could be made as a deserializer
     ManagedParameters_t m_params;
 
-    PhysicalChannel m_physicalChannel;
-    static PhysicalChannel createPhysicalChannel(PhysicalChannelParams_t& params) {
-        MCID_t mcid = {
-            .SCID = CCSDS_SCID,
-            .TFVN = params.transferFrameVersion,
-        };
-        GVCID_t gvcid = {
-            .MCID = mcid,
-            .VCID = 0,
-        };
+    // PhysicalChannel m_physicalChannel;
+    // static PhysicalChannel createPhysicalChannel(PhysicalChannelParams_t& params) {
+    //     MCID_t mcid = {
+    //         .SCID = CCSDS_SCID,
+    //         .TFVN = params.transferFrameVersion,
+    //     };
+    //     GVCID_t gvcid = {
+    //         .MCID = mcid,
+    //         .VCID = 0,
+    //     };
 
-        ChannelList<VirtualChannel, 1> vcs = {VirtualChannel(gvcid)};
-        MasterChannel mc(vcs, gvcid.MCID);
-        return PhysicalChannel({mc}, params.channelName.toChar());
-    }
+    //     ChannelList<VirtualChannel, 1> vcs = {VirtualChannel(gvcid)};
+    //     MasterChannel mc(vcs, gvcid.MCID);
+    //     return PhysicalChannel({mc}, params.channelName.toChar());
+    // }
 };
 
 }  // namespace TMSpaceDataLink
@@ -95,7 +97,7 @@ class TMSpaceDataLinkProtocol : public FramingProtocol {
   private:
     std::array<U8, TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE> m_dataFieldBuffer;
     // Fw::Buffer
-    TMSpaceDataLink::TransferData_t m_transferData = {0};
+    // TMSpaceDataLink::TransferData_t m_transferData = {0};
     TMSpaceDataLink::FPrimeTransferFrame m_transferFrame;
     const FwSizeType m_dataFieldSize{Svc::TM_DATA_FIELD_DFLT_SIZE};
 };
