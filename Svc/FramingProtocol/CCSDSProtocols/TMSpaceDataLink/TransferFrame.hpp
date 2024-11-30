@@ -29,19 +29,86 @@
 
 namespace TMSpaceDataLink {
 
-constexpr FwSizeType FPRIME_VCA_DATA_FIELD_SIZE = 64;
-
-class FPrimeVCA : public DataField<FPRIME_VCA_DATA_FIELD_SIZE> {
+// NOTE this is used for optional fields when we want the option to not use them
+class NullField : public ProtocolDataUnit<0, std::nullptr_t> {
   public:
     // Inherit parent's type definitions
-    using Base = DataField<FPRIME_VCA_DATA_FIELD_SIZE>;
+    using Base = ProtocolDataUnit<0, std::nullptr_t>;
 
     // Inherit constructors
-    using Base::DataField;
-    // This might get overwritten here
+    using Base::ProtocolDataUnit;
     using typename Base::FieldValue_t;
     using Base::operator=;
+};
+
+class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t> {
+  public:
+    // Inherit parent's type definitions
+    using Base = ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>;
+
+    // Inherit constructors
+    using Base::ProtocolDataUnit;
     using Base::SERIALIZED_SIZE;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
+    // If data field is an extension of some previous packet and the sync flag is 1
+    // this should be the firstHeaderPointerField
+    static constexpr U16 EXTEND_PACKET_TYPE = 0b11111111111;
+    // If data field contains only idle data and the sync flag is 1
+    // this should be the firstHeaderPointerField
+    static constexpr U16 IDLE_TYPE = 0b11111111110;
+
+    PrimaryHeader(PrimaryHeaderControlInfo_t const& params);
+
+    void setMasterChannelCount(U8 channelCount) { this->m_value.masterChannelFrameCount = channelCount; };
+    void setVirtualChannelCount(U8 channelCount) { this->m_value.virtualChannelFrameCount = channelCount; };
+};
+
+static constexpr FwSizeType DFLT_DATA_FIELD_SIZE = 64;
+template <FwSizeType FieldSize = DFLT_DATA_FIELD_SIZE>
+class DataField : public ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>> {
+  public:
+    // Inherit parent's type definitions
+    using Base = ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>;
+
+    // Inherit constructors
+    using Base::ProtocolDataUnit;
+    using Base::SERIALIZED_SIZE;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
+    using Base::get;
+    using Base::set;
+
+    // At least one byte of transfer frame data units must be associated with the header for it to be used
+    static constexpr FwSizeType MIN_SIZE = 1;
+    static_assert(FieldSize >= MIN_SIZE, "FieldSize must be at least MIN_FSDU_LEN");
+
+    DataField(Fw::Buffer& srcBuff) {
+        FW_ASSERT(srcBuff.getSize() == FieldSize, srcBuff.getSize());
+        FW_ASSERT(this->extract(srcBuff.getSerializeRepr()));
+    }
+};
+
+// NOTE This could leverage some optional template class
+class FrameErrorControlField : public ProtocolDataUnit<sizeof(U16), U16> {
+  public:
+    // Inherit parent's type definitions
+    using Base = ProtocolDataUnit<sizeof(U16), U16>;
+
+    // Inherit constructors
+    using Base::ProtocolDataUnit;
+    using Base::SERIALIZED_SIZE;
+    using typename Base::FieldValue_t;
+    using Base::operator=;
+
+    bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
+
+  private:
+    // Determines the fields value from a provided buffer and startPoint
+    // bool set(U8 const* const startPtr, Fw::SerializeBufferBase& buffer);
+    bool calc_value(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
+
+    using CheckSum = Svc::FrameDetectors::TMSpaceDataLinkChecksum;
 };
 
 // clang-format off
@@ -61,20 +128,8 @@ template <typename SecondaryHeaderType,
           typename OperationalControlFieldType,
           typename ErrorControlFieldType>
 class TransferFrameBase {
-    // // Type checking via static assertions
-    // static_assert(std::is_base_of_v<ProtocolDataUnitBase<
-    //     SecondaryHeaderType::SERIALIZED_SIZE,
-    //     typename SecondaryHeaderType::FieldValue_t>,
-    //     SecondaryHeaderType>,
-    //     "SecondaryHeaderType must inherit from ProtocolDataUnitBase");
-
-    // static_assert(std::is_base_of_v<ProtocolDataUnitBase<
-    //     DataFieldType::SERIALIZED_SIZE,
-    //     typename DataFieldType::FieldValue_t>,
-    //     DataFieldType>,
-    //     "DataFieldType must inherit from ProtocolDataUnitBase");
+    // TODO do some Type checking via static assertions
   public:
-
     using PrimaryHeader_t = PrimaryHeader;
     using SecondaryHeader_t = SecondaryHeaderType;
     using DataField_t = DataFieldType;
@@ -99,24 +154,20 @@ class TransferFrameBase {
     virtual SecondaryHeaderType& getSecondaryHeader();
 
     virtual DataFieldType& getDataField();
+    virtual void setDataField(DataField_t& val) { m_dataField = val; }
 
     virtual ErrorControlFieldType& getErrorControlField();
 
   protected:
     PrimaryHeader m_primaryHeader;
-    // NOTE should probably actually be something like this:
-    // ProtocolDataUnitBase<SecondaryHeaderType::SERIALIZED_SIZE, SecondaryHeaderType::FieldValue_t> m_secondaryHeader;
-    // however that seems a bit recursive and could probably be done better
-    // by default these will act like so:
-    // ProtocolDataUnit<0, nullptr_t> m_secondaryHeader;
-
     SecondaryHeaderType m_secondaryHeader;
     DataFieldType m_dataField;
     OperationalControlFieldType m_operationalControlField;
     ErrorControlFieldType m_errorControlField;
 };
 
-using FPrimeTransferFrame = TransferFrameBase<NullField, FPrimeVCA, NullField, FrameErrorControlField>;
+using FPrimeTransferFrame =
+    TransferFrameBase<NullField, DataField<DFLT_DATA_FIELD_SIZE>, NullField, FrameErrorControlField>;
 
 }  // namespace TMSpaceDataLink
 

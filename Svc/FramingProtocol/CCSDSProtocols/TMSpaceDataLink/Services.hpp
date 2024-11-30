@@ -15,6 +15,7 @@
 #include "Os/Queue.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
 
 namespace TMSpaceDataLink {
 
@@ -23,11 +24,6 @@ namespace TMSpaceDataLink {
 // Packets 3.2.2 (Not currently supported)
 // using PACKET_SDU
 using VCP_SDU_t = Fw::ComPacket;
-
-// Virtual Access Service Data Unit 3.2.3
-using VCA_SDU_t = Fw::Buffer;
-// template<FwSizeType DATA_LENGTH>
-// using VCA_SDU_t=std::array<U8, FPrimeTransferFrame::SERIALIZED_SIZE>;
 
 // Frame Secondary Header Service Data Unit  3.2.4
 using FSH_SDU_t = Fw::Buffer;
@@ -51,7 +47,6 @@ typedef struct VCAStatusFields_s {
 typedef NATIVE_UINT_TYPE VCP_Request_t;
 typedef NATIVE_UINT_TYPE OCF_Request_t;
 typedef NATIVE_UINT_TYPE FSH_Request_t;
-using FrameRequest_t = FrameSDU_t;
 typedef NATIVE_UINT_TYPE VCP_ServiceParameters_t;
 typedef NATIVE_UINT_TYPE OCF_ServiceParameters_t;
 typedef NATIVE_UINT_TYPE FSH_ServiceParameters_t;
@@ -117,81 +112,107 @@ typedef enum {
     SYNCHRONOUS = 0x1,
     ASYNCHRONOUS = 0x2,
     PERIODIC = 0x4,
-} SERVICE_TRANSFER_TYPE_t;
+} SERVICE_TRANSFER_TYPE_e;
 
 typedef enum {
     REQUEST,
     INIDICATION,
 } SERVICE_TRANSFER_DIRECTION_t;
 
-// template <typename SDU_t,
-//           typename SAP_t,
-//           typename ServiceParams_t,
-//           typename ServiceTransferPrimitive_t,
-//           SERVICE_TRANSFER_TYPE_t SERVICE_TRANSFER_TYPE>
-// class TMService {
-//   public:
-//     // NOTE based on the spec it seems as though this should happen at the service level but
-//     TMService(ServiceParams_t const& serviceParams, FwSizeType const qDepth)
-//         : m_serviceParams(serviceParams), sap(serviceParams.sap) {}
-//     //     Os::Queue::Status status;
-//     //     m_q.create(serviceName, qDepth, sizeof(ServiceTransferPrimitive_t));
-//     //     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
-//     // }
-//     const Fw::String serviceName = "DEFAULT SERVICE";
-//     const SERVICE_TRANSFER_TYPE_t serviceTransferType = SERVICE_TRANSFER_TYPE;
-//     const SAP_t sap;
+template <typename SDUType,
+          typename IdType,
+          typename ServiceUserDataType,
+          typename ServiceTransferPrimitiveType,
+          SERVICE_TRANSFER_TYPE_e ServiceTransferType>
+class TMServiceBase {
+  public:
+    using UserData_t = ServiceUserDataType;
+    using Primitive_t = ServiceTransferPrimitiveType;
+    using SAP_t = IdType;
+    TMServiceBase(SAP_t sap) : sap(sap){};
 
-//     bool generatePrimitive(ServiceTransferPrimitive_t& prim);
+    const Fw::String serviceName = "DEFAULT SERVICE";
+    const SERVICE_TRANSFER_TYPE_e serviceTransferType = ServiceTransferType;
+    const SAP_t sap;
 
-//   protected:
-//     // Os::Queue m_q;  // Queue for inter-task communication
-//     ServiceParams_t m_serviceParams;
-// };
+    virtual bool generatePrimitive(UserData_t& data, Primitive_t& prim) const = 0;
+};
+
+// CCSDS 132.0-B-3 3.4.3.2
+
+// Virtual Access Service Data Unit 3.2.3
+using VCA_SDU_t = Fw::Buffer;
+// template<FwSizeType DATA_LENGTH>
+// using VCA_SDU_t=FPrimeTransferFrame::DataField_t;
+
+typedef struct VCARequestPrimitive_s {
+    FPrimeTransferFrame::DataField_t sdu;
+    VCAStatusFields_t statusFields;
+    GVCID_t sap;
+} VCARequestPrimitive_t;
 
 /**
  * Virtual Channel Access Service (CCSDS 132.0-B-3 3.4)
  * Provides fixed-length data unit transfer across virtual channels
  */
-class VCAService {
+
+class VCAService : public TMServiceBase<VCA_SDU_t,
+                                        GVCID_t,
+                                        Fw::ComBuffer,
+                                        VCARequestPrimitive_t,
+                                        SERVICE_TRANSFER_TYPE_e::SYNCHRONOUS> {
   public:
-    VCAService(GVCID_t gvcid) : sap(gvcid){};
+    using Base =
+        TMServiceBase<VCA_SDU_t, GVCID_t, Fw::ComBuffer, VCARequestPrimitive_t, SERVICE_TRANSFER_TYPE_e::SYNCHRONOUS>;
+    using Base::TMServiceBase;  // Inheriting constructor
+    using typename Base::Primitive_t;
+    using typename Base::SAP_t;
+    using typename Base::UserData_t;
 
-    // CCSDS 132.0-B-3 3.4.3.2
-    typedef struct VCARequest_s {
-        VCA_SDU_t sdu;
-        VCAStatusFields_t statusFields;
-        GVCID_t sap;
-    } RequestPrimitive_t;
-
-    const Fw::String serviceName = "DEFAULT SERVICE";
-    const SERVICE_TRANSFER_TYPE_t serviceTransferType = SYNCHRONOUS;
-    const GVCID_t sap;
-
-    bool generateVCAPrimitive(Fw::ComBuffer& transferBuffer, RequestPrimitive_t& prim) {
+    virtual bool generatePrimitive(Fw::ComBuffer& data, VCARequestPrimitive_t& prim) const override {
         // NOTE should handle this in some way that respect const
-        prim.sdu.serialize(transferBuffer);
-        prim.sap = sap;
-        // TODO actually handle this
-        prim.statusFields = {};
+        // prim.sdu.serializeValue(data);
+        // prim.sap = sap;
+        // // TODO actually handle this
+        // prim.statusFields = {};
         return true;
     }
 };
 
-// NOTE the "FrameService" and "FSHService" can really just be replaced by the
-// TransferFrame and SecondaryHeader classes
-// The only reason we'd have this is to conform to a "Service Interface" if need be
-class FrameService {
-  public:
-    FrameService(GVCID_t gvcid) : sap(gvcid){};
+typedef struct VCFUserData_s {
+    FPrimeTransferFrame::DataField_t dataField;
+    VCAStatusFields_t statusFields;
+} VCFUserData_t;
 
-    const Fw::String serviceName = "DEFAULT SERVICE";
-    const SERVICE_TRANSFER_TYPE_t serviceTransferType = SYNCHRONOUS;
-    const GVCID_t sap;
-    bool generateFramePrimitive(Fw::ComBuffer& transferBuffer, FrameRequest_t& prim) {
-        // NOTE should handle this in some way that respect const
-        // prim.serialize(transferBuffer);
-        return true;
+typedef struct VCFRequestPrimitive_s {
+    FPrimeTransferFrame frame;
+    GVCID_t gvcid;
+} VCFRequestPrimitive_t;
+
+class VCFService : public TMServiceBase<FPrimeTransferFrame,
+                                        GVCID_t,
+                                        VCFUserData_t,
+                                        VCFRequestPrimitive_t,
+                                        SERVICE_TRANSFER_TYPE_e::SYNCHRONOUS> {
+  public:
+    using Base = TMServiceBase<FPrimeTransferFrame,
+                               GVCID_t,
+                               VCFUserData_t,
+                               VCFRequestPrimitive_t,
+                               SERVICE_TRANSFER_TYPE_e::SYNCHRONOUS>;
+    using Base::TMServiceBase;
+    using typename Base::Primitive_t;
+    using typename Base::SAP_t;
+    using typename Base::UserData_t;
+
+    virtual bool generatePrimitive(VCFUserData_t& data, VCFRequestPrimitive_t& prim) const override {
+        FPrimeTransferFrame frame;
+        PrimaryHeader header = frame.getPrimaryHeader();
+        PrimaryHeaderControlInfo_t controlInfo = {
+            // Set whatever we can at this time provided the context
+            // aka data.statusFields stuff
+        };
+        frame.setDataField(data.dataField);
     }
 };
 
