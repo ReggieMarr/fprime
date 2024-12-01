@@ -17,7 +17,7 @@
 namespace TMSpaceDataLink {
 // Default Base Class Transfer Function
 template <typename ChannelTemplateConfig>
-ChannelBase<ChannelTemplateConfig>::ChannelBase(Id_t id) : m_id(id) {}
+ChannelBase<ChannelTemplateConfig>::ChannelBase(Id_t const& id) : m_id(id) {}
 
 template <typename ChannelTemplateConfig>
 ChannelBase<ChannelTemplateConfig>::~ChannelBase() {}
@@ -42,7 +42,7 @@ static_assert(std::is_same<typename VirtualChannel::Queue_t, Os::Generic::Transf
               "Queue_t type mismatch");
 
 // Constructor for the Virtual Channel Template
-VirtualChannel::VirtualChannel(GVCID_t id) : Base(id), m_receiveService(id), m_frameService(id) {
+VirtualChannel::VirtualChannel(GVCID_t const& id) : Base(id), m_receiveService(id), m_frameService(id) {
     Os::Queue::Status status;
     Fw::String name = "Channel";
     status = this->m_externalQueue.create(name, CHANNEL_Q_DEPTH);
@@ -84,18 +84,17 @@ template class ChannelBase<VirtualChannelParams>;
 
 // NOTE based on what we saw in the header I would have assumed this would give the lsp
 // autocomplete enough info to pick up the underlying type of Queue_t but that seems not to be the case
-using AbstractMasterChannel = MasterChannel<1>;
-static_assert(std::is_same<typename AbstractMasterChannel::Queue_t, Os::Generic::TransformFrameQueue>::value,
+static_assert(std::is_same<typename SingleMasterChannel::Queue_t, Os::Generic::TransformFrameQueue>::value,
               "Queue_t type mismatch");
 
 static_assert(std::is_same<MasterChannelSubChannelParams::Channel_t, VirtualChannel>::value, "Channel_t type mismatch");
 
-static_assert(std::is_same<typename AbstractMasterChannel::TransferOut_t, std::array<FPrimeTransferFrame, 1> >::value,
+static_assert(std::is_same<typename SingleMasterChannel::TransferOut_t, std::array<FPrimeTransferFrame, 1> >::value,
               "Channel_t type mismatch");
 
 // Constructor for the Master Channel Template
 template <FwSizeType NumSubChannels>
-MasterChannel<NumSubChannels>::MasterChannel(Id_t& id, VirtualChannelList& subChannels)
+MasterChannel<NumSubChannels>::MasterChannel(Id_t const& id, VirtualChannelList& subChannels)
     : Base(id), m_subChannels(subChannels) {
     Os::Queue::Status status;
     Fw::String name = "Channel";
@@ -145,5 +144,57 @@ bool MasterChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrames)
 
 // Master Channel instantiations
 template class MasterChannel<1>;
+
+// Constructor for the Physical Channel Template
+template <FwSizeType NumSubChannels>
+PhysicalChannel<NumSubChannels>::PhysicalChannel(Id_t const& id, MasterChannelList& subChannels)
+    : Base(id), m_subChannels(subChannels) {
+    Os::Queue::Status status;
+    status = this->m_externalQueue.create(id, CHANNEL_Q_DEPTH);
+    FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
+}
+
+// Destructor for the Physical Channel Template
+template <FwSizeType NumSubChannels>
+PhysicalChannel<NumSubChannels>::~PhysicalChannel() {}
+
+// First, define the actual function implementations
+template <FwSizeType NumSubChannels>
+bool PhysicalChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& masterChannelFrames) {
+    Os::Queue::Status qStatus;
+    for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
+        SingleMasterChannel& mc = m_subChannels.at(vcIdx).get();
+        Os::Generic::TransformFrameQueue& frameQ = mc.m_externalQueue;
+        qStatus = frameQ.receive(masterChannelFrames.at(vcIdx), this->blockType, this->priority);
+        FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+    }
+    return true;
+}
+
+template <FwSizeType NumSubChannels>
+bool PhysicalChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrames) {
+    bool status = true;  // Initialize status
+    Os::Queue::Status qStatus;
+
+    for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
+        SingleMasterChannel& mc = m_subChannels.at(vcIdx).get();
+        Os::Generic::TransformFrameQueue& frameQ = mc.m_externalQueue;  // Use reference
+
+        FPrimeTransferFrame& frame = masterChannelFrames.at(vcIdx);
+        PrimaryHeaderControlInfo_t primaryHeaderCI;
+        // Get our primary header parameters that have been set so far.
+        frame.primaryHeader.get(primaryHeaderCI);
+        // Update the transfer count
+        primaryHeaderCI.masterChannelFrameCount = this->m_channelTransferCount;
+        qStatus = this->m_externalQueue.send(masterChannelFrames.at(vcIdx), this->blockType, this->priority);
+        FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+    }
+    // If we got this far that indicates that the transfer succeeded and we can increment the count
+    this->m_channelTransferCount += 1;
+    return true;
+}
+
+// Physical Channel instantiations
+template class PhysicalChannel<1>;
 
 }  // namespace TMSpaceDataLink
