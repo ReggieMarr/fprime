@@ -49,6 +49,7 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // VirtualChannel vc = m_physicalChannel.getChannel(gvcid);
     // Fw::ComBuffer com(data.getData(), data.getSize());
     // vc.transfer(com);
+    VirtualChannel vc(gvcid);
 
     return true;
 }
