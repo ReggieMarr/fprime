@@ -84,7 +84,7 @@ class DataField : public ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>> 
     static constexpr FwSizeType MIN_SIZE = 1;
     static_assert(FieldSize >= MIN_SIZE, "FieldSize must be at least MIN_FSDU_LEN");
 
-    DataField(Fw::Buffer& srcBuff);
+    DataField(Fw::Buffer & srcBuff);
 };
 
 // NOTE This could leverage some optional template class

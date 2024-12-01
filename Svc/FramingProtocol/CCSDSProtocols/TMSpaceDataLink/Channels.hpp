@@ -2,11 +2,13 @@
 #define SVC_TM_SPACE_DATA_LINK_CHANNELS_HPP
 
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
 #include <queue>
+#include <type_traits>
 #include <vector>
 #include "FpConfig.h"
 #include "Fw/Logger/Logger.hpp"
@@ -75,7 +77,6 @@ struct ChannelFunctionConfig {
     using FnArgs = Args;
     using ReceiveFn = ChannelProcessingFn<typename Args::ReceiveArg, typename Args::GenerateArg>;
     using GenerateFn = ChannelProcessingFn<typename Args::GenerateArg, typename Args::PropogateArg>;
-    using PropogateFn = ChannelConsumingFn<typename Args::PropogateArg>;
 };
 
 template <typename FnArgTypes, typename TransferInType, typename TransferOutType, typename QueueType, typename IdType>
@@ -140,59 +141,79 @@ class ChannelBase {
     // otherwise we convert the data into either Space Packets (CCSDS 133.0-B-2) or as
     // Encapsulation Packets (CCSDS 133.1-B-3).
     // The result, retrieved by reference, will be passed onto the generate function.
-    virtual bool receive(TransferIn_t const& arg, Generate_t& result) = 0;
+    virtual bool receive(TransferIn_t & arg, Generate_t& result) = 0;
 
     // This receives packetized data and generates it.
     // If there are frame field services associated with this channel (such as the OSF or FSH services)
     // then we leverage them to set fields. If there is a Framing service (Such as VCF) then we create the frame.
     // At the end generate frame function propogates its result to the consumer of this channel.
-    virtual bool generate(Generate_t const& arg) = 0;
+    virtual bool generate(Generate_t & arg) = 0;
 
   public:
     ChannelBase(Id_t id);
     virtual ~ChannelBase();
 
-    virtual bool transfer(TransferIn_t const& transferIn);
+    virtual bool transfer(TransferIn_t & transferIn);
 };
 
 // FIXME could probably just move the
 // generate arg into channel params and then just get rid of this
 // and the associated complexity.
 // Re-evaluate this after implementing the master and physical channel
+// using VirtualChannelFunctionArgs = ChannelFunctionArgs<
+//     // ReceiveArg
+//     VCAServiceTemplateParams::SDU_t,
+//     // GenerateArg
+//     VCFServiceTemplateParams::UserData_t,
+//     // PropogateArg
+//     VCFServiceTemplateParams::Primitive_t>;
 using VirtualChannelFunctionArgs = ChannelFunctionArgs<
     // ReceiveArg
-    // NOTE we could probably eliminate this since its just the
-    // VCAService::UserData_t,
-    Fw::Buffer,
+    DataField<247>,
     // GenerateArg
-    VCAService::Primitive_t,
+    VCARequestPrimitive_t,
+    // VCFUserData_t,
     // PropogateArg
-    FPrimeTransferFrame>;
+    VCFRequestPrimitive_t>;
 
 using VirtualChannelParams =
-    ChannelParameterConfig<VirtualChannelFunctionArgs,        // Template Struct containing the type info for the
-                                                              // transfer, receive, generate, and propogate functions.
-                           Fw::Buffer,                        // TransferIn_t
-                           FPrimeTransferFrame,               // TransferOut_t
-                           Os::Generic::TransformFrameQueue,  // Queue_t
-                           GVCID_t                            // Id_t
+    ChannelParameterConfig<VirtualChannelFunctionArgs,            // Template Struct containing the type info for the
+                                                                  // transfer, receive, generate, and propogate functions.
+                           Fw::Buffer,                            // TransferIn_t
+                           VCFServiceTemplateParams::Primitive_t, // TransferOut_t
+                           Os::Generic::TransformFrameQueue,      // Queue_t
+                           // NOTE this comes from either the VCA or VCF SAP_t
+                           // VCA was chosen arbitrarily
+                           VCAServiceTemplateParams::SAP_t        // Id_t
                            >;
 
-using VirtualChannelFunctions = ChannelFunctionConfig<VirtualChannelFunctionArgs>;
-
-typedef struct ChannelCfg_s {
-    VirtualChannelParams params;
-    VirtualChannelFunctionArgs fnArgs;
-} ChannelCfg_t;
-
 // NOTE could be really called VirtualChannelQueueFrameAccess
-class VirtualChannel : public ChannelBase<VirtualChannelParams> {
+using VirtualChannelConfig = VirtualChannelParams;
+using VirtualChannelBase = ChannelBase<VirtualChannelConfig>;
+
+// NOTE this is here for extra safety and also for linting
+// lsp doesn't recognize VirtualChannel as a ChannelBase derived class otherwise
+static_assert(std::is_same<
+    VirtualChannelBase::TransferIn_t,
+    Fw::Buffer
+                           >::value, "TransferIn_t type mismatch");
+
+static_assert(std::is_same<
+    VirtualChannelBase::Generate_t,
+    VCARequestPrimitive_t
+                           >::value, "Generate_t type mismatch");
+
+class VirtualChannel : public VirtualChannelBase
+{
   protected:
     VCAService m_receiveService;
     VCFService m_frameService;
+    // TODO set priority based on something user driven
+    FwQueuePriorityType priority = 0;
+    Os::QueueInterface::BlockingType blockType = Os::QueueInterface::BlockingType::BLOCKING;
 
   public:
-    using Base = ChannelBase<VirtualChannelParams>;
+    using Base = VirtualChannelBase;
     using Base::ChannelBase;  // Inherit constructor
     using typename Base::Generate_t;
     using typename Base::Id_t;
@@ -203,11 +224,12 @@ class VirtualChannel : public ChannelBase<VirtualChannelParams> {
     using typename Base::TransferOut_t;
 
     VirtualChannel(GVCID_t id);
-
-    // TODO figure out why can't I mark these as override
-    virtual bool receive(VCAService::UserData_t const& data, VCAService::Primitive_t& packet);
-    virtual bool generate(VCAService::Primitive_t const& packet);
+    ~VirtualChannel();
+  protected:
+    virtual bool receive(TransferIn_t & arg, Generate_t& result) override;
+    virtual bool generate(Generate_t & arg) override;
 };
+
 
 // // Virtual Channel configurations
 // struct VirtualChannelConfig {

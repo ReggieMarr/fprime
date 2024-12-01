@@ -79,9 +79,9 @@ class TMServiceBase {
 
     TMServiceBase(SAP_t const& sap);
 
-    virtual bool generatePrimitive(UserData_t const& data, Primitive_t& prim) const = 0;
+    virtual bool generatePrimitive(UserData_t & data, Primitive_t& prim) const = 0;
 
-    Fw::String getName() { return m_serviceName; };
+    // Fw::String getName() { return m_serviceName; };
 
   protected:
     Fw::String m_serviceName;
@@ -118,13 +118,17 @@ class VCAService : public TMServiceBase<VCAServiceTemplateParams> {
     using typename Base::SAP_t;
     using typename Base::UserData_t;
 
-    virtual bool generatePrimitive(Fw::Buffer const& data, VCARequestPrimitive_t& prim) const override;
+    virtual bool generatePrimitive(Fw::Buffer & data, VCARequestPrimitive_t& prim) const override;
 };
 
 typedef VCARequestPrimitive_t VCFUserData_t;
 
 // NOTE this could likely be re-used for the MCFService
-typedef Os::Generic::TransformFrameQueue VCFRequestPrimitive_t;
+// typedef Os::Generic::TransformFrameQueue VCFRequestPrimitive_t;
+typedef struct VCFRequestPrimitive_s {
+    FPrimeTransferFrame frame;
+    GVCID_t sap;
+} VCFRequestPrimitive_t;
 
 using VCFServiceTemplateParams =
     TMServiceBaseTemplateParameters<FPrimeTransferFrame, GVCID_t, VCFUserData_t, VCFRequestPrimitive_t>;
@@ -137,7 +141,7 @@ class VCFService : public TMServiceBase<VCFServiceTemplateParams> {
     using typename Base::SAP_t;
     using typename Base::UserData_t;
 
-    virtual bool generatePrimitive(VCFUserData_t const& request,
+    virtual bool generatePrimitive(VCFUserData_t & request,
                                    VCFRequestPrimitive_t& prim) const;
 };
 
