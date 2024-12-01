@@ -31,36 +31,6 @@
 namespace TMSpaceDataLink {
 constexpr FwSizeType CHANNEL_Q_DEPTH = 10;
 
-// NOTE could probably reduce the number of template structs to 1 if we just used this
-// template <typename... Types>
-// struct ChannelFnConfig;
-
-// template <typename ArgIn, typename ReceiverType, typename ProcessorType>
-// struct ChannelFnConfig<ArgIn, ReceiverType, ProcessorType> {
-//     using Arg = ArgIn;
-//     using Receiver = ReceiverType;
-//     using Processor = ProcessorType;
-// };
-
-// template <typename ArgIn, typename ArgOut, typename ReceiverType, typename ProcessorType>
-// struct ChannelFnConfig<ArgIn, ArgOut, ReceiverType, ProcessorType> {
-//     using Arg = ArgIn;
-//     using Result = ArgOut;
-//     using Receiver = ReceiverType;
-//     using Processor = ProcessorType;
-// };
-
-// Function type definitions
-// Takes some input, processes it and returns the result via the Result reference.
-// Success is indicated by the boolean return value.
-template <typename Arg, typename Result>
-using ChannelProcessingFn = bool (*)(const Arg&, Result&);
-
-// Takes some input, consumes it and does not return a result.
-// Success is indicated by the boolean return value.
-template <typename Arg>
-using ChannelConsumingFn = bool (*)(const Arg&);
-
 template <typename TransferInType, typename TransferOutType, typename QueueType, typename IdType>
 struct ChannelParameterConfig {
     using TransferIn_t = TransferInType;

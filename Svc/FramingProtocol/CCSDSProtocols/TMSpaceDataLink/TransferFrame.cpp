@@ -193,10 +193,6 @@ bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFie
     return errorControlField.extract(buffer);
 }
 
-// template<FwSizeType FieldSize>
-// DataField<FieldSize>::DataField(): Base() {
-// }
-
 template class ProtocolDataUnitBase<247, std::array<U8, 247>>;
 template class ProtocolDataUnit<247, std::array<U8, 247>>;
 
@@ -211,6 +207,8 @@ DataField<FieldSize>::DataField(Fw::Buffer& srcBuff) : Base() {
     // but we should consider if this could be achieved while also treating
     // user data as const
     Fw::SerializeBufferBase &serBuffer = srcBuff.getSerializeRepr();
+    // NOTE this has a linting error but it just isn't picking up
+    // that the base class provides this
     status = this->extract(serBuffer);
     FW_ASSERT(status);
 }
