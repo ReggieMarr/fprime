@@ -99,10 +99,6 @@ typedef struct VCARequestPrimitive_s {
     GVCID_t sap;
 } VCARequestPrimitive_t;
 
-// typedef VCAServiceCfg_s{
-//     VCAServicePrams::SAP_t,
-// } VCAServiceCfg_t;
-
 using VCAServiceTemplateParams =
     TMServiceBaseTemplateParameters<VCA_SDU_t, GVCID_t, Fw::Buffer, VCARequestPrimitive_t>;
 

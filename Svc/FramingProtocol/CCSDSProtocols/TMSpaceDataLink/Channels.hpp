@@ -30,11 +30,8 @@
 
 namespace TMSpaceDataLink {
 constexpr FwSizeType CHANNEL_Q_DEPTH = 10;
-static constexpr FwSizeType TRANSFER_FRAME_SIZE = 255;
 
-template <typename ChannelType, FwSizeType ChannelSize>
-using ChannelList = std::array<ChannelType, ChannelSize>;
-
+// NOTE could probably reduce the number of template structs to 1 if we just used this
 // template <typename... Types>
 // struct ChannelFnConfig;
 
@@ -64,25 +61,10 @@ using ChannelProcessingFn = bool (*)(const Arg&, Result&);
 template <typename Arg>
 using ChannelConsumingFn = bool (*)(const Arg&);
 
-template <typename ReceiveArgType, typename GenerateArgType, typename PropogateArgType>
-struct ChannelFunctionArgs {
-    using ReceiveArg = ReceiveArgType;
-    using GenerateArg = GenerateArgType;
-    using PropogateArg = PropogateArgType;
-};
-
-// Channel function configurations bundle
-template <typename Args>
-struct ChannelFunctionConfig {
-    using FnArgs = Args;
-    using ReceiveFn = ChannelProcessingFn<typename Args::ReceiveArg, typename Args::GenerateArg>;
-    using GenerateFn = ChannelProcessingFn<typename Args::GenerateArg, typename Args::PropogateArg>;
-};
-
-template <typename FnArgTypes, typename TransferInType, typename TransferOutType, typename QueueType, typename IdType>
+template <typename TransferInType, typename GenerateType, typename TransferOutType, typename QueueType, typename IdType>
 struct ChannelParameterConfig {
-    using FnArgs = FnArgTypes;
     using TransferIn_t = TransferInType;
+    using Generate_t = GenerateType;
     using TransferOut_t = TransferOutType;
     using Queue_t = QueueType;
     using Id_t = IdType;
@@ -108,24 +90,13 @@ struct ChannelParameterConfig {
 //    - e.g. a Data Field and other context used to create the start of a transfer frame, propogated via a queue.
 template <typename ChannelTemplateConfig>
 class ChannelBase {
-  private:
-    using FnArgs = typename ChannelTemplateConfig::FnArgs;
   public:
     // Channel type definitions
     using TransferOut_t = typename ChannelTemplateConfig::TransferOut_t;
     using TransferIn_t = typename ChannelTemplateConfig::TransferIn_t;
     using Queue_t = typename ChannelTemplateConfig::Queue_t;
     using Id_t = typename ChannelTemplateConfig::Id_t;
-
-    // Function Arg type definitions.
-    // Note that the receive function receives something that
-    // can come from the TransformIn_t. Its result becomes the argument
-    // for the generate function. The generates result likewise becomes
-    // the argument for the propogate function which consumes the argument
-    // and sends it on its way.
-    using Receive_t = typename FnArgs::ReceiveArg;
-    using Generate_t = typename FnArgs::GenerateArg;
-    using Propogate_t = typename FnArgs::PropogateArg;
+    using Generate_t = typename ChannelTemplateConfig::Generate_t;
 
   protected:
     // Member variables
@@ -156,30 +127,9 @@ class ChannelBase {
     virtual bool transfer(TransferIn_t & transferIn);
 };
 
-// FIXME could probably just move the
-// generate arg into channel params and then just get rid of this
-// and the associated complexity.
-// Re-evaluate this after implementing the master and physical channel
-// using VirtualChannelFunctionArgs = ChannelFunctionArgs<
-//     // ReceiveArg
-//     VCAServiceTemplateParams::SDU_t,
-//     // GenerateArg
-//     VCFServiceTemplateParams::UserData_t,
-//     // PropogateArg
-//     VCFServiceTemplateParams::Primitive_t>;
-using VirtualChannelFunctionArgs = ChannelFunctionArgs<
-    // ReceiveArg
-    DataField<247>,
-    // GenerateArg
-    VCARequestPrimitive_t,
-    // VCFUserData_t,
-    // PropogateArg
-    VCFRequestPrimitive_t>;
-
 using VirtualChannelParams =
-    ChannelParameterConfig<VirtualChannelFunctionArgs,            // Template Struct containing the type info for the
-                                                                  // transfer, receive, generate, and propogate functions.
-                           Fw::Buffer,                            // TransferIn_t
+    ChannelParameterConfig<Fw::Buffer,                            // TransferIn_t
+                           VCARequestPrimitive_t,                 // Generate_t
                            VCFServiceTemplateParams::Primitive_t, // TransferOut_t
                            Os::Generic::TransformFrameQueue,      // Queue_t
                            // NOTE this comes from either the VCA or VCF SAP_t
@@ -189,6 +139,8 @@ using VirtualChannelParams =
 
 // NOTE could be really called VirtualChannelQueueFrameAccess
 using VirtualChannelConfig = VirtualChannelParams;
+// This is used for channels which accept user data (i.e. raw data). This assumes
+// the channel will have at least one service to receive, process, and/or transmit data.
 using VirtualChannelBase = ChannelBase<VirtualChannelConfig>;
 
 // NOTE this is here for extra safety and also for linting
@@ -217,50 +169,81 @@ class VirtualChannel : public VirtualChannelBase
     using Base::ChannelBase;  // Inherit constructor
     using typename Base::Generate_t;
     using typename Base::Id_t;
-    using typename Base::Propogate_t;
     using typename Base::Queue_t;
-    using typename Base::Receive_t;
     using typename Base::TransferIn_t;
     using typename Base::TransferOut_t;
 
-    VirtualChannel(GVCID_t id);
+    VirtualChannel(Id_t id);
     ~VirtualChannel();
   protected:
     virtual bool receive(TransferIn_t & arg, Generate_t& result) override;
     virtual bool generate(Generate_t & arg) override;
 };
 
+// template <typename ChannelType, FwSizeType ChannelSize>
+// using ChannelList = std::array<ChannelType, ChannelSize>;
 
-// // Virtual Channel configurations
-// struct VirtualChannelConfig {
-//     using TransferIn_t = VCAService::UserData_t;
-//     using TransferOut_t = VCFService::Primitive_t;
-//     using Queue_t = Os::Generic::TransformFrameQueue;
-//     using Id_t = GVCID_t;
-// };
+// using MasterChannelFunctionArgs = ChannelFunctionArgs<
+//     // GenerateArg
+//     FPrimeTransferFrame,
+//     // PropogateArg
+//     VCARequestPrimitive_t,
+//     VCFRequestPrimitive_t>;
 
-// using VirtualChannelFunctionConfig = ChannelFunctionConfig<VCAService::UserData_t, VCFService::UserData_t,
-// VCFService::Primitive_t>;
+// using MasterChannelParams =
+//     ChannelParameterConfig<MasterChannelFunctionArgs,             // Template Struct containing the type info for the
+//                                                                   // transfer, receive, generate, and propogate functions.
+//                            // NOTE this is potentially unsafe
+//                            // TODO look into a better mechanism
+//                            std::nullptr_t,                        // TransferIn_t
+//                            VCFServiceTemplateParams::Primitive_t, // TransferOut_t
+//                            Os::Generic::TransformFrameQueue,      // Queue_t
+//                            // NOTE this comes from either the VCA or VCF SAP_t
+//                            // VCA was chosen arbitrarily
+//                            VCAServiceTemplateParams::SAP_t        // Id_t
+//                            >;
 
-// using VirtualReceiveConfig = FunctionConfig<VCAService::UserData_t, VCFService::Primitive_t>;
-
-// using VirtualGenerateConfig = FunctionConfig<VCFService::Primitive_t, FPrimeTransferFrame>;
-
-// using VirtualPropogateConfig = FunctionConfig<FPrimeTransferFrame>;
-
+// // NOTE could be really called MasterChannelQueueFrameAccess
+// using MasterChannelConfig = MasterChannelParams;
 // // This is used for channels which accept user data (i.e. raw data). This assumes
 // // the channel will have at least one service to receive, process, and/or transmit data.
-// // Channel implementations
-// class VirtualChannel : public ChannelBase<VirtualChannelConfig, VirtualChannelFunctionConfig> {
-//   public:
-//     using Base = ChannelBase<VirtualChannelConfig, VirtualChannelFunctionConfig>;
-//     using Base::ChannelBase;
-// };
+// using MasterChannelBase = ChannelBase<MasterChannelConfig>;
 
-// class MasterChannel : public ChannelBase<MasterChannelConfig, MasterChannelFunctionConfig> {
+// // NOTE this is here for extra safety and also for linting
+// // lsp doesn't recognize MasterChannel as a ChannelBase derived class otherwise
+// static_assert(std::is_same<
+//     MasterChannelBase::TransferIn_t,
+//                            std::nullptr_t
+//                            >::value, "TransferIn_t type mismatch");
+
+// static_assert(std::is_same<
+//     MasterChannelBase::Generate_t,
+//     VCARequestPrimitive_t
+//                            >::value, "Generate_t type mismatch");
+
+// class MasterChannel : public MasterChannelBase
+// {
+//   protected:
+//     // TODO set priority based on something user driven
+//     FwQueuePriorityType priority = 0;
+//     Os::QueueInterface::BlockingType blockType = Os::QueueInterface::BlockingType::BLOCKING;
+
 //   public:
-//     using Base = ChannelBase<MasterChannelConfig, MasterChannelFunctionConfig>;
-//     using Base::ChannelBase;
+//     using Base = MasterChannelBase;
+//     using Base::ChannelBase;  // Inherit constructor
+//     using typename Base::Generate_t;
+//     using typename Base::Id_t;
+//     using typename Base::Propogate_t;
+//     using typename Base::Queue_t;
+//     using typename Base::Receive_t;
+//     using typename Base::TransferIn_t;
+//     using typename Base::TransferOut_t;
+
+//     MasterChannel(Id_t id);
+//     ~MasterChannel();
+//   protected:
+//     virtual bool receive(TransferIn_t & arg, Generate_t& result) override;
+//     virtual bool generate(Generate_t & arg) override;
 // };
 
 // // Physical Channel Implementation
