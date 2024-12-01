@@ -50,6 +50,9 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // Fw::ComBuffer com(data.getData(), data.getSize());
     // vc.transfer(com);
     VirtualChannel vc(gvcid);
+    // std::array<VirtualChannel, 1> vcs {vc};
+    std::array<std::reference_wrapper<VirtualChannel>, 1> vcs{std::ref(vc)};
+    MasterChannel<1> mc(gvcid.MCID, vcs);
 
     return true;
 }
