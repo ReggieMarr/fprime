@@ -61,10 +61,9 @@ using ChannelProcessingFn = bool (*)(const Arg&, Result&);
 template <typename Arg>
 using ChannelConsumingFn = bool (*)(const Arg&);
 
-template <typename TransferInType, typename GenerateType, typename TransferOutType, typename QueueType, typename IdType>
+template <typename TransferInType, typename TransferOutType, typename QueueType, typename IdType>
 struct ChannelParameterConfig {
     using TransferIn_t = TransferInType;
-    using Generate_t = GenerateType;
     using TransferOut_t = TransferOutType;
     using Queue_t = QueueType;
     using Id_t = IdType;
@@ -92,11 +91,10 @@ template <typename ChannelTemplateConfig>
 class ChannelBase {
   public:
     // Channel type definitions
-    using TransferOut_t = typename ChannelTemplateConfig::TransferOut_t;
     using TransferIn_t = typename ChannelTemplateConfig::TransferIn_t;
     using Queue_t = typename ChannelTemplateConfig::Queue_t;
     using Id_t = typename ChannelTemplateConfig::Id_t;
-    using Generate_t = typename ChannelTemplateConfig::Generate_t;
+    using TransferOut_t = typename ChannelTemplateConfig::TransferOut_t;
 
   protected:
     // Member variables
@@ -112,30 +110,28 @@ class ChannelBase {
     // otherwise we convert the data into either Space Packets (CCSDS 133.0-B-2) or as
     // Encapsulation Packets (CCSDS 133.1-B-3).
     // The result, retrieved by reference, will be passed onto the generate function.
-    virtual bool receive(TransferIn_t & arg, Generate_t& result) = 0;
+    virtual bool receive(TransferIn_t& arg, TransferOut_t& result) = 0;
 
     // This receives packetized data and generates it.
     // If there are frame field services associated with this channel (such as the OSF or FSH services)
     // then we leverage them to set fields. If there is a Framing service (Such as VCF) then we create the frame.
     // At the end generate frame function propogates its result to the consumer of this channel.
-    virtual bool generate(Generate_t & arg) = 0;
+    virtual bool generate(TransferOut_t& arg) = 0;
 
   public:
     ChannelBase(Id_t id);
     virtual ~ChannelBase();
 
-    virtual bool transfer(TransferIn_t & transferIn);
+    virtual bool transfer(TransferIn_t& transferIn);
 };
 
-using VirtualChannelParams =
-    ChannelParameterConfig<Fw::Buffer,                            // TransferIn_t
-                           VCARequestPrimitive_t,                 // Generate_t
-                           VCFServiceTemplateParams::Primitive_t, // TransferOut_t
-                           Os::Generic::TransformFrameQueue,      // Queue_t
-                           // NOTE this comes from either the VCA or VCF SAP_t
-                           // VCA was chosen arbitrarily
-                           VCAServiceTemplateParams::SAP_t        // Id_t
-                           >;
+using VirtualChannelParams = ChannelParameterConfig<Fw::Buffer,                             // TransferIn_t
+                                                    VCAServiceTemplateParams::Primitive_t,  // TransferOut_t
+                                                    Os::Generic::TransformFrameQueue,       // Queue_t
+                                                    // NOTE this comes from either the VCA or VCF SAP_t
+                                                    // VCA was chosen arbitrarily
+                                                    VCAServiceTemplateParams::SAP_t  // Id_t
+                                                    >;
 
 // NOTE could be really called VirtualChannelQueueFrameAccess
 using VirtualChannelConfig = VirtualChannelParams;
@@ -145,18 +141,12 @@ using VirtualChannelBase = ChannelBase<VirtualChannelConfig>;
 
 // NOTE this is here for extra safety and also for linting
 // lsp doesn't recognize VirtualChannel as a ChannelBase derived class otherwise
-static_assert(std::is_same<
-    VirtualChannelBase::TransferIn_t,
-    Fw::Buffer
-                           >::value, "TransferIn_t type mismatch");
+static_assert(std::is_same<VirtualChannelBase::TransferIn_t, Fw::Buffer>::value, "TransferIn_t type mismatch");
 
-static_assert(std::is_same<
-    VirtualChannelBase::Generate_t,
-    VCARequestPrimitive_t
-                           >::value, "Generate_t type mismatch");
+static_assert(std::is_same<VirtualChannelBase::TransferOut_t, VCARequestPrimitive_t>::value,
+              "TransferOut_t type mismatch");
 
-class VirtualChannel : public VirtualChannelBase
-{
+class VirtualChannel : public VirtualChannelBase {
   protected:
     VCAService m_receiveService;
     VCFService m_frameService;
@@ -167,7 +157,7 @@ class VirtualChannel : public VirtualChannelBase
   public:
     using Base = VirtualChannelBase;
     using Base::ChannelBase;  // Inherit constructor
-    using typename Base::Generate_t;
+    using Base::m_externalQueue;
     using typename Base::Id_t;
     using typename Base::Queue_t;
     using typename Base::TransferIn_t;
@@ -175,76 +165,79 @@ class VirtualChannel : public VirtualChannelBase
 
     VirtualChannel(Id_t id);
     ~VirtualChannel();
+
   protected:
-    virtual bool receive(TransferIn_t & arg, Generate_t& result) override;
-    virtual bool generate(Generate_t & arg) override;
+    virtual bool receive(TransferIn_t& arg, TransferOut_t& result) override;
+    virtual bool generate(TransferOut_t& arg) override;
 };
 
-// template <typename ChannelType, FwSizeType ChannelSize>
+template <typename ChannelType, FwSizeType ChannelSize>
+
+// Used because the queues cant delete
+// TODO I had a workaround earlier but I cant remember what that was right now so just use this
+using ChannelList = std::array<std::reference_wrapper<ChannelType>, ChannelSize>;
 // using ChannelList = std::array<ChannelType, ChannelSize>;
 
-// using MasterChannelFunctionArgs = ChannelFunctionArgs<
-//     // GenerateArg
-//     FPrimeTransferFrame,
-//     // PropogateArg
-//     VCARequestPrimitive_t,
-//     VCFRequestPrimitive_t>;
+template <FwSizeType ChannelNumber, typename ChannelType>
+struct SubChannelParams {
+    static constexpr FwSizeType ChannelNum = ChannelNumber;
+    using Channel_t = ChannelType;
+};
 
-// using MasterChannelParams =
-//     ChannelParameterConfig<MasterChannelFunctionArgs,             // Template Struct containing the type info for the
-//                                                                   // transfer, receive, generate, and propogate functions.
-//                            // NOTE this is potentially unsafe
-//                            // TODO look into a better mechanism
-//                            std::nullptr_t,                        // TransferIn_t
-//                            VCFServiceTemplateParams::Primitive_t, // TransferOut_t
-//                            Os::Generic::TransformFrameQueue,      // Queue_t
-//                            // NOTE this comes from either the VCA or VCF SAP_t
-//                            // VCA was chosen arbitrarily
-//                            VCAServiceTemplateParams::SAP_t        // Id_t
-//                            >;
+using MasterChannelSubChannelParams = SubChannelParams<1, VirtualChannel>;
 
-// // NOTE could be really called MasterChannelQueueFrameAccess
-// using MasterChannelConfig = MasterChannelParams;
-// // This is used for channels which accept user data (i.e. raw data). This assumes
-// // the channel will have at least one service to receive, process, and/or transmit data.
-// using MasterChannelBase = ChannelBase<MasterChannelConfig>;
+using MasterChannelGenerateType = std::array<FPrimeTransferFrame, MasterChannelSubChannelParams::ChannelNum>;
 
-// // NOTE this is here for extra safety and also for linting
-// // lsp doesn't recognize MasterChannel as a ChannelBase derived class otherwise
-// static_assert(std::is_same<
-//     MasterChannelBase::TransferIn_t,
-//                            std::nullptr_t
-//                            >::value, "TransferIn_t type mismatch");
+using MasterChannelParams =
+    // NOTE this is potentially unsafe
+    // TODO look into a better mechanism
+    ChannelParameterConfig<std::nullptr_t,                    // TransferIn_t
+                           MasterChannelGenerateType,         // TransferOut_t
+                           Os::Generic::TransformFrameQueue,  // Queue_t
+                           // NOTE this comes from either the VCA or VCF SAP_t
+                           // VCA was chosen arbitrarily
+                           // Id_t
+                           MCID_t>;
 
-// static_assert(std::is_same<
-//     MasterChannelBase::Generate_t,
-//     VCARequestPrimitive_t
-//                            >::value, "Generate_t type mismatch");
+// NOTE could be really called MasterChannelQueueFrameAccess
+using MasterChannelConfig = MasterChannelParams;
+// This is used for channels which accept user data (i.e. raw data). This assumes
+// the channel will have at least one service to receive, process, and/or transmit data.
+using MasterChannelBase = ChannelBase<MasterChannelConfig>;
 
-// class MasterChannel : public MasterChannelBase
-// {
-//   protected:
-//     // TODO set priority based on something user driven
-//     FwQueuePriorityType priority = 0;
-//     Os::QueueInterface::BlockingType blockType = Os::QueueInterface::BlockingType::BLOCKING;
+// NOTE this is here for extra safety and also for linting
+// lsp doesn't recognize MasterChannel as a ChannelBase derived class otherwise
+static_assert(std::is_same<MasterChannelBase::TransferIn_t, std::nullptr_t>::value, "TransferIn_t type mismatch");
 
-//   public:
-//     using Base = MasterChannelBase;
-//     using Base::ChannelBase;  // Inherit constructor
-//     using typename Base::Generate_t;
-//     using typename Base::Id_t;
-//     using typename Base::Propogate_t;
-//     using typename Base::Queue_t;
-//     using typename Base::Receive_t;
-//     using typename Base::TransferIn_t;
-//     using typename Base::TransferOut_t;
+static_assert(std::is_same<MasterChannelBase::TransferOut_t, MasterChannelGenerateType>::value,
+              "TransferOut_t type mismatch");
 
-//     MasterChannel(Id_t id);
-//     ~MasterChannel();
-//   protected:
-//     virtual bool receive(TransferIn_t & arg, Generate_t& result) override;
-//     virtual bool generate(Generate_t & arg) override;
-// };
+template <FwSizeType NumSubChannels>
+class MasterChannel : public MasterChannelBase {
+  protected:
+    // TODO set priority based on something user driven
+    FwQueuePriorityType priority = 0;
+    Os::QueueInterface::BlockingType blockType = Os::QueueInterface::BlockingType::BLOCKING;
+
+  public:
+    using Base = MasterChannelBase;
+    using Base::ChannelBase;  // Inherit constructor
+    using typename Base::Id_t;
+    using typename Base::Queue_t;
+    using typename Base::TransferIn_t;
+    using typename Base::TransferOut_t;
+    using VirtualChannelList = ChannelList<VirtualChannel, NumSubChannels>;
+    using Channel_t = VirtualChannel;
+
+    MasterChannel(Id_t& id, VirtualChannelList& subChannels);
+    ~MasterChannel();
+
+  protected:
+    VirtualChannelList m_subChannels;
+
+    virtual bool receive(TransferIn_t& arg, TransferOut_t& result) override;
+    virtual bool generate(TransferOut_t& frame) override;
+};
 
 // // Physical Channel Implementation
 // class PhysicalChannel : public BaseMasterChannel<MasterChannel,
