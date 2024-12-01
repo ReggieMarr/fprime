@@ -33,16 +33,16 @@ class ProtocolDataUnitBase {
     enum { SERIALIZED_SIZE = FieldSize };
 
     ProtocolDataUnitBase();
-    ProtocolDataUnitBase(FieldValueType srcVal);
+    ProtocolDataUnitBase(FieldValueType const& srcVal);
     virtual ~ProtocolDataUnitBase() = default;
     ProtocolDataUnitBase& operator=(const ProtocolDataUnitBase& other);
 
-    void get(FieldValueType& val) const;
-    void set(FieldValueType const& val);
-    bool insert(Fw::SerializeBufferBase& buffer) const;
-    bool insert(Fw::SerializeBufferBase& buffer, FieldValueType& val);
-    bool extract(Fw::SerializeBufferBase& buffer);
-    bool extract(Fw::SerializeBufferBase& buffer, FieldValueType& val);
+    virtual void get(FieldValueType& val) const;
+    virtual void set(FieldValueType const& val);
+    virtual bool insert(Fw::SerializeBufferBase& buffer) const;
+    virtual bool insert(Fw::SerializeBufferBase& buffer, FieldValueType& val);
+    virtual bool extract(Fw::SerializeBufferBase& buffer);
+    virtual bool extract(Fw::SerializeBufferBase& buffer, FieldValueType& val);
 
   protected:
     FieldValueType m_value;
@@ -54,12 +54,8 @@ template <FwSizeType FieldSize, typename FieldValueType>
 class ProtocolDataUnit : public ProtocolDataUnitBase<FieldSize, FieldValueType> {
   public:
     using Base = ProtocolDataUnitBase<FieldSize, FieldValueType>;
-    using Base::ProtocolDataUnitBase;   // Inheriting constructor
-    using typename Base::FieldValue_t;  // Need typename here
-    using Base::operator=;              // Inheriting assignment
-
-    void get(FieldValue_t& val) const;
-    void set(FieldValue_t const& val);
+    using Base::Base;   // Inheriting constructor
+    ProtocolDataUnit() = default;
 
   protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
@@ -71,13 +67,14 @@ class ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>
     : public ProtocolDataUnitBase<FieldSize, std::array<U8, FieldSize>> {
   public:
     using Base = ProtocolDataUnitBase<FieldSize, std::array<U8, FieldSize>>;
-    using Base::ProtocolDataUnitBase;
     using typename Base::FieldValue_t;
-    using Base::operator=;
+    using Base::Base;   // Inheriting constructor
 
-    void get(FieldValue_t& val) const;
-    void set(FieldValue_t const& val);
-    void set(U8 const* buffPtr, FwSizeType size);
+    virtual void get(FieldValue_t& val) const override;
+    virtual void set(FieldValue_t const& val) override;
+
+    virtual void set(Fw::SerializeBufferBase const& buffer);
+    virtual void set(U8 const* buffPtr, FwSizeType size);
 
   protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
@@ -88,12 +85,8 @@ template <>
 class ProtocolDataUnit<0, std::nullptr_t> : public ProtocolDataUnitBase<0, std::nullptr_t> {
   public:
     using Base = ProtocolDataUnitBase<0, nullptr_t>;
-    using Base::ProtocolDataUnitBase;
     using typename Base::FieldValue_t;
-    using Base::operator=;
-
-    void get(FieldValue_t& val) const;
-    void set(FieldValue_t const& val);
+    using Base::Base;   // Inheriting constructor
 
   protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
@@ -105,12 +98,12 @@ class ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_
     : public ProtocolDataUnitBase<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t> {
   public:
     using Base = ProtocolDataUnitBase<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>;
-    using Base::ProtocolDataUnitBase;
     using typename Base::FieldValue_t;
-    using Base::operator=;
+    using Base::Base;   // Inheriting constructor
 
-    // void get(FieldValue_t& val) const;
-    // void set(FieldValue_t const& val);
+    // Use the base implementation of the getter/setter
+    using Base::set;
+    using Base::get;
 
   protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;

@@ -51,6 +51,7 @@ class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, Pr
     using Base::SERIALIZED_SIZE;
     using typename Base::FieldValue_t;
     using Base::operator=;
+    using Base::set;
     // If data field is an extension of some previous packet and the sync flag is 1
     // this should be the firstHeaderPointerField
     static constexpr U16 EXTEND_PACKET_TYPE = 0b11111111111;
@@ -64,7 +65,7 @@ class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, Pr
     void setVirtualChannelCount(U8 channelCount) { this->m_value.virtualChannelFrameCount = channelCount; };
 };
 
-static constexpr FwSizeType DFLT_DATA_FIELD_SIZE = 64;
+static constexpr FwSizeType DFLT_DATA_FIELD_SIZE = 247;
 template <FwSizeType FieldSize = DFLT_DATA_FIELD_SIZE>
 class DataField : public ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>> {
   public:
@@ -83,10 +84,7 @@ class DataField : public ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>> 
     static constexpr FwSizeType MIN_SIZE = 1;
     static_assert(FieldSize >= MIN_SIZE, "FieldSize must be at least MIN_FSDU_LEN");
 
-    DataField(Fw::Buffer& srcBuff) {
-        FW_ASSERT(srcBuff.getSize() == FieldSize, srcBuff.getSize());
-        FW_ASSERT(this->extract(srcBuff.getSerializeRepr()));
-    }
+    DataField(Fw::Buffer& srcBuff);
 };
 
 // NOTE This could leverage some optional template class
@@ -148,22 +146,13 @@ class TransferFrameBase {
     virtual bool insert(Fw::SerializeBufferBase& buffer) const;
     virtual bool extract(Fw::SerializeBufferBase& buffer);
 
-    // NOTE It would be better at this point to return members
-    virtual PrimaryHeader& getPrimaryHeader();
-
-    virtual SecondaryHeaderType& getSecondaryHeader();
-
-    virtual DataFieldType& getDataField();
-    virtual void setDataField(DataField_t& val) { m_dataField = val; }
-
-    virtual ErrorControlFieldType& getErrorControlField();
-
-  protected:
-    PrimaryHeader m_primaryHeader;
-    SecondaryHeaderType m_secondaryHeader;
-    DataFieldType m_dataField;
-    OperationalControlFieldType m_operationalControlField;
-    ErrorControlFieldType m_errorControlField;
+    // NOTE We used to have getters here but since each class protects itself pretty well
+    // we changed that for simplicity. Revisit if implementations need it.
+    PrimaryHeader primaryHeader;
+    SecondaryHeaderType secondaryHeader;
+    DataFieldType dataField;
+    OperationalControlFieldType operationalControlField;
+    ErrorControlFieldType errorControlField;
 };
 
 using FPrimeTransferFrame =

@@ -121,7 +121,7 @@ template <typename SecondaryHeaderType,
           typename ErrorControlFieldType>
 TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldType, ErrorControlFieldType>::
     TransferFrameBase()
-    : m_primaryHeader(), m_secondaryHeader(), m_dataField(), m_operationalControlField(), m_errorControlField() {}
+    : primaryHeader(), secondaryHeader(), dataField(), operationalControlField(), errorControlField() {}
 
 template <typename SecondaryHeaderType,
           typename DataFieldType,
@@ -133,17 +133,17 @@ bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFie
     U8 const* const startPtr = buffer.getBuffAddrSer();
 
     // Serialize primary header
-    if (!m_primaryHeader.insert(buffer)) {
+    if (!primaryHeader.insert(buffer)) {
         return false;
     }
 
     // Serialize secondary header
-    if (!m_secondaryHeader.insert(buffer)) {
+    if (!secondaryHeader.insert(buffer)) {
         return false;
     }
 
     // Serialize data field
-    if (!m_dataField.insert(buffer)) {
+    if (!dataField.insert(buffer)) {
         return false;
     }
 
@@ -151,7 +151,7 @@ bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFie
     // Note this should be handled by the templating but could also do this check
     // (and for the secondary header as well)
     // if (m_primaryHeader.hasOperationalControl()) {
-    if (!m_operationalControlField.insert(buffer)) {
+    if (!operationalControlField.insert(buffer)) {
         return false;
     }
 
@@ -166,76 +166,48 @@ template <typename SecondaryHeaderType,
 bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldType, ErrorControlFieldType>::extract(
     Fw::SerializeBufferBase& buffer) {
     // Extract primary header first
-    if (!m_primaryHeader.extract(buffer)) {
+    if (primaryHeader.extract(buffer)) {
         return false;
     }
 
     // Extract operational control field if present
     // if (m_primaryHeader.hasOperationalControl()) {
-    if (!m_secondaryHeader.extract(buffer)) {
+    if (!secondaryHeader.extract(buffer)) {
         return false;
     }
     // }
 
     // Extract data field
-    if (!m_dataField.extract(buffer)) {
+    if (!dataField.extract(buffer)) {
         return false;
     }
 
     // Extract operational control field if present
     // if (m_primaryHeader.hasOperationalControl()) {
-    if (!m_operationalControlField.extract(buffer)) {
+    if (!operationalControlField.extract(buffer)) {
         return false;
     }
     // }
 
     // Extract and verify error control field
-    return m_errorControlField.extract(buffer);
+    return errorControlField.extract(buffer);
 }
 
-// Getter implementations
-template <typename SecondaryHeaderType,
-          typename DataFieldType,
-          typename OperationalControlFieldType,
-          typename ErrorControlFieldType>
-PrimaryHeader&
-TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldType, ErrorControlFieldType>::
-    getPrimaryHeader() {
-    return m_primaryHeader;
-}
+// template<FwSizeType FieldSize>
+// DataField<FieldSize>::DataField(): Base() {
+// }
 
-template <typename SecondaryHeaderType,
-          typename DataFieldType,
-          typename OperationalControlFieldType,
-          typename ErrorControlFieldType>
-SecondaryHeaderType&
-TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldType, ErrorControlFieldType>::
-    getSecondaryHeader() {
-    return m_secondaryHeader;
-}
+template class ProtocolDataUnitBase<247, std::array<U8, 247>>;
+template class ProtocolDataUnit<247, std::array<U8, 247>>;
 
-template <typename SecondaryHeaderType,
-          typename DataFieldType,
-          typename OperationalControlFieldType,
-          typename ErrorControlFieldType>
-DataFieldType&
-TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldType, ErrorControlFieldType>::
-    getDataField() {
-    return m_dataField;
-}
-
-template <typename SecondaryHeaderType,
-          typename DataFieldType,
-          typename OperationalControlFieldType,
-          typename ErrorControlFieldType>
-ErrorControlFieldType&
-TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldType, ErrorControlFieldType>::
-    getErrorControlField() {
-    return m_errorControlField;
+template<FwSizeType FieldSize>
+DataField<FieldSize>::DataField(Fw::Buffer& srcBuff):Base() {
+    FW_ASSERT(srcBuff.getSize() == FieldSize, srcBuff.getSize());
+    FW_ASSERT(this->extract(srcBuff.getSerializeRepr()));
 }
 
 // Instantiate DataField
-template class DataField<64>;
+// template class DataField<64>;
 template class DataField<247>;
 
 // template class DataField<FPRIME_VCA_DATA_FIELD_SIZE>;
