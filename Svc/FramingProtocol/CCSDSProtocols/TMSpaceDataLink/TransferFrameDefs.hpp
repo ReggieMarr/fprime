@@ -110,20 +110,6 @@ typedef struct MissionPhaseParameters_s {
     bool isSyncFlagEnabled;
 } MissionPhaseParameters_t;
 
-// typedef struct {
-//     bool isOnlyIdleData;
-//     bool isFieldDataExtendedPacket;
-//     U16 packetOffset;
-// } DataFieldDesc_t;
-
-// // The data which is specific to each transfer frame
-// typedef struct {
-//     U8 virtualChannelId;
-//     U8 masterChannelFrameCount;
-//     U8 virtualChannelFrameCount;
-//     DataFieldDesc_t dataFieldDesc;
-// } TransferData_t;
-
 // clang-format off
 // CCSDS Transfer Frame Secondary Header (1-64 octets)
 // +----------------------+-------------------------------+
