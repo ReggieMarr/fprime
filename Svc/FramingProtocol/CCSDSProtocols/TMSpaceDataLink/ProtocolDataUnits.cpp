@@ -1,6 +1,7 @@
 #include "ProtocolDataUnits.hpp"
 #include <cstddef>
 #include <cstring>
+#include "Fw/Types/Serializable.hpp"
 
 namespace TMSpaceDataLink {
 
@@ -8,7 +9,7 @@ template <FwSizeType FieldSize, typename FieldValueType>
 ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase() : m_value() {}
 
 template <FwSizeType FieldSize, typename FieldValueType>
-ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase(FieldValueType srcVal) : m_value(srcVal) {}
+ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase(FieldValueType const& srcVal) : m_value(srcVal) {}
 
 template <FwSizeType FieldSize, typename FieldValueType>
 void ProtocolDataUnitBase<FieldSize, FieldValueType>::set(FieldValueType const& val) {
@@ -63,7 +64,6 @@ ProtocolDataUnitBase<FieldSize, FieldValueType>& ProtocolDataUnitBase<FieldSize,
     return *this;
 }
 
-// Primitive type template implementations
 template <FwSizeType FieldSize, typename FieldValueType>
 Fw::SerializeStatus ProtocolDataUnit<FieldSize, FieldValueType>::serializeValue(Fw::SerializeBufferBase& buffer) const {
     return buffer.serialize(this->m_value);
@@ -99,6 +99,13 @@ void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::set(FieldValue_t co
 }
 
 template <FwSizeType FieldSize>
+void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::set(Fw::SerializeBufferBase const& val) {
+    // To set the internal state we need to have a value that is the same size or smaller
+    FW_ASSERT(val.getBuffLength() <= this->m_value.size(), val.getBuffLength(), this->m_value.size());
+    (void)std::memcpy(this->m_value.data(), val.getBuffAddr(), this->m_value.size());
+}
+
+template <FwSizeType FieldSize>
 void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::get(FieldValue_t& val) const {
     // To set the internal state we need to have a value that is the same size or smaller
     FW_ASSERT(val.size() <= this->m_value.size(), val.size(), this->m_value.size());
@@ -127,14 +134,6 @@ Fw::SerializeStatus ProtocolDataUnit<0, std::nullptr_t>::deserializeValue(Fw::Se
     // return Fw::SerializeStatus::FW_SERIALIZE_FORMAT_ERROR;
 }
 
-void ProtocolDataUnit<0, std::nullptr_t>::set(FieldValue_t const& buffer) {
-    FW_ASSERT(0);
-}
-
-void ProtocolDataUnit<0, std::nullptr_t>::get(FieldValue_t& buffer) const {
-    FW_ASSERT(0);
-}
-
 // NOTE this should probably be done on the instatiation side of things
 // Instantiate the base class
 template class ProtocolDataUnitBase<247, std::array<U8, 247>>;
@@ -145,15 +144,9 @@ template class ProtocolDataUnitBase<0, std::nullptr_t>;
 // Instantiate the primary template (if needed)
 // FIXME I get linter errors here but they don't seem to affect compilation:
 // In template: dependent using declaration resolved to type without 'typename' (lsp)
+
 template class ProtocolDataUnit<247, std::array<U8, 247>>;
 template class ProtocolDataUnit<sizeof(U16), U16>;
 template class ProtocolDataUnit<6, PrimaryHeaderControlInfo_t>;
 template class ProtocolDataUnit<0, std::nullptr_t>;
-
-// If you're using other sizes, add those too, for example:
-template class ProtocolDataUnitBase<64, std::array<U8, 64>>;
-// FIXME I get linter errors here but they don't seem to affect compilation:
-// In template: dependent using declaration resolved to type without 'typename' (lsp)
-template class ProtocolDataUnit<64, std::array<U8, 64>>;
-
 }  // namespace TMSpaceDataLink

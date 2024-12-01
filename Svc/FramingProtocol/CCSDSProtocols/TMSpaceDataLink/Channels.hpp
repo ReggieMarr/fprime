@@ -9,7 +9,6 @@
 #include <queue>
 #include <vector>
 #include "FpConfig.h"
-#include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/SerialStatusEnumAc.hpp"
@@ -25,6 +24,7 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameQueue.hpp"
 #include "TransferFrame.hpp"
+#include "TransferFrameDefs.hpp"
 
 namespace TMSpaceDataLink {
 constexpr FwSizeType CHANNEL_Q_DEPTH = 10;
@@ -32,23 +32,6 @@ static constexpr FwSizeType TRANSFER_FRAME_SIZE = 255;
 
 template <typename ChannelType, FwSizeType ChannelSize>
 using ChannelList = std::array<ChannelType, ChannelSize>;
-
-// template <typename ReceiverType, typename ProcessorType, typename TransmitType>
-// struct ChannelObjectConfig<ReceiverType, ProcessorType, TransmitType> {
-//     using Receiver = ReceiverType;
-//     using Processor = ProcessorType;
-//     using Transmiter = TransmitType;
-// };
-
-// // This is a shim layer that works both for channels which take in user data and those which
-// // are downstream of other channels
-// template <typename TransferInType, typename TransferOutType, typename IdType, typename QueueType>
-// struct ChannelObjectConfig<TransferInType, TransferOutType, IdType, QueueType> {
-//     using TransferIn_t = TransferInType;
-//     using TransferOut_t = TransferOutType;
-//     using Id_t = IdType;
-//     using Queue_t = QueueType;
-// };
 
 // template <typename... Types>
 // struct ChannelFnConfig;
@@ -67,35 +50,6 @@ using ChannelList = std::array<ChannelType, ChannelSize>;
 //     using Receiver = ReceiverType;
 //     using Processor = ProcessorType;
 // };
-
-// // Function templates
-// template <typename Config>
-// bool ChannelTransferFn(typename Config::Arg);
-
-// template <typename Config>
-// bool ChannelGenerationFn(typename Config::Arg, typename Config::Result&);
-
-// template <typename Config>
-// bool ChannelMultiplexingFn(typename Config::Arg, typename Config::Result&);
-
-// // This is used for channels which accept user data (i.e. raw data). This assumes
-// // the channel will have at least one service to receive, process, and/or transmit data.
-// // this is meant to be the case where we're passing Receiver, Processor, Transmitter
-// using VCA_VCF_Procedure = ChannelObjectConfig<VCAService, VCFService, Os::Generic::TransformFrameQueue>;
-
-// using VCA_VFC_ChannelConfig = ChannelObjectConfig<VCA_VCF_Procedure::Receiver::UserData_t,
-//                                                   VCA_VCF_Procedure::Processor::Primitive_t,
-//                                                   VCA_VCF_Procedure::Processor::SAP_t,
-//                                                   VCA_VCF_Procedure::Transmiter>;
-
-// using VCA_VCF_TransferFnCfg =
-//     ChannelFnConfig<VCA_VCF_Procedure::Receiver, VCA_VCF_Procedure::Processor, Os::Generic::TransformFrameQueue>;
-
-// using VCA_VCF_ChannelGenerationFnCfg = ChannelFnConfig<VCA_VCF_Procedure::Receiver::Primitive_t,
-//                                                        VCA_VCF_Procedure::Processor::Primitive_t,
-//                                                        Os::Generic::TransformFrameQueue>;
-
-// using VCA_VCF_MultiplexingFnCfg = ChannelFnConfig<std::nullptr_t, std::nullptr_t, std::nullptr_t>;
 
 // Function type definitions
 // Takes some input, processes it and returns the result via the Result reference.
@@ -124,11 +78,7 @@ struct ChannelFunctionConfig {
     using PropogateFn = ChannelConsumingFn<typename Args::PropogateArg>;
 };
 
-template <typename FnArgTypes,
-          typename TransferInType,
-          typename TransferOutType,
-          typename QueueType,
-          typename IdType>
+template <typename FnArgTypes, typename TransferInType, typename TransferOutType, typename QueueType, typename IdType>
 struct ChannelParameterConfig {
     using FnArgs = FnArgTypes;
     using TransferIn_t = TransferInType;
@@ -137,6 +87,24 @@ struct ChannelParameterConfig {
     using Id_t = IdType;
 };
 
+// NOTE it might make sense to make each Channel it's own Queued Component
+// TODO look into Feasability of the following:
+// VirtualChannel (Active Componenet) ->
+// -> MasterChannel[(Guarded)Port] (Queued Component) ->
+// -> PhysicalChannel[(Guarded)Port] (Queued Component) ->
+// -> ComDriver
+// NOTE the general desire here is to generate channel template classes that are specialized
+// based on the following
+// a) The services it uses.
+// b) The thing it propogates/its properties (e.g. TransferFrames and their length, or Channel queues/quantity)
+// As it stands effectively what we ask the following:
+// - What is the nature of the transfer ?
+//    - i.e. passed user data (sync or async) vs triggered (periodic, async)
+// - What does the receive function "Receive" and
+// How does it process it into a request to be consumed by the generate functon.
+//    - e.g. a Buffer of user data processed into a TransferFrame Data Field using a private method
+// - What does the generate function "Generate" and how is that propogated ?
+//    - e.g. a Data Field and other context used to create the start of a transfer frame, propogated via a queue.
 template <typename ChannelTemplateConfig>
 class ChannelBase {
   private:
@@ -164,91 +132,68 @@ class ChannelBase {
     Queue_t m_externalQueue;
     U8 m_channelTransferCount{0};
 
-    // NOTE we should probably get rid of this at some point, for now its used
-    // to convert the TransferIn_t to FnArgs::ReceiveArg. These cant be the same at the moment
-    // since different transfer functions/receive functions dont always line up
-    virtual void transferToReceive(TransferIn_t const& arg, Receive_t& result) = 0;
+    // NOTE consider collect/emit instead of receive/generate
 
-    virtual bool receive(Receive_t const& arg, Generate_t& result) = 0;
+    // This receives data from either the user that has access to it or the
+    // subChannels it has access to.
+    // In the former case, if using VCA we packetize according to some user provided class.
+    // otherwise we convert the data into either Space Packets (CCSDS 133.0-B-2) or as
+    // Encapsulation Packets (CCSDS 133.1-B-3).
+    // The result, retrieved by reference, will be passed onto the generate function.
+    virtual bool receive(TransferIn_t const& arg, Generate_t& result) = 0;
 
-    virtual bool generate(Generate_t const& arg, Propogate_t& result) = 0;
-
-    virtual bool propogate(Propogate_t const& arg) = 0;
-    // ReceiveFn m_receiveFn;
-    // GenerateFn m_generateFn;
-    // PropogateFn m_propogateFn;
+    // This receives packetized data and generates it.
+    // If there are frame field services associated with this channel (such as the OSF or FSH services)
+    // then we leverage them to set fields. If there is a Framing service (Such as VCF) then we create the frame.
+    // At the end generate frame function propogates its result to the consumer of this channel.
+    virtual bool generate(Generate_t const& arg) = 0;
 
   public:
     ChannelBase(Id_t id);
     virtual ~ChannelBase();
 
-    ChannelBase(const ChannelBase& other)
-        : m_id(other.m_id),
-        m_channelTransferCount(other.m_channelTransferCount) {
-          // m_receiveFn(other.m_receiveFn),
-          // m_generateFn(other.m_generateFn),
-          // m_propogateFn(other.m_propogateFn) {
-        FW_ASSERT(!other.m_externalQueue.getMessagesAvailable());
-        Os::Queue::Status status;
-        Fw::String name = "Channel";
-        status = m_externalQueue.create(name, CHANNEL_Q_DEPTH);
-        FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
-    }
-
-    virtual bool transfer(TransferIn_t const& transferIn) {
-        bool status = false;
-        Receive_t receiveIn;
-        Generate_t generateIn;
-        Propogate_t propogateIn;
-
-        transferToReceive(transferIn, receiveIn);
-
-        status = receive(receiveIn, generateIn);
-        FW_ASSERT(status);
-
-        status = generate(generateIn, propogateIn);
-        FW_ASSERT(status);
-
-        status = propogate(propogateIn);
-        FW_ASSERT(status);
-
-        return status;
-    }
-
+    virtual bool transfer(TransferIn_t const& transferIn);
 };
 
+// FIXME could probably just move the
+// generate arg into channel params and then just get rid of this
+// and the associated complexity.
+// Re-evaluate this after implementing the master and physical channel
 using VirtualChannelFunctionArgs = ChannelFunctionArgs<
     // ReceiveArg
-    VCAService::UserData_t,
+    // NOTE we could probably eliminate this since its just the
+    // VCAService::UserData_t,
+    Fw::Buffer,
     // GenerateArg
     VCAService::Primitive_t,
     // PropogateArg
     FPrimeTransferFrame>;
 
-using VirtualChannelParams = ChannelParameterConfig<VirtualChannelFunctionArgs, // Template Struct containing the type info for the
-                                                                                // transfer, receive, generate, and propogate functions.
-                                           Fw::ComBuffer,                       // TransferIn_t
-                                           FPrimeTransferFrame,                 // TransferOut_t
-                                           Os::Generic::TransformFrameQueue,    // Queue_t
-                                           GVCID_t                              // Id_t
-                                           >;
-
-
+using VirtualChannelParams =
+    ChannelParameterConfig<VirtualChannelFunctionArgs,        // Template Struct containing the type info for the
+                                                              // transfer, receive, generate, and propogate functions.
+                           Fw::Buffer,                        // TransferIn_t
+                           FPrimeTransferFrame,               // TransferOut_t
+                           Os::Generic::TransformFrameQueue,  // Queue_t
+                           GVCID_t                            // Id_t
+                           >;
 
 using VirtualChannelFunctions = ChannelFunctionConfig<VirtualChannelFunctionArgs>;
 
 typedef struct ChannelCfg_s {
-  VirtualChannelParams params;
-  VirtualChannelFunctionArgs fnArgs;
+    VirtualChannelParams params;
+    VirtualChannelFunctionArgs fnArgs;
 } ChannelCfg_t;
 
+// NOTE could be really called VirtualChannelQueueFrameAccess
 class VirtualChannel : public ChannelBase<VirtualChannelParams> {
   protected:
-    VCAService receiveService;
-    VCFService frameService;
-    virtual void transferToReceive(Fw::ComBuffer const& transferIn, VCAService::UserData_t& receiveIn) override;
+    VCAService m_receiveService;
+    VCFService m_frameService;
+
   public:
     using Base = ChannelBase<VirtualChannelParams>;
+    using Base::ChannelBase;  // Inherit constructor
     using typename Base::Generate_t;
     using typename Base::Id_t;
     using typename Base::Propogate_t;
@@ -257,10 +202,11 @@ class VirtualChannel : public ChannelBase<VirtualChannelParams> {
     using typename Base::TransferIn_t;
     using typename Base::TransferOut_t;
 
-    // NOTE why can't I mark these as override
-    virtual bool receive(VCAService::UserData_t const &data, VCAService::Primitive_t &packet);
-    virtual bool generate(VCAService::Primitive_t const &packet, FPrimeTransferFrame &frame);
-    virtual bool propogate(FPrimeTransferFrame const &frame);
+    VirtualChannel(GVCID_t id);
+
+    // TODO figure out why can't I mark these as override
+    virtual bool receive(VCAService::UserData_t const& data, VCAService::Primitive_t& packet);
+    virtual bool generate(VCAService::Primitive_t const& packet);
 };
 
 // // Virtual Channel configurations
