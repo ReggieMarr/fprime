@@ -4,6 +4,7 @@
 #include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/Assert.hpp"
+#include "Fw/Types/Serializable.hpp"
 #include "Fw/Types/String.hpp"
 #include "Os/Models/QueueBlockingTypeEnumAc.hpp"
 #include "Os/Models/QueueStatusEnumAc.hpp"
@@ -66,8 +67,22 @@ bool VirtualChannel::generate(VCFUserData_t& arg) {
     FW_ASSERT(status);
 
     Os::Queue::Status qStatus;
-    qStatus = this->m_externalQueue.send(prim.frame, this->blockType, this->priority);  //
+    FPrimeTransferFrame& frame = prim.frame;
+    PrimaryHeaderControlInfo_t primaryHeaderCI;
+    // Get our primary header parameters that have been set so far.
+    frame.primaryHeader.get(primaryHeaderCI);
+    // Update the transfer count
+    primaryHeaderCI.virtualChannelFrameCount = this->m_channelTransferCount;
+    primaryHeaderCI.spacecraftId = this->m_id.MCID.SCID;
+    primaryHeaderCI.transferFrameVersion = this->m_id.MCID.TFVN;
+    primaryHeaderCI.virtualChannelId = this->m_id.VCID;
+    // TODO
+    // primaryHeaderCI.dataFieldStatus = arg.statusFields
+
+    qStatus = this->m_externalQueue.send(frame, m_blockType, m_priority);
     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, status);
+
+    this->m_channelTransferCount += 1;
 
     return true;
 }
@@ -113,7 +128,7 @@ bool MasterChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& ma
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
         VirtualChannel& vc = m_subChannels.at(vcIdx).get();
         Os::Generic::TransformFrameQueue& frameQ = vc.m_externalQueue;
-        qStatus = frameQ.receive(masterChannelFrames.at(vcIdx), this->blockType, this->priority);
+        qStatus = frameQ.receive(masterChannelFrames.at(vcIdx), m_blockType, m_priority);
         FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     }
     return true;
@@ -134,7 +149,7 @@ bool MasterChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrames)
         frame.primaryHeader.get(primaryHeaderCI);
         // Update the transfer count
         primaryHeaderCI.masterChannelFrameCount = this->m_channelTransferCount;
-        qStatus = this->m_externalQueue.send(masterChannelFrames.at(vcIdx), this->blockType, this->priority);
+        qStatus = this->m_externalQueue.send(masterChannelFrames.at(vcIdx), m_blockType, m_priority);
         FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     }
     // If we got this far that indicates that the transfer succeeded and we can increment the count
@@ -165,7 +180,7 @@ bool PhysicalChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& 
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
         SingleMasterChannel& mc = m_subChannels.at(vcIdx).get();
         Os::Generic::TransformFrameQueue& frameQ = mc.m_externalQueue;
-        qStatus = frameQ.receive(masterChannelFrames.at(vcIdx), this->blockType, this->priority);
+        qStatus = frameQ.receive(masterChannelFrames.at(vcIdx), m_blockType, m_priority);
         FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     }
     return true;
@@ -181,17 +196,27 @@ bool PhysicalChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrame
         Os::Generic::TransformFrameQueue& frameQ = mc.m_externalQueue;  // Use reference
 
         FPrimeTransferFrame& frame = masterChannelFrames.at(vcIdx);
-        PrimaryHeaderControlInfo_t primaryHeaderCI;
-        // Get our primary header parameters that have been set so far.
-        frame.primaryHeader.get(primaryHeaderCI);
-        // Update the transfer count
-        primaryHeaderCI.masterChannelFrameCount = this->m_channelTransferCount;
-        qStatus = this->m_externalQueue.send(masterChannelFrames.at(vcIdx), this->blockType, this->priority);
+        // TODO Check the CRC
+        qStatus = this->m_externalQueue.send(masterChannelFrames.at(vcIdx), m_blockType, m_priority);
         FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     }
     // If we got this far that indicates that the transfer succeeded and we can increment the count
     this->m_channelTransferCount += 1;
     return true;
+}
+
+template <FwSizeType NumSubChannels>
+void PhysicalChannel<NumSubChannels>::popFrameBuff(Fw::SerializeBufferBase& frameBuff) {
+    FPrimeTransferFrame frame;
+
+    Os::Queue::Status qStatus;
+    FwQueuePriorityType currentPriority = m_priority;
+    qStatus = this->m_externalQueue.receive(frame, m_blockType, currentPriority);
+    FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+    FW_ASSERT(currentPriority == m_priority, currentPriority, m_priority);
+
+    bool status = frame.insert(frameBuff);
+    FW_ASSERT(status);
 }
 
 // Physical Channel instantiations

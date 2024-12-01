@@ -51,36 +51,38 @@ namespace TMSpaceDataLink {
 class ProtocolEntity {
   public:
     ProtocolEntity(ManagedParameters_t& params)
-        : m_params(params)  //,
-    // m_physicalChannel(createPhysicalChannel(params.physicalParams))
-    {}
+        : m_params(params), m_physicalChannel(createPhysicalChannel(params.physicalParams)) {}
 
     // Process incoming telemetry data
     bool UserComIn_handler(Fw::Buffer& data, U32 context);
 
     // Generate the next TM Transfer Frame for transmission
     // Implements constant rate transfer requirement from 2.3.1
-    void generateNextFrame();
+    void generateNextFrame(Fw::Buffer& nextFrameBuffer);
 
   private:
     // NOTE could be made as a deserializer
     ManagedParameters_t m_params;
 
-    // PhysicalChannel m_physicalChannel;
-    // static PhysicalChannel createPhysicalChannel(PhysicalChannelParams_t& params) {
-    //     MCID_t mcid = {
-    //         .SCID = CCSDS_SCID,
-    //         .TFVN = params.transferFrameVersion,
-    //     };
-    //     GVCID_t gvcid = {
-    //         .MCID = mcid,
-    //         .VCID = 0,
-    //     };
-
-    //     ChannelList<VirtualChannel, 1> vcs = {VirtualChannel(gvcid)};
-    //     MasterChannel mc(vcs, gvcid.MCID);
-    //     return PhysicalChannel({mc}, params.channelName.toChar());
-    // }
+    SinglePhysicalChannel& m_physicalChannel;
+    static SinglePhysicalChannel& createPhysicalChannel(PhysicalChannelParams_t& params) {
+        MCID_t mcid = {
+            .SCID = params.subChannels.at(0).spaceCraftId,
+            .TFVN = params.transferFrameVersion,
+        };
+        GVCID_t gvcid = {
+            .MCID = mcid,
+            .VCID = 0,
+        };
+        VirtualChannel vc(gvcid);
+        // std::array<VirtualChannel, 1> vcs {vc};
+        std::array<std::reference_wrapper<VirtualChannel>, 1> vcs{std::ref(vc)};
+        MasterChannel<1> mc(gvcid.MCID, vcs);
+        std::array<std::reference_wrapper<MasterChannel<1>>, 1> mcs{std::ref(mc)};
+        Fw::String pcName("Physical Channel");
+        PhysicalChannel<1> pc(pcName, mcs);
+        return std::ref(pc);
+    }
 };
 
 }  // namespace TMSpaceDataLink
@@ -88,7 +90,7 @@ class ProtocolEntity {
 namespace Svc {
 class TMSpaceDataLinkProtocol : public FramingProtocol {
   public:
-    TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams);
+    TMSpaceDataLinkProtocol(TMSpaceDataLink::ManagedParameters_t const& params);
 
     void setup(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams, const FwSizeType dataFieldSize);
 
@@ -96,9 +98,8 @@ class TMSpaceDataLinkProtocol : public FramingProtocol {
 
   private:
     std::array<U8, TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE> m_dataFieldBuffer;
-    // Fw::Buffer
-    // TMSpaceDataLink::TransferData_t m_transferData = {0};
-    TMSpaceDataLink::FPrimeTransferFrame m_transferFrame;
+    TMSpaceDataLink::ManagedParameters_t m_params;
+    TMSpaceDataLink::ProtocolEntity m_tmSpaceLink;
     const FwSizeType m_dataFieldSize{Svc::TM_DATA_FIELD_DFLT_SIZE};
 };
 }  // namespace Svc

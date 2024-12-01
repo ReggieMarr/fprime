@@ -7,6 +7,7 @@
 #include "ProtocolInterface.hpp"
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <stdexcept>
 #include "FpConfig.h"
 #include "FpConfig.hpp"
@@ -47,55 +48,65 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // NOTE this implies that the virutal channel is setup to be synchronous
     // we should support async and periodic with queues as well.
     // Specific implementation for VirtualChannel with no underlying services
-    // VirtualChannel vc = m_physicalChannel.getChannel(gvcid);
-    // Fw::ComBuffer com(data.getData(), data.getSize());
-    // vc.transfer(com);
-    VirtualChannel vc(gvcid);
-    // std::array<VirtualChannel, 1> vcs {vc};
-    std::array<std::reference_wrapper<VirtualChannel>, 1> vcs{std::ref(vc)};
-    MasterChannel<1> mc(gvcid.MCID, vcs);
-    std::array<std::reference_wrapper<MasterChannel<1>>, 1> mcs{std::ref(mc)};
-    Fw::String pcName("Physical Channel");
-    PhysicalChannel<1> pc(pcName, mcs);
+
+    // NOTE we should get this via a physical channel getter
+    SingleMasterChannel& mc = m_physicalChannel.m_subChannels.at(0).get();
+    VirtualChannel& vc = mc.m_subChannels.at(0).get();
+    // FIXME theres a linter error here but it doesnt seem to actually point to a bug
+    vc.transfer(data);
 
     return true;
 }
 
-void ProtocolEntity::generateNextFrame() {
+void ProtocolEntity::generateNextFrame(Fw::Buffer& nextFrameBuffer) {
     // Generate Physical Channel frames
-    Fw::Buffer finalFrame;
-    // m_physicalChannel.transfer();
+    std::nullptr_t null_arg = nullptr;
+    // FIXME theres a linter error here but it doesnt seem to actually point to a bug
+    m_physicalChannel.transfer(null_arg);
+    Fw::SerializeBufferBase& serBuff = nextFrameBuffer.getSerializeRepr();
+
+    m_physicalChannel.popFrameBuff(serBuff);
 }
 
 }  // namespace TMSpaceDataLink
 
 namespace Svc {
-// TMSpaceDataLinkProtocol::TMSpaceDataLinkProtocol(const TMSpaceDataLink::MissionPhaseParameters_t& missionParams)
-// :   {
-//     m_transferFrame = TMSpaceDataLink::FPrimeTransferFrame(missionParams, Fw::Buffer(m_dataFieldBuffer.data(),
-//     m_dataFieldBuffer.size()));
-// }
+TMSpaceDataLinkProtocol::TMSpaceDataLinkProtocol(TMSpaceDataLink::ManagedParameters_t const& params)
+    : m_params(params), m_tmSpaceLink(m_params) {}
 
 void TMSpaceDataLinkProtocol::frame(const U8* const data, const U32 size, Fw::ComPacket::ComPacketType packet_type) {
-    // FW_ASSERT(data != nullptr);
-    // FW_ASSERT(m_interface != nullptr);
+    FW_ASSERT(data != nullptr);
+    FW_ASSERT(m_interface != nullptr);
+    constexpr FwSizeType dataFieldSize = TMSpaceDataLink::FPrimeTransferFrame::DataField_t::Base::SERIALIZED_SIZE;
+    FW_ASSERT(size <= dataFieldSize, size, dataFieldSize);
 
-    // // Calculate total size including TM frame header
-    // Fw::Buffer buffer = m_interface->allocate(TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
-    // FW_ASSERT(buffer.getSize() == TM_TRANSFER_FRAME_SIZE(m_dataFieldSize), TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
+    constexpr FwSizeType transferFrameSize = TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE;
 
-    // Fw::SerializeBufferBase& serializer = buffer.getSerializeRepr();
-    // Fw::SerializeStatus status;
-    // // status = m_transferFrame.serialize(serializer, m_transferData, data, size);
-    // // FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+    Fw::Buffer sendBuffer = m_interface->allocate(transferFrameSize);
+    FW_ASSERT(sendBuffer.getSize() == transferFrameSize, transferFrameSize);
 
-    // // buffer.setSize(TM_TRANSFER_FRAME_SIZE(m_dataFieldSize));
+    // TODO remove this after we have good getters and param propogation
+    TMSpaceDataLink::MCID_t mcid = {
+        .SCID = m_params.physicalParams.subChannels.at(0).spaceCraftId,
+        .TFVN = m_params.physicalParams.transferFrameVersion,
+    };
+    TMSpaceDataLink::GVCID_t gvcid = {
+        .MCID = mcid,
+        .VCID = 0,
+    };
+    U32 context;
+    TMSpaceDataLink::GVCID_t::fromVal(gvcid, context);
 
-    // m_interface->send(buffer);
+    // NOTE this copy is just needed at the momemnt since the FramingProtocol interface requires data to be const
+    // TODO remove after fixing that and better handling memory through the TM data link pipeline
+    std::array<U8, dataFieldSize> tmpDataBuff;
+    std::memcpy(tmpDataBuff.data(), data, size);
+    Fw::Buffer dataBuff(tmpDataBuff.data(), tmpDataBuff.size());
+    m_tmSpaceLink.UserComIn_handler(dataBuff, context);
 
-    // // Update frame counts
-    // m_transferData.masterChannelFrameCount = (m_transferData.masterChannelFrameCount + 1) & 0xFF;
-    // m_transferData.virtualChannelFrameCount = (m_transferData.virtualChannelFrameCount + 1) & 0xFF;
+    m_tmSpaceLink.generateNextFrame(sendBuffer);
+
+    m_interface->send(sendBuffer);
 }
 
 }  // namespace Svc
