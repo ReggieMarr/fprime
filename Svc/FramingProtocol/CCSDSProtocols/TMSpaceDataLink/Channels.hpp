@@ -119,7 +119,7 @@ class ChannelBase {
     virtual bool generate(TransferOut_t& arg) = 0;
 
   public:
-    ChannelBase(Id_t id);
+    ChannelBase(Id_t const& id);
     virtual ~ChannelBase();
 
     virtual bool transfer(TransferIn_t& transferIn);
@@ -163,7 +163,7 @@ class VirtualChannel : public VirtualChannelBase {
     using typename Base::TransferIn_t;
     using typename Base::TransferOut_t;
 
-    VirtualChannel(Id_t id);
+    VirtualChannel(Id_t const& id);
     ~VirtualChannel();
 
   protected:
@@ -222,6 +222,7 @@ class MasterChannel : public MasterChannelBase {
   public:
     using Base = MasterChannelBase;
     using Base::ChannelBase;  // Inherit constructor
+    using Base::m_externalQueue;
     using typename Base::Id_t;
     using typename Base::Queue_t;
     using typename Base::TransferIn_t;
@@ -229,7 +230,7 @@ class MasterChannel : public MasterChannelBase {
     using VirtualChannelList = ChannelList<VirtualChannel, NumSubChannels>;
     using Channel_t = VirtualChannel;
 
-    MasterChannel(Id_t& id, VirtualChannelList& subChannels);
+    MasterChannel(Id_t const& id, VirtualChannelList& subChannels);
     ~MasterChannel();
 
   protected:
@@ -239,42 +240,64 @@ class MasterChannel : public MasterChannelBase {
     virtual bool generate(TransferOut_t& frame) override;
 };
 
-// // Physical Channel Implementation
-// class PhysicalChannel : public BaseMasterChannel<MasterChannel,
-//                                                  typename MasterChannel::TransferOut_t,
-//                                                  std::array<typename MasterChannel::TransferOut_t, 3>,
-//                                                  Fw::String,
-//                                                  MAX_MASTER_CHANNELS> {
-//   public:
-//     // Inherit parent's type definitions
-//     using Base = BaseMasterChannel<MasterChannel,
-//                                    typename MasterChannel::TransferOut_t,
-//                                    std::array<typename MasterChannel::TransferOut_t, 3>,
-//                                    Fw::String,
-//                                    MAX_MASTER_CHANNELS>;
-//     //
-//     // Inherit constructors
-//     using Base::BaseMasterChannel;
+// NOTE this is a temporary value that represents the most common implementation
+using SingleMasterChannel = MasterChannel<1>;
 
-//     // not sure if this is needed
-//     using TransferInType = typename Base::TransferIn_t;
-//     using TransferOutType = typename Base::TransferOut_t;
+using PhysicalChannelSubChannelParams = SubChannelParams<1, SingleMasterChannel>;
 
-//     using Base::operator=;
+using PhysicalChannelGenerateType = std::array<FPrimeTransferFrame, PhysicalChannelSubChannelParams::ChannelNum>;
 
-//     bool getChannel(MCID_t const mcid, NATIVE_UINT_TYPE& channelIdx);
+using PhysicalChannelParams =
+    // NOTE this is potentially unsafe
+    // TODO look into a better mechanism
+    ChannelParameterConfig<std::nullptr_t,                    // TransferIn_t
+                           PhysicalChannelGenerateType,       // TransferOut_t
+                           Os::Generic::TransformFrameQueue,  // Queue_t
+                           // NOTE this comes from either the VCA or VCF SAP_t
+                           // VCA was chosen arbitrarily
+                           // Id_t
+                           Fw::String>;
 
-//     VirtualChannel& getChannel(GVCID_t const gvcid);
+// NOTE could be really called PhysicalChannelQueueFrameAccess
+using PhysicalChannelConfig = PhysicalChannelParams;
+// This is used for channels which accept user data (i.e. raw data). This assumes
+// the channel will have at least one service to receive, process, and/or transmit data.
+using PhysicalChannelBase = ChannelBase<PhysicalChannelConfig>;
 
-//     bool transfer();
+// NOTE this is here for extra safety and also for linting
+// lsp doesn't recognize PhysicalChannel as a ChannelBase derived class otherwise
+static_assert(std::is_same<PhysicalChannelBase::TransferIn_t, std::nullptr_t>::value, "TransferIn_t type mismatch");
 
-//   private:
-//     bool MasterChannelMultiplexing_handler(TransferIn_t& masterChannelOut,
-//                                            NATIVE_UINT_TYPE mcid,
-//                                            TransferOut_t& physicalChannelOut);
+static_assert(std::is_same<PhysicalChannelBase::TransferOut_t, PhysicalChannelGenerateType>::value,
+              "TransferOut_t type mismatch");
 
-//     bool AllFramesChannelGeneration_handler(TransferOut_t& masterChannelTransfer);
-// };
+template <FwSizeType NumSubChannels>
+class PhysicalChannel : public PhysicalChannelBase {
+  protected:
+    // TODO set priority based on something user driven
+    FwQueuePriorityType priority = 0;
+    Os::QueueInterface::BlockingType blockType = Os::QueueInterface::BlockingType::BLOCKING;
+
+  public:
+    using Base = PhysicalChannelBase;
+    using Base::ChannelBase;  // Inherit constructor
+    using Base::m_externalQueue;
+    using typename Base::Id_t;
+    using typename Base::Queue_t;
+    using typename Base::TransferIn_t;
+    using typename Base::TransferOut_t;
+    using MasterChannelList = ChannelList<SingleMasterChannel, NumSubChannels>;
+    using Channel_t = SingleMasterChannel;
+
+    PhysicalChannel(Id_t const& id, MasterChannelList& subChannels);
+    ~PhysicalChannel();
+
+  protected:
+    MasterChannelList m_subChannels;
+
+    virtual bool receive(TransferIn_t& arg, TransferOut_t& result) override;
+    virtual bool generate(TransferOut_t& frame) override;
+};
 
 }  // namespace TMSpaceDataLink
 

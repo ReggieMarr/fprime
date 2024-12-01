@@ -16,6 +16,7 @@
 #include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
+#include "Fw/Types/String.hpp"
 #include "ManagedParameters.hpp"
 #include "ProtocolDataUnits.hpp"
 #include "Services.hpp"
@@ -53,6 +54,9 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // std::array<VirtualChannel, 1> vcs {vc};
     std::array<std::reference_wrapper<VirtualChannel>, 1> vcs{std::ref(vc)};
     MasterChannel<1> mc(gvcid.MCID, vcs);
+    std::array<std::reference_wrapper<MasterChannel<1>>, 1> mcs{std::ref(mc)};
+    Fw::String pcName("Physical Channel");
+    PhysicalChannel<1> pc(pcName, mcs);
 
     return true;
 }
