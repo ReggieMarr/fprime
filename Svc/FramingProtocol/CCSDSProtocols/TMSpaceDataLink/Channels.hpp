@@ -150,9 +150,9 @@ class VirtualChannel : public VirtualChannelBase {
   protected:
     VCAService m_receiveService;
     VCFService m_frameService;
-    // TODO set priority based on something user driven
-    FwQueuePriorityType priority = 0;
-    Os::QueueInterface::BlockingType blockType = Os::QueueInterface::BlockingType::BLOCKING;
+    // TODO set m_priority based on something user driven
+    FwQueuePriorityType m_priority = 0;
+    Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::BLOCKING;
 
   public:
     using Base = VirtualChannelBase;
@@ -215,9 +215,9 @@ static_assert(std::is_same<MasterChannelBase::TransferOut_t, MasterChannelGenera
 template <FwSizeType NumSubChannels>
 class MasterChannel : public MasterChannelBase {
   protected:
-    // TODO set priority based on something user driven
-    FwQueuePriorityType priority = 0;
-    Os::QueueInterface::BlockingType blockType = Os::QueueInterface::BlockingType::BLOCKING;
+    // TODO set m_priority based on something user driven
+    FwQueuePriorityType m_priority = 0;
+    Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::BLOCKING;
 
   public:
     using Base = MasterChannelBase;
@@ -233,9 +233,10 @@ class MasterChannel : public MasterChannelBase {
     MasterChannel(Id_t const& id, VirtualChannelList& subChannels);
     ~MasterChannel();
 
-  protected:
+    // NOTE should use getter for this
     VirtualChannelList m_subChannels;
 
+  protected:
     virtual bool receive(TransferIn_t& arg, TransferOut_t& result) override;
     virtual bool generate(TransferOut_t& frame) override;
 };
@@ -273,11 +274,6 @@ static_assert(std::is_same<PhysicalChannelBase::TransferOut_t, PhysicalChannelGe
 
 template <FwSizeType NumSubChannels>
 class PhysicalChannel : public PhysicalChannelBase {
-  protected:
-    // TODO set priority based on something user driven
-    FwQueuePriorityType priority = 0;
-    Os::QueueInterface::BlockingType blockType = Os::QueueInterface::BlockingType::BLOCKING;
-
   public:
     using Base = PhysicalChannelBase;
     using Base::ChannelBase;  // Inherit constructor
@@ -292,12 +288,20 @@ class PhysicalChannel : public PhysicalChannelBase {
     PhysicalChannel(Id_t const& id, MasterChannelList& subChannels);
     ~PhysicalChannel();
 
-  protected:
+    void popFrameBuff(Fw::SerializeBufferBase& frameBuff);
+
+    // NOTE should use getter for this
     MasterChannelList m_subChannels;
 
+  protected:
+    // TODO set m_priority based on something user driven
+    FwQueuePriorityType m_priority = 0;
+    Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::BLOCKING;
     virtual bool receive(TransferIn_t& arg, TransferOut_t& result) override;
     virtual bool generate(TransferOut_t& frame) override;
 };
+
+using SinglePhysicalChannel = PhysicalChannel<1>;
 
 }  // namespace TMSpaceDataLink
 
