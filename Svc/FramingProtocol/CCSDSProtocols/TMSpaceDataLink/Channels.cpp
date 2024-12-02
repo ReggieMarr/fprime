@@ -223,15 +223,15 @@ VirtualChannel& MasterChannel<NumSubChannels>::getChannel(GVCID_t const gvcid) {
     FW_ASSERT(gvcid.MCID == this->id);
     NATIVE_UINT_TYPE i = 0;
 
-    // do {
-    //     Fw::Logger::log("%d Looking for Id %d %d %d -> %d %d %d\n", i, gvcid.MCID.TFVN, gvcid.MCID.SCID, gvcid.VCID,
-    //                     m_subChannels.at(i).id.MCID.TFVN, m_subChannels.at(i).id.MCID.SCID,
-    //                     m_subChannels.at(i).id.VCID);
-    //     if (m_subChannels.at(i).id == gvcid) {
-    //         return m_subChannels.at(i);
-    //     }
-    // } while (i++ < m_subChannels.size());
-    // FW_ASSERT(0, gvcid.MCID.SCID, gvcid.MCID.TFVN, gvcid.VCID);
+    do {
+        Fw::Logger::log("%d Looking for Id %d %d %d -> %d %d %d\n", i, gvcid.MCID.TFVN, gvcid.MCID.SCID, gvcid.VCID,
+                        m_subChannels.at(i).id.MCID.TFVN, m_subChannels.at(i).id.MCID.SCID,
+                        m_subChannels.at(i).id.VCID);
+        if (m_subChannels.at(i).id == gvcid) {
+            return m_subChannels.at(i);
+        }
+    } while (i++ < m_subChannels.size());
+    FW_ASSERT(0, gvcid.MCID.SCID, gvcid.MCID.TFVN, gvcid.VCID);
     // FIXME this is here so the compiler won't complain,
     // the above line should keep this from ever happenening tho
     return m_subChannels.at(0);

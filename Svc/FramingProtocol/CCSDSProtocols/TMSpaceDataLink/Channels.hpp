@@ -131,15 +131,11 @@ class VirtualChannel : public VirtualChannelBase {
   public:
     using Base = VirtualChannelBase;
     using Base::Base;  // Inherit all public members
-    // using Base::ChannelBase;  // Inherit constructor
-    // using Base::m_externalQueue;
-    // using typename Base::Id_t;
-    // using typename Base::Queue_t;
-    // using typename Base::TransferIn_t;
-    // using typename Base::TransferOut_t;
-    // using Base::operator=;
+    using typename Base::Id_t;
+    using typename Base::Queue_t;
+    using typename Base::TransferIn_t;
+    using typename Base::TransferOut_t;
 
-    // using Base::id;
     VirtualChannel(Id_t const& id);
     ~VirtualChannel();
 
@@ -199,13 +195,11 @@ class MasterChannel : public MasterChannelBase {
   public:
     using Base = MasterChannelBase;
     using Base::Base;
-    // using Base::ChannelBase;  // Inherit constructor
-    // using Base::m_externalQueue;
-    // using typename Base::Id_t;
-    // using typename Base::Queue_t;
-    // using typename Base::TransferIn_t;
-    // using typename Base::TransferOut_t;
-    // using Base::operator=;
+    using typename Base::Id_t;
+    using typename Base::Queue_t;
+    using typename Base::TransferIn_t;
+    using typename Base::TransferOut_t;
+
     using VirtualChannelList = ChannelList<VirtualChannel, NumSubChannels>;
     using Channel_t = VirtualChannel;
 
@@ -257,14 +251,12 @@ template <FwSizeType NumSubChannels>
 class PhysicalChannel : public PhysicalChannelBase {
   public:
     using Base = PhysicalChannelBase;
-  // using Base::ChannelBase;  // Inherit constructor
-    // using Base::m_externalQueue;
     using Base::Base;
-    // using typename Base::Id_t;
-    // using typename Base::Queue_t;
-    // using typename Base::TransferIn_t;
-    // using typename Base::TransferOut_t;
-    // using Base::operator=;
+    using typename Base::Id_t;
+    using typename Base::Queue_t;
+    using typename Base::TransferIn_t;
+    using typename Base::TransferOut_t;
+
     using MasterChannelList = ChannelList<SingleMasterChannel, NumSubChannels>;
     using Channel_t = SingleMasterChannel;
 
