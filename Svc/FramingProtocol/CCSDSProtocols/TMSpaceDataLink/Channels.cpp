@@ -217,6 +217,7 @@ template <FwSizeType NumSubChannels>
 bool MasterChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& masterChannelFrames) {
     bool status;
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
+        Fw::Logger::log("Receiving %d %d \n", vcIdx, m_subChannels.at(vcIdx).m_externalQueue.getMessagesAvailable());
         status = this->pullFrame(m_subChannels.at(vcIdx).m_externalQueue, masterChannelFrames.at(vcIdx));
         FW_ASSERT(status);
     }

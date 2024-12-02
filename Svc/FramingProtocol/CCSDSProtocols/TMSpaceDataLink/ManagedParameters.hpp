@@ -20,7 +20,7 @@
 #include "Fw/Types/String.hpp"
 
 static constexpr FwSizeType NUM_MASTER_CHANNELS = 1;
-static constexpr FwSizeType NUM_VIRTUAL_CHANNELS = 2;
+static constexpr FwSizeType NUM_VIRTUAL_CHANNELS = 3;
 // Based on the definition of MCID addressing we infer that we can only
 // have one master channel per physical channel
 constexpr FwSizeType MAX_MASTER_CHANNELS = NUM_MASTER_CHANNELS;

@@ -35,6 +35,7 @@
 #include "ProtocolDataUnits.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
 #include "TransferFrame.hpp"
 #include "config/FpConfig.h"
 
@@ -79,13 +80,22 @@ class ProtocolEntity {
             .MCID = mcid,
             .VCID = 1,
         };
-        VirtualChannel vcPrimary(gvcidPrimary);
-        VirtualChannel vcSecondary(gvcidSecondary);
-        std::array<VirtualChannel, 2> vcs{vcPrimary, vcSecondary};
+        std::array<GVCID_t, NUM_VIRTUAL_CHANNELS> paramIds;
+        for (int i = 0; i < paramIds.size(); i++) {
+            MCID_t mcid;
+            mcid.TFVN = params.transferFrameVersion;
+            mcid.SCID = params.subChannels.at(0).spaceCraftId;
+            paramIds.at(0).MCID = mcid;
+            paramIds.at(0).VCID = params.subChannels.at(0).subChannels.at(i).virtualChannelId;
+        }
+
+        std::array<VirtualChannel, NUM_VIRTUAL_CHANNELS> vcs{
+            VirtualChannel(paramIds.at(0)), VirtualChannel(paramIds.at(1)), VirtualChannel(paramIds.at(2))};
+
         MasterChannel<NUM_VIRTUAL_CHANNELS> mc(gvcidPrimary.MCID, vcs);
-        std::array<MasterChannel<NUM_VIRTUAL_CHANNELS>, 1> mcs{mc};
+        std::array<MasterChannel<NUM_VIRTUAL_CHANNELS>, NUM_MASTER_CHANNELS> mcs{mc};
         Fw::String pcName("Physical Channel");
-        PhysicalChannel<1> pc(pcName, mcs);
+        PhysicalChannel<NUM_MASTER_CHANNELS> pc(pcName, mcs);
         return pc;
     }
 };
