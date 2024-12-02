@@ -26,6 +26,7 @@ ChannelBase<ChannelTemplateConfig>::ChannelBase(const ChannelBase& other) : id(o
 
     // Create a new queue for this instance
     Os::Queue::Status status;
+    // TODO name the channel based on the id
     Fw::String name = "Base Channel";
     status =
         m_externalQueue.create(name, CHANNEL_Q_DEPTH, static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
@@ -57,7 +58,11 @@ template <typename ChannelTemplateConfig>
 bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t &queue, FPrimeTransferFrame &frame) {
     Os::Queue::Status qStatus;
     bool status;
-    Fw::ComBuffer serialBuffer(m_serBuff.data(), frame.SERIALIZED_SIZE);
+    // NOTE this is a hugely inefficient way of sending the channel info around.
+    // This is just done for now as a convinient mechanism for testing out the architecture.
+    // TODO replace with either a standard queue or queued component interfaces + buffer memory management
+    serialBuffer.resetDeser();
+    serialBuffer.setBuffLen(frame.SERIALIZED_SIZE);
 
     FwQueuePriorityType currentPriority = m_priority;
     FwSizeType actualSize;
@@ -76,7 +81,11 @@ template <typename ChannelTemplateConfig>
 bool ChannelBase<ChannelTemplateConfig>::pushFrame(Queue_t &queue, FPrimeTransferFrame &frame) {
     Os::Queue::Status qStatus;
     bool status;
-    Fw::ComBuffer serialBuffer(m_serBuff.data(), frame.SERIALIZED_SIZE);
+    // NOTE this is a hugely inefficient way of sending the channel info around.
+    // This is just done for now as a convinient mechanism for testing out the architecture.
+    // TODO replace with either a standard queue or queued component interfaces + buffer memory management
+    serialBuffer.resetSer();
+    serialBuffer.setBuffLen(frame.SERIALIZED_SIZE);
     status = frame.insert(serialBuffer);
     FW_ASSERT(status);
 

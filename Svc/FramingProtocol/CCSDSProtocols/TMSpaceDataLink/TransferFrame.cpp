@@ -97,7 +97,9 @@ Fw::SerializeStatus ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHead
     return Fw::SerializeStatus::FW_SERIALIZE_OK;
 }
 
-bool FrameErrorControlField::calc_value(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
+
+template<U16 StartWord, FwSizeType TransferFrameLength>
+bool FrameErrorControlField<StartWord, TransferFrameLength>::calc_value(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
     FW_ASSERT(startPtr);
 
     // Assumes the startPtr indicates where the serialization started in the buffer
@@ -125,12 +127,13 @@ bool FrameErrorControlField::calc_value(U8* startPtr, Fw::SerializeBufferBase& b
     U16 crc_value = crc.getExpected();
     Fw::Logger::log("framed CRC val %d\n", crc_value);
     // Crc value should always be non-zero
-    FW_ASSERT(m_value);
+    FW_ASSERT(crc_value != 0);
 
     return true;
 }
 
-bool FrameErrorControlField::insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
+template<U16 StartWord, FwSizeType TransferFrameLength>
+bool FrameErrorControlField<StartWord, TransferFrameLength>::insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const {
     bool selfStatus = calc_value(startPtr, buffer);
     FW_ASSERT(selfStatus);
     return true;
@@ -228,11 +231,11 @@ DataField<FieldSize>::DataField(Fw::Buffer& srcBuff) : Base() {
 }
 
 // Instantiate DataField
-// template class DataField<64>;
+template class FrameErrorControlField<CCSDS_SCID, FPrimeTransferFrame::SERIALIZED_SIZE>;
 template class DataField<247>;
 
 // template class DataField<FPRIME_VCA_DATA_FIELD_SIZE>;
 // Explicit instantiation of the specific TransferFrameBase being used
-template class TransferFrameBase<NullField, DataField<DFLT_DATA_FIELD_SIZE>, NullField, FrameErrorControlField>;
+template class TransferFrameBase<FPrimeSecondaryHeaderField, FPrimeDataField, FPrimeOperationalControlField, FPrimeErrorControlField>;
 
 }  // namespace TMSpaceDataLink
