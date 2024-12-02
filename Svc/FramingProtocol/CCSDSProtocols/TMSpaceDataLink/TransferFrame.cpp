@@ -198,7 +198,7 @@ template class ProtocolDataUnit<247, std::array<U8, 247>>;
 
 template <FwSizeType FieldSize>
 DataField<FieldSize>::DataField(Fw::Buffer& srcBuff) : Base() {
-    FW_ASSERT(srcBuff.getSize() == FieldSize, srcBuff.getSize());
+    FW_ASSERT(srcBuff.getSize() >= FieldSize, srcBuff.getSize());
     bool status = false;
     // NOTE using this is ultimately the reason why we can't treat the
     // user data as const.
@@ -207,6 +207,7 @@ DataField<FieldSize>::DataField(Fw::Buffer& srcBuff) : Base() {
     // but we should consider if this could be achieved while also treating
     // user data as const
     Fw::SerializeBufferBase &serBuffer = srcBuff.getSerializeRepr();
+    serBuffer.setBuffLen(FieldSize);
     // NOTE this has a linting error but it just isn't picking up
     // that the base class provides this
     status = this->extract(serBuffer);
