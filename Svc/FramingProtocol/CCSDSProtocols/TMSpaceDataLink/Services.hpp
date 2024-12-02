@@ -16,7 +16,6 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
-#include "TransferFrameQueue.hpp"
 
 namespace TMSpaceDataLink {
 
@@ -79,7 +78,7 @@ class TMServiceBase {
 
     TMServiceBase(SAP_t const& sap);
 
-    virtual bool generatePrimitive(UserData_t & data, Primitive_t& prim) const = 0;
+    virtual bool generatePrimitive(UserData_t& data, Primitive_t& prim) const = 0;
 
     // Fw::String getName() { return m_serviceName; };
 
@@ -99,8 +98,7 @@ typedef struct VCARequestPrimitive_s {
     GVCID_t sap;
 } VCARequestPrimitive_t;
 
-using VCAServiceTemplateParams =
-    TMServiceBaseTemplateParameters<VCA_SDU_t, GVCID_t, Fw::Buffer, VCARequestPrimitive_t>;
+using VCAServiceTemplateParams = TMServiceBaseTemplateParameters<VCA_SDU_t, GVCID_t, Fw::Buffer, VCARequestPrimitive_t>;
 
 /**
  * Virtual Channel Access Service (CCSDS 132.0-B-3 3.4)
@@ -114,7 +112,7 @@ class VCAService : public TMServiceBase<VCAServiceTemplateParams> {
     using typename Base::SAP_t;
     using typename Base::UserData_t;
 
-    virtual bool generatePrimitive(Fw::Buffer & data, VCARequestPrimitive_t& prim) const override;
+    virtual bool generatePrimitive(Fw::Buffer& data, VCARequestPrimitive_t& prim) const override;
 };
 
 typedef VCARequestPrimitive_t VCFUserData_t;
@@ -137,8 +135,7 @@ class VCFService : public TMServiceBase<VCFServiceTemplateParams> {
     using typename Base::SAP_t;
     using typename Base::UserData_t;
 
-    virtual bool generatePrimitive(VCFUserData_t & request,
-                                   VCFRequestPrimitive_t& prim) const;
+    virtual bool generatePrimitive(VCFUserData_t& request, VCFRequestPrimitive_t& prim) const;
 };
 
 // class VCPService : public TMService<VCP_SDU_t, GVCID, VCP_ServiceParameters_t, VCP_Request_t, SYNCHRONOUS> {
