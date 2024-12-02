@@ -71,7 +71,7 @@ class ChannelBase {
     U8 m_channelTransferCount{0};
     // TODO set m_priority based on something user driven
     FwQueuePriorityType m_priority = 0;
-    Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::BLOCKING;
+    Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::NONBLOCKING;
 
     // NOTE consider collect/emit instead of receive/generate
 

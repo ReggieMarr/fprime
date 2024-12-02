@@ -52,6 +52,8 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
 
     // NOTE we should get this via a physical channel getter
     MasterChannel<NUM_VIRTUAL_CHANNELS>& mc = m_physicalChannel.m_subChannels.at(0);
+    Fw::Logger::log("transfering for %d \n", gvcid.VCID);
+
     VirtualChannel& vc = mc.m_subChannels.at(gvcid.VCID);
     vc.transfer(data);
 
@@ -77,7 +79,7 @@ void ProtocolEntity::generateNextFrame(Fw::Buffer& nextFrameBuffer) {
     FPrimeTransferFrame frame;
     frame.extract(serBuff);
     PrimaryHeaderControlInfo_t ci;
-    frame.primaryHeader.get(ci);
+    frame.primaryHeader.set(ci);
     U16 testVal = ((static_cast<U8>(ci.dataFieldStatus.isPacketOrdered) << 13) & 0x1) |
                   ((ci.dataFieldStatus.segmentLengthId << 11) & 0x7) | (ci.dataFieldStatus.firstHeaderPointer & 0x7FF);
     Fw::Logger::log("Got frame.\n SCID %d, VCID %d, VC Count %d MC Count %d testVal 0x%04X", ci.spacecraftId,

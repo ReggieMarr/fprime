@@ -16,7 +16,6 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
 
 namespace TMSpaceDataLink {
-// Default Base Class Transfer Function
 template <typename ChannelTemplateConfig>
 ChannelBase<ChannelTemplateConfig>::ChannelBase(Id_t const& id) : id(id), m_externalQueue() {}
 
@@ -25,7 +24,6 @@ ChannelBase<ChannelTemplateConfig>::ChannelBase(const ChannelBase& other) : id(o
     // Since we can't copy if there's a message in the queue we should assert
     FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
 
-    // Create a new queue for this instance
     Os::Queue::Status status;
     // TODO name the channel based on the id
     Fw::String name = "Base Channel";
@@ -35,7 +33,6 @@ ChannelBase<ChannelTemplateConfig>::ChannelBase(const ChannelBase& other) : id(o
     // Fw::Logger::log("Created VC (copy) for Id %d %d %d \n", id.MCID.TFVN, id.MCID.SCID, id.VCID);
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 
-    // Copy other member variables
     m_channelTransferCount = other.m_channelTransferCount;
 }
 
@@ -62,6 +59,7 @@ bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t& queue, FPrimeTransfe
     // NOTE this is a hugely inefficient way of sending the channel info around.
     // This is just done for now as a convinient mechanism for testing out the architecture.
     // TODO replace with either a standard queue or queued component interfaces + buffer memory management
+    (void)std::memset(serialBuffer.getBuffAddr(), 0, frame.SERIALIZED_SIZE);
     serialBuffer.resetDeser();
     serialBuffer.setBuffLen(frame.SERIALIZED_SIZE);
 
@@ -85,6 +83,7 @@ bool ChannelBase<ChannelTemplateConfig>::pushFrame(Queue_t& queue, FPrimeTransfe
     // NOTE this is a hugely inefficient way of sending the channel info around.
     // This is just done for now as a convinient mechanism for testing out the architecture.
     // TODO replace with either a standard queue or queued component interfaces + buffer memory management
+    (void)std::memset(serialBuffer.getBuffAddr(), 0, frame.SERIALIZED_SIZE);
     serialBuffer.setBuffLen(frame.SERIALIZED_SIZE);
     serialBuffer.resetSer();
     status = frame.insert(serialBuffer);
@@ -117,7 +116,6 @@ bool ChannelBase<ChannelTemplateConfig>::transfer(TransferIn_t& transferIn) {
 static_assert(std::is_same<typename VirtualChannel::Queue_t, Os::Generic::PriorityQueue>::value,
               "Queue_t type mismatch");
 
-// Constructor for the Virtual Channel Template
 VirtualChannel::VirtualChannel(GVCID_t const& id) : Base(id), m_receiveService(id), m_frameService(id) {
     Os::Queue::Status status;
     Fw::String name = "Channel";
@@ -126,7 +124,6 @@ VirtualChannel::VirtualChannel(GVCID_t const& id) : Base(id), m_receiveService(i
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 }
 
-// Destructor for the Virtual Channel Template
 VirtualChannel::~VirtualChannel() {}
 
 // Note we could probably just make this a pass through then
@@ -176,14 +173,11 @@ bool VirtualChannel::generate(VCFUserData_t& arg) {
     return true;
 }
 
-// Virtual Channel instantiations
-// Instantiate the parameter config template
 template class ChannelParameterConfig<Fw::Buffer,
                                       VCFServiceTemplateParams::Primitive_t,
                                       Os::Generic::PriorityQueue,
                                       VCAServiceTemplateParams::SAP_t>;
 
-// Instantiate the base channel template with your params
 template class ChannelBase<VirtualChannelParams>;
 
 // NOTE based on what we saw in the header I would have assumed this would give the lsp
@@ -208,15 +202,14 @@ MasterChannel<NumSubChannels>::MasterChannel(Id_t const& id, VirtualChannelList&
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 }
 
-// Destructor for the Master Channel Template
 template <FwSizeType NumSubChannels>
 MasterChannel<NumSubChannels>::~MasterChannel() {}
 
-// First, define the actual function implementations
 template <FwSizeType NumSubChannels>
 bool MasterChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& masterChannelFrames) {
     bool status;
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
+        Fw::Logger::log("Receiving %d %d \n", vcIdx, m_subChannels.at(vcIdx).m_externalQueue.getMessagesAvailable());
         status = this->pullFrame(m_subChannels.at(vcIdx).m_externalQueue, masterChannelFrames.at(vcIdx));
         FW_ASSERT(status);
     }
@@ -263,10 +256,8 @@ VirtualChannel& MasterChannel<NumSubChannels>::getChannel(GVCID_t const gvcid) {
     return m_subChannels.at(0);
 }
 
-// Master Channel instantiations
 template class MasterChannel<NUM_VIRTUAL_CHANNELS>;
 
-// Constructor for the Physical Channel Template
 template <FwSizeType NumSubChannels>
 PhysicalChannel<NumSubChannels>::PhysicalChannel(Id_t const& id, MasterChannelList& subChannels)
     : Base(id), m_subChannels(subChannels) {
@@ -276,7 +267,6 @@ PhysicalChannel<NumSubChannels>::PhysicalChannel(Id_t const& id, MasterChannelLi
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 }
 
-// Destructor for the Physical Channel Template
 template <FwSizeType NumSubChannels>
 PhysicalChannel<NumSubChannels>::~PhysicalChannel() {}
 
@@ -330,7 +320,6 @@ void PhysicalChannel<NumSubChannels>::popFrameBuff(Fw::SerializeBufferBase& fram
     FW_ASSERT(currentPriority == m_priority, currentPriority, m_priority);
 }
 
-// Physical Channel instantiations
 template class PhysicalChannel<NUM_MASTER_CHANNELS>;
 
 }  // namespace TMSpaceDataLink
