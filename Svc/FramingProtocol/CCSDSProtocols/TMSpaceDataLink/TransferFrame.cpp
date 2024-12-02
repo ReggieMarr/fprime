@@ -64,15 +64,36 @@ Fw::SerializeStatus ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHead
     status = buffer.serialize(dataFieldStatus);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
-    // TODO handle endianess so we can just do this
-    // status = buffer.serialize(reinterpret_cast<const U8*>(&m_ci), sizeof(m_ci));
-    // FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
-
     return Fw::SerializeStatus::FW_SERIALIZE_OK;
 }
 
 Fw::SerializeStatus ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>::deserializeValue(
     Fw::SerializeBufferBase& buffer) {
+    Fw::SerializeStatus status;
+
+    // Deserialize first two octets
+    U16 firstTwoOctets;
+    status = buffer.deserialize(firstTwoOctets);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+    // Extract fields in reverse order of serialization
+    m_value.operationalControlFlag = firstTwoOctets & 0x01;
+    m_value.virtualChannelId = (firstTwoOctets >> 1) & 0x07;
+    m_value.spacecraftId = (firstTwoOctets >> 4) & 0x3FF;
+    m_value.transferFrameVersion = (firstTwoOctets >> 14) & 0x03;
+
+    // Deserialize data field status
+    U16 dataFieldStatus;
+    status = buffer.deserialize(dataFieldStatus);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+    // Extract data field status flags
+    m_value.dataFieldStatus.firstHeaderPointer = dataFieldStatus & 0x7FF;  // Bits 37-47
+    // Bits 35-36 (Segment Length Identifier) are ignored as they're always 0x3
+    m_value.dataFieldStatus.isPacketOrdered = (dataFieldStatus >> 13) & 0x01;     // Bit 34
+    m_value.dataFieldStatus.isSyncFlagEnabled = (dataFieldStatus >> 14) & 0x01;   // Bit 33
+    m_value.dataFieldStatus.hasSecondaryHeader = (dataFieldStatus >> 15) & 0x01;  // Bit 32
+
     return Fw::SerializeStatus::FW_SERIALIZE_OK;
 }
 
@@ -130,33 +151,30 @@ template <typename SecondaryHeaderType,
 bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldType, ErrorControlFieldType>::insert(
     Fw::SerializeBufferBase& buffer) const {
     // Store the starting position for error control calculation
-    U8 const* const startPtr = buffer.getBuffAddrSer();
+    U8* const startPtr = buffer.getBuffAddrSer();
+    bool status = true;
 
     // Serialize primary header
-    if (!primaryHeader.insert(buffer)) {
-        return false;
-    }
+    status = primaryHeader.insert(buffer);
+    FW_ASSERT(status);
 
     // Serialize secondary header
-    if (!secondaryHeader.insert(buffer)) {
-        return false;
-    }
+    status = secondaryHeader.insert(buffer);
+    FW_ASSERT(status);
 
     // Serialize data field
-    if (!dataField.insert(buffer)) {
-        return false;
-    }
+    status = dataField.insert(buffer);
+    FW_ASSERT(status);
 
     // Serialize operational control field if present
     // Note this should be handled by the templating but could also do this check
     // (and for the secondary header as well)
     // if (m_primaryHeader.hasOperationalControl()) {
-    if (!operationalControlField.insert(buffer)) {
-        return false;
-    }
+    status = operationalControlField.insert(buffer);
+    FW_ASSERT(status);
 
     // Calculate and serialize error control field
-    return true;  // m_errorControlField.insert(startPtr, buffer);
+    return errorControlField.insert(startPtr, buffer);
 }
 
 template <typename SecondaryHeaderType,
@@ -165,29 +183,24 @@ template <typename SecondaryHeaderType,
           typename ErrorControlFieldType>
 bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldType, ErrorControlFieldType>::extract(
     Fw::SerializeBufferBase& buffer) {
+    bool status;
     // Extract primary header first
-    if (primaryHeader.extract(buffer)) {
-        return false;
-    }
+    status = primaryHeader.extract(buffer);
+    FW_ASSERT(status);
 
     // Extract operational control field if present
     // if (m_primaryHeader.hasOperationalControl()) {
-    if (!secondaryHeader.extract(buffer)) {
-        return false;
-    }
-    // }
+    status = secondaryHeader.extract(buffer);
+    FW_ASSERT(status);
 
     // Extract data field
-    if (!dataField.extract(buffer)) {
-        return false;
-    }
+    status = dataField.extract(buffer);
+    FW_ASSERT(status);
 
     // Extract operational control field if present
     // if (m_primaryHeader.hasOperationalControl()) {
-    if (!operationalControlField.extract(buffer)) {
-        return false;
-    }
-    // }
+    status = operationalControlField.extract(buffer);
+    FW_ASSERT(status);
 
     // Extract and verify error control field
     return errorControlField.extract(buffer);
@@ -206,7 +219,7 @@ DataField<FieldSize>::DataField(Fw::Buffer& srcBuff) : Base() {
     // (one mechanism that allows us to propogate data without a copy)
     // but we should consider if this could be achieved while also treating
     // user data as const
-    Fw::SerializeBufferBase &serBuffer = srcBuff.getSerializeRepr();
+    Fw::SerializeBufferBase& serBuffer = srcBuff.getSerializeRepr();
     serBuffer.setBuffLen(FieldSize);
     // NOTE this has a linting error but it just isn't picking up
     // that the base class provides this
