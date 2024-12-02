@@ -51,8 +51,8 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // Specific implementation for VirtualChannel with no underlying services
 
     // NOTE we should get this via a physical channel getter
-    SingleMasterChannel& mc = m_physicalChannel.m_subChannels.at(0);
-    VirtualChannel& vc = mc.m_subChannels.at(0);
+    MasterChannel<NUM_VIRTUAL_CHANNELS>& mc = m_physicalChannel.m_subChannels.at(0);
+    VirtualChannel& vc = mc.m_subChannels.at(gvcid.VCID);
     vc.transfer(data);
 
     return true;
@@ -62,18 +62,15 @@ void ProtocolEntity::generateNextFrame(Fw::Buffer& nextFrameBuffer) {
     // Generate Physical Channel frames
     std::nullptr_t null_arg = nullptr;
 
-    // NOTE we should actually be doing this periodicially.
-    m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
-
     m_physicalChannel.transfer(null_arg);
     Fw::SerializeBufferBase& serBuff = nextFrameBuffer.getSerializeRepr();
 
     m_physicalChannel.popFrameBuff(serBuff);
-    Fw::Logger::log("Got ser buff \n");
+    Fw::Logger::log("\nGot ser buff \n");
     NATIVE_UINT_TYPE idx = 0;
-    Fw::Logger::log("Ring: ");
+    Fw::Logger::log("Exiting Frame Buff: \n");
     for (NATIVE_UINT_TYPE i = 0; i < serBuff.getBuffLength(); i++) {
-        Fw::Logger::log("%02x ", serBuff.getBuffAddr()[idx]);
+        Fw::Logger::log("%02x ", serBuff.getBuffAddr()[i]);
     }
     Fw::Logger::log("\n");
 
@@ -85,6 +82,9 @@ void ProtocolEntity::generateNextFrame(Fw::Buffer& nextFrameBuffer) {
                   ((ci.dataFieldStatus.segmentLengthId << 11) & 0x7) | (ci.dataFieldStatus.firstHeaderPointer & 0x7FF);
     Fw::Logger::log("Got frame.\n SCID %d, VCID %d, VC Count %d MC Count %d testVal 0x%04X", ci.spacecraftId,
                     ci.virtualChannelId, ci.virtualChannelFrameCount, ci.masterChannelFrameCount, testVal);
+    std::array<U8, frame.dataField.SERIALIZED_SIZE> dataField;
+    frame.dataField.get(dataField);
+
 }
 
 }  // namespace TMSpaceDataLink

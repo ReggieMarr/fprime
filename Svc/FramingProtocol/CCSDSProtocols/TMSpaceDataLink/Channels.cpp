@@ -6,6 +6,7 @@
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "Fw/Types/String.hpp"
+#include "ManagedParameters.hpp"
 #include "Os/Models/QueueBlockingTypeEnumAc.hpp"
 #include "Os/Models/QueueStatusEnumAc.hpp"
 #include "Os/Queue.hpp"
@@ -187,13 +188,14 @@ template class ChannelBase<VirtualChannelParams>;
 
 // NOTE based on what we saw in the header I would have assumed this would give the lsp
 // autocomplete enough info to pick up the underlying type of Queue_t but that seems not to be the case
-static_assert(std::is_same<typename SingleMasterChannel::Queue_t, Os::Generic::PriorityQueue>::value,
+static_assert(std::is_same<typename MasterChannel<NUM_VIRTUAL_CHANNELS>::Queue_t, Os::Generic::PriorityQueue>::value,
               "Queue_t type mismatch");
 
 static_assert(std::is_same<MasterChannelSubChannelParams::Channel_t, VirtualChannel>::value, "Channel_t type mismatch");
 
-static_assert(std::is_same<typename SingleMasterChannel::TransferOut_t, std::array<FPrimeTransferFrame, 1> >::value,
-              "Channel_t type mismatch");
+static_assert(std::is_same<typename MasterChannel<NUM_VIRTUAL_CHANNELS>::TransferOut_t,
+                           std::array<FPrimeTransferFrame, NUM_VIRTUAL_CHANNELS> >::value,
+              "TransferOut_t type mismatch");
 
 // Constructor for the Master Channel Template
 template <FwSizeType NumSubChannels>
@@ -262,7 +264,7 @@ VirtualChannel& MasterChannel<NumSubChannels>::getChannel(GVCID_t const gvcid) {
 }
 
 // Master Channel instantiations
-template class MasterChannel<1>;
+template class MasterChannel<NUM_VIRTUAL_CHANNELS>;
 
 // Constructor for the Physical Channel Template
 template <FwSizeType NumSubChannels>
@@ -329,6 +331,6 @@ void PhysicalChannel<NumSubChannels>::popFrameBuff(Fw::SerializeBufferBase& fram
 }
 
 // Physical Channel instantiations
-template class PhysicalChannel<1>;
+template class PhysicalChannel<NUM_MASTER_CHANNELS>;
 
 }  // namespace TMSpaceDataLink
