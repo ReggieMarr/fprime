@@ -115,6 +115,7 @@ bool VirtualChannel::generate(VCFUserData_t& arg) {
     primaryHeaderCI.virtualChannelId = this->id.VCID;
     // TODO
     // primaryHeaderCI.dataFieldStatus = arg.statusFields
+    frame.primaryHeader.set(primaryHeaderCI);
 
     std::array<U8, FPrimeTransferFrame::SERIALIZED_SIZE> m_serBuff;
     Fw::ComBuffer serialBuffer(m_serBuff.data(), m_serBuff.size());
