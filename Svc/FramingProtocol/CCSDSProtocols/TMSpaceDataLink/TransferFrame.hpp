@@ -41,6 +41,10 @@ class NullField : public ProtocolDataUnit<0, std::nullptr_t> {
     using Base::operator=;
 };
 
+// NOTE These use a generic protocol data unit which leverages the protocoldataunit base
+// to provide a useful abstraction around the setting of values/deserializer/serializer.
+// Its a useful abstraction but seems to venture into too much indirection territory at times.
+// TODO see if we can reduce some of the layers here
 class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t> {
   public:
     // Inherit parent's type definitions
@@ -88,7 +92,7 @@ class DataField : public ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>> 
     DataField(Fw::Buffer& srcBuff);
 };
 
-template<U16 StartWord, FwSizeType TransferFrameLength>
+template <U16 StartWord, FwSizeType TransferFrameLength>
 class FrameErrorControlField : public ProtocolDataUnit<sizeof(U16), U16> {
   public:
     // Inherit parent's type definitions
@@ -100,20 +104,29 @@ class FrameErrorControlField : public ProtocolDataUnit<sizeof(U16), U16> {
     using typename Base::FieldValue_t;
     using Base::operator=;
 
-    bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
-
   private:
-    // Determines the fields value from a provided buffer and startPoint
-    // bool set(U8 const* const startPtr, Fw::SerializeBufferBase& buffer);
-    bool calc_value(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
-    using TMSpaceDataLinkStartWord = Svc::FrameDetectors::StartToken<U16, static_cast<U16>(0 | TM_SCID_VAL_TO_FIELD(StartWord)), Svc::TM_SCID_MASK>;
+    using TMSpaceDataLinkStartWord =
+        Svc::FrameDetectors::StartToken<U16, static_cast<U16>(0 | TM_SCID_VAL_TO_FIELD(StartWord)), Svc::TM_SCID_MASK>;
     using TMSpaceDataLinkLength =
         Svc::FrameDetectors::LengthToken<FwSizeType, sizeof(FwSizeType), TransferFrameLength, Svc::TM_LENGTH_MASK>;
-    using TMSpaceDataLinkChecksum = Svc::FrameDetectors::CRC<U16, TransferFrameLength, -2, Svc::FrameDetectors::CRC16_CCITT>;
-    using TMSpaceDataLinkDetector =
-        Svc::FrameDetectors::StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
+    // Sets up the crc checker to check the transferFrameLength minus the last field (this one)
+    using TMSpaceDataLinkChecksum =
+        Svc::FrameDetectors::CRC<U16, TransferFrameLength - SERIALIZED_SIZE, 0, Svc::FrameDetectors::CRC16_CCITT>;
+    using TMSpaceDataLinkDetector = Svc::FrameDetectors::
+        StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
 
     using CheckSum = TMSpaceDataLinkChecksum;
+
+  public:
+    // Determines the fields value from a provided buffer and startPoint
+    // bool set(U8 const* const startPtr, Fw::SerializeBufferBase& buffer);
+    bool calcBufferCRC(U8* sourceBufferPtr, FwSizeType const sourceBufferSize, U16& crcValue) const;
+
+    bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
+    using Base::extract;
+
+    using Base::get;
+    using Base::set;
 };
 
 // clang-format off
@@ -168,15 +181,16 @@ using FPrimeSecondaryHeaderField = NullField;
 using FPrimeDataField = DataField<DFLT_DATA_FIELD_SIZE>;
 using FPrimeOperationalControlField = NullField;
 // NOTE this is tied to a particular SCID
-using FPrimeErrorControlField = FrameErrorControlField<CCSDS_SCID,
-                                                       PrimaryHeader::SERIALIZED_SIZE +
-                                                       FPrimeSecondaryHeaderField::SERIALIZED_SIZE +
-                                                       FPrimeDataField::SERIALIZED_SIZE +
-                                                       FPrimeOperationalControlField::SERIALIZED_SIZE +
-                                                       // To account for the size of the error field itself
-                                                       sizeof(U16)>;
-using FPrimeTransferFrame =
-    TransferFrameBase<FPrimeSecondaryHeaderField, FPrimeDataField, FPrimeOperationalControlField, FPrimeErrorControlField>;
+using FPrimeErrorControlField =
+    FrameErrorControlField<CCSDS_SCID,
+                           PrimaryHeader::SERIALIZED_SIZE + FPrimeSecondaryHeaderField::SERIALIZED_SIZE +
+                               FPrimeDataField::SERIALIZED_SIZE + FPrimeOperationalControlField::SERIALIZED_SIZE +
+                               // To account for the size of the error field itself
+                               sizeof(U16)>;
+using FPrimeTransferFrame = TransferFrameBase<FPrimeSecondaryHeaderField,
+                                              FPrimeDataField,
+                                              FPrimeOperationalControlField,
+                                              FPrimeErrorControlField>;
 
 }  // namespace TMSpaceDataLink
 
