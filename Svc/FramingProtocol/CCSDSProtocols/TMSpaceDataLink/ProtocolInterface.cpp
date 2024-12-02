@@ -50,8 +50,8 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // Specific implementation for VirtualChannel with no underlying services
 
     // NOTE we should get this via a physical channel getter
-    SingleMasterChannel& mc = m_physicalChannel.m_subChannels.at(0).get();
-    VirtualChannel& vc = mc.m_subChannels.at(0).get();
+    SingleMasterChannel& mc = m_physicalChannel.m_subChannels.at(0);
+    VirtualChannel& vc = mc.m_subChannels.at(0);
     // FIXME theres a linter error here but it doesnt seem to actually point to a bug
     vc.transfer(data);
 

@@ -64,8 +64,8 @@ class ProtocolEntity {
     // NOTE could be made as a deserializer
     ManagedParameters_t m_params;
 
-    SinglePhysicalChannel& m_physicalChannel;
-    static SinglePhysicalChannel& createPhysicalChannel(PhysicalChannelParams_t& params) {
+    SinglePhysicalChannel m_physicalChannel;
+    static SinglePhysicalChannel createPhysicalChannel(PhysicalChannelParams_t& params) {
         MCID_t mcid = {
             .SCID = params.subChannels.at(0).spaceCraftId,
             .TFVN = params.transferFrameVersion,
@@ -75,13 +75,12 @@ class ProtocolEntity {
             .VCID = 0,
         };
         VirtualChannel vc(gvcid);
-        // std::array<VirtualChannel, 1> vcs {vc};
-        std::array<std::reference_wrapper<VirtualChannel>, 1> vcs{std::ref(vc)};
+        std::array<VirtualChannel, 1> vcs{vc};
         MasterChannel<1> mc(gvcid.MCID, vcs);
-        std::array<std::reference_wrapper<MasterChannel<1>>, 1> mcs{std::ref(mc)};
+        std::array<MasterChannel<1>, 1> mcs{mc};
         Fw::String pcName("Physical Channel");
         PhysicalChannel<1> pc(pcName, mcs);
-        return std::ref(pc);
+        return pc;
     }
 };
 
