@@ -55,7 +55,7 @@ ChannelBase<ChannelTemplateConfig>& ChannelBase<ChannelTemplateConfig>::operator
 
 // "Pull" a frame from a queue that contains buffers which can extract them
 template <typename ChannelTemplateConfig>
-bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t &queue, FPrimeTransferFrame &frame) {
+bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t& queue, FPrimeTransferFrame& frame) {
     Os::Queue::Status qStatus;
     bool status;
     // NOTE this is a hugely inefficient way of sending the channel info around.
@@ -66,11 +66,11 @@ bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t &queue, FPrimeTransfe
 
     FwQueuePriorityType currentPriority = m_priority;
     FwSizeType actualSize;
-    qStatus = queue.receive(serialBuffer.getBuffAddr(), frame.SERIALIZED_SIZE, m_blockType,
-                                            actualSize, currentPriority);
+    qStatus =
+        queue.receive(serialBuffer.getBuffAddr(), frame.SERIALIZED_SIZE, m_blockType, actualSize, currentPriority);
     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     FW_ASSERT(actualSize == static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE), actualSize,
-                static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
+              static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
 
     status = frame.extract(serialBuffer);
     FW_ASSERT(status);
@@ -78,14 +78,14 @@ bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t &queue, FPrimeTransfe
 }
 
 template <typename ChannelTemplateConfig>
-bool ChannelBase<ChannelTemplateConfig>::pushFrame(Queue_t &queue, FPrimeTransferFrame &frame) {
+bool ChannelBase<ChannelTemplateConfig>::pushFrame(Queue_t& queue, FPrimeTransferFrame& frame) {
     Os::Queue::Status qStatus;
     bool status;
     // NOTE this is a hugely inefficient way of sending the channel info around.
     // This is just done for now as a convinient mechanism for testing out the architecture.
     // TODO replace with either a standard queue or queued component interfaces + buffer memory management
-    serialBuffer.resetSer();
     serialBuffer.setBuffLen(frame.SERIALIZED_SIZE);
+    serialBuffer.resetSer();
     status = frame.insert(serialBuffer);
     FW_ASSERT(status);
 
@@ -135,6 +135,8 @@ bool VirtualChannel::receive(Fw::Buffer& buffer, VCAService::Primitive_t& result
 
 bool VirtualChannel::generate(VCFUserData_t& arg) {
     FW_ASSERT(arg.sap == this->id);
+    // NOTE this allocates a whole transfer frame on the stack.
+    // We should be more careful about how we allocate that memory
     VCFRequestPrimitive_t prim;
     bool status;
 
@@ -149,8 +151,20 @@ bool VirtualChannel::generate(VCFUserData_t& arg) {
     primaryHeaderCI.spacecraftId = this->id.MCID.SCID;
     primaryHeaderCI.transferFrameVersion = this->id.MCID.TFVN;
     primaryHeaderCI.virtualChannelId = this->id.VCID;
-    // TODO
-    // primaryHeaderCI.dataFieldStatus = arg.statusFields
+
+    // Since we don't have a VC_FSH or VC_OCF service associated with this channel
+    // and the virtual channel is first in line we can say this much is true.
+    primaryHeaderCI.operationalControlFlag = false;
+    primaryHeaderCI.dataFieldStatus.hasSecondaryHeader = false;
+
+    // NOTE this should probaby be propogated from the VCA as it is set because we are carrying vca data.
+    primaryHeaderCI.dataFieldStatus.isSyncFlagEnabled = true;
+
+    // NOTE that for our configuration these don't have much meaning
+    primaryHeaderCI.dataFieldStatus.isPacketOrdered = arg.statusFields.isPacketOrdered;
+    primaryHeaderCI.dataFieldStatus.segmentLengthId = arg.statusFields.segmentLengthId;
+    primaryHeaderCI.dataFieldStatus.firstHeaderPointer = arg.statusFields.firstHeaderPointer;
+
     prim.frame.primaryHeader.set(primaryHeaderCI);
 
     status = this->pushFrame(this->m_externalQueue, prim.frame);
@@ -220,7 +234,7 @@ bool MasterChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrames)
         primaryHeaderCI.masterChannelFrameCount = this->m_channelTransferCount;
 
         // Propogate the frame
-        status = this->pushFrame(m_subChannels.at(vcIdx).m_externalQueue, masterChannelFrames.at(vcIdx));
+        status = this->pushFrame(this->m_externalQueue, masterChannelFrames.at(vcIdx));
         FW_ASSERT(status);
     }
     // If we got this far that indicates that the transfer succeeded and we can increment the count
@@ -283,7 +297,9 @@ bool PhysicalChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrame
 
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
         // TODO Check the CRC here
-        status = this->pushFrame(m_subChannels.at(vcIdx).m_externalQueue, masterChannelFrames.at(vcIdx));
+        Queue_t& queue = this->m_externalQueue;
+        FPrimeTransferFrame& frame = masterChannelFrames.at(vcIdx);
+        status = this->pushFrame(queue, frame);
         FW_ASSERT(status);
     }
     // If we got this far that indicates that the transfer succeeded and we can increment the count
@@ -294,14 +310,17 @@ bool PhysicalChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrame
 template <FwSizeType NumSubChannels>
 void PhysicalChannel<NumSubChannels>::popFrameBuff(Fw::SerializeBufferBase& frameBuff) {
     FwSizeType const transferFrameSize = FPrimeTransferFrame::SERIALIZED_SIZE;
-    FW_ASSERT(transferFrameSize <= frameBuff.getBuffLength(), transferFrameSize, frameBuff.getBuffLength());
+    FW_ASSERT(transferFrameSize <= frameBuff.getBuffCapacity(), transferFrameSize, frameBuff.getBuffCapacity());
+
+    // FIXME this really shouldnt be done here
+    frameBuff.setBuffLen(frameBuff.getBuffCapacity());
 
     Os::Queue::Status qStatus;
     FwQueuePriorityType currentPriority = m_priority;
     FwSizeType actualSize;
 
-    qStatus = this->m_externalQueue.receive(frameBuff.getBuffAddr(), transferFrameSize, m_blockType,
-                                            actualSize, currentPriority);
+    U8* frameBuffAddr = frameBuff.getBuffAddr();
+    qStatus = this->m_externalQueue.receive(frameBuffAddr, transferFrameSize, m_blockType, actualSize, currentPriority);
     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     FW_ASSERT(actualSize == static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE), actualSize,
               static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));

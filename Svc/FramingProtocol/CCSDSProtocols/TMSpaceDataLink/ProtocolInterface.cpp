@@ -25,6 +25,7 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
 #include "TransferFrame.hpp"
 #include "Utils/Hash/Hash.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
@@ -68,6 +69,22 @@ void ProtocolEntity::generateNextFrame(Fw::Buffer& nextFrameBuffer) {
     Fw::SerializeBufferBase& serBuff = nextFrameBuffer.getSerializeRepr();
 
     m_physicalChannel.popFrameBuff(serBuff);
+    Fw::Logger::log("Got ser buff \n");
+    NATIVE_UINT_TYPE idx = 0;
+    Fw::Logger::log("Ring: ");
+    for (NATIVE_UINT_TYPE i = 0; i < serBuff.getBuffLength(); i++) {
+        Fw::Logger::log("%02x ", serBuff.getBuffAddr()[idx]);
+    }
+    Fw::Logger::log("\n");
+
+    FPrimeTransferFrame frame;
+    frame.extract(serBuff);
+    PrimaryHeaderControlInfo_t ci;
+    frame.primaryHeader.get(ci);
+    U16 testVal = ((static_cast<U8>(ci.dataFieldStatus.isPacketOrdered) << 13) & 0x1) |
+                  ((ci.dataFieldStatus.segmentLengthId << 11) & 0x7) | (ci.dataFieldStatus.firstHeaderPointer & 0x7FF);
+    Fw::Logger::log("Got frame.\n SCID %d, VCID %d, VC Count %d MC Count %d testVal 0x%04X", ci.spacecraftId,
+                    ci.virtualChannelId, ci.virtualChannelFrameCount, ci.masterChannelFrameCount, testVal);
 }
 
 }  // namespace TMSpaceDataLink
