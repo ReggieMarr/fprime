@@ -279,9 +279,6 @@ bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFie
     return true;
 }
 
-template class ProtocolDataUnitBase<247, std::array<U8, 247>>;
-template class ProtocolDataUnit<247, std::array<U8, 247>>;
-
 template <FwSizeType FieldSize>
 DataField<FieldSize>::DataField(Fw::Buffer& srcBuff) : Base() {
     FW_ASSERT(srcBuff.getSize() >= FieldSize, srcBuff.getSize());

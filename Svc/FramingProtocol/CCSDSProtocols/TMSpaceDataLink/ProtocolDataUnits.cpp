@@ -142,11 +142,6 @@ template class ProtocolDataUnitBase<6, PrimaryHeaderControlInfo_t>;
 template class ProtocolDataUnitBase<0, std::nullptr_t>;
 
 // Instantiate the primary template (if needed)
-// FIXME I get linter errors here but they don't seem to affect compilation:
-// In template: dependent using declaration resolved to type without 'typename' (lsp)
-
 template class ProtocolDataUnit<247, std::array<U8, 247>>;
 template class ProtocolDataUnit<sizeof(U16), U16>;
-template class ProtocolDataUnit<6, PrimaryHeaderControlInfo_t>;
-template class ProtocolDataUnit<0, std::nullptr_t>;
 }  // namespace TMSpaceDataLink
