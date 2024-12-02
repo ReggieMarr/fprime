@@ -1,6 +1,7 @@
 #ifndef SVC_TM_SPACE_DATA_LINK_CHANNELS_HPP
 #define SVC_TM_SPACE_DATA_LINK_CHANNELS_HPP
 
+#include <Os/Generic/PriorityQueue.hpp>
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
 #include <array>
 #include <cstddef>
@@ -24,7 +25,6 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameQueue.hpp"
 #include "TransferFrame.hpp"
 #include "TransferFrameDefs.hpp"
 
@@ -95,9 +95,9 @@ class ChannelBase {
     virtual bool transfer(TransferIn_t& transferIn);
 };
 
-using VirtualChannelParams = ChannelParameterConfig<Fw::Buffer,                             // TransferIn_t
-                                                    VCAServiceTemplateParams::Primitive_t,  // TransferOut_t
-                                                    Os::Generic::TransformFrameQueue,       // Queue_t
+using VirtualChannelParams = ChannelParameterConfig<Fw::Buffer,  // TransferIn_t
+                                                    VCAServiceTemplateParams::Primitive_t,
+                                                    Os::Generic::PriorityQueue,  // Queue_t
                                                     // NOTE this comes from either the VCA or VCF SAP_t
                                                     // VCA was chosen arbitrarily
                                                     VCAServiceTemplateParams::SAP_t  // Id_t
@@ -161,9 +161,9 @@ using MasterChannelGenerateType = std::array<FPrimeTransferFrame, MasterChannelS
 using MasterChannelParams =
     // NOTE this is potentially unsafe
     // TODO look into a better mechanism
-    ChannelParameterConfig<std::nullptr_t,                    // TransferIn_t
-                           MasterChannelGenerateType,         // TransferOut_t
-                           Os::Generic::TransformFrameQueue,  // Queue_t
+    ChannelParameterConfig<std::nullptr_t,              // TransferIn_t
+                           MasterChannelGenerateType,   // TransferOut_t
+                           Os::Generic::PriorityQueue,  // Queue_t
                            // NOTE this comes from either the VCA or VCF SAP_t
                            // VCA was chosen arbitrarily
                            // Id_t
@@ -221,9 +221,9 @@ using PhysicalChannelGenerateType = std::array<FPrimeTransferFrame, PhysicalChan
 using PhysicalChannelParams =
     // NOTE this is potentially unsafe
     // TODO look into a better mechanism
-    ChannelParameterConfig<std::nullptr_t,                    // TransferIn_t
-                           PhysicalChannelGenerateType,       // TransferOut_t
-                           Os::Generic::TransformFrameQueue,  // Queue_t
+    ChannelParameterConfig<std::nullptr_t,  // TransferIn_t
+                           PhysicalChannelGenerateType,
+                           Os::Generic::PriorityQueue,  // Queue_t
                            // NOTE this comes from either the VCA or VCF SAP_t
                            // VCA was chosen arbitrarily
                            // Id_t
