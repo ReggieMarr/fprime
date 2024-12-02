@@ -17,7 +17,44 @@
 namespace TMSpaceDataLink {
 // Default Base Class Transfer Function
 template <typename ChannelTemplateConfig>
-ChannelBase<ChannelTemplateConfig>::ChannelBase(Id_t const& id) : m_id(id) {}
+ChannelBase<ChannelTemplateConfig>::ChannelBase(Id_t const& id) : id(id), m_externalQueue() {}
+
+// template <typename ChannelTemplateConfig>
+// ChannelBase<ChannelTemplateConfig>::ChannelBase() : id(), m_externalQueue() {}
+
+template <typename ChannelTemplateConfig>
+ChannelBase<ChannelTemplateConfig>::ChannelBase(const ChannelBase& other) : id(other.id), m_externalQueue() {
+    // Since we can't copy if there's a message in the queue we should assert
+    FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
+
+    // Create a new queue for this instance
+    Os::Queue::Status status;
+    Fw::String name = "Base Channel";
+    status = m_externalQueue.create(name, CHANNEL_Q_DEPTH,
+                                    static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
+    //
+    // Fw::Logger::log("Created VC (copy) for Id %d %d %d \n", id.MCID.TFVN, id.MCID.SCID, id.VCID);
+    FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
+
+    // Copy other member variables
+    m_channelTransferCount = other.m_channelTransferCount;
+}
+
+template <typename ChannelTemplateConfig>
+ChannelBase<ChannelTemplateConfig>&
+ChannelBase<ChannelTemplateConfig>::operator=(const ChannelBase& other) {
+    if (this == &other) {
+        return *this;
+    }
+
+    // Since we can't copy if there's a message in the queue we should assert
+    FW_ASSERT(!other.m_externalQueue.getMessagesAvailable(), other.m_externalQueue.getMessagesAvailable());
+
+    id = other.id;
+    m_channelTransferCount = other.m_channelTransferCount;
+
+    return *this;
+}
 
 template <typename ChannelTemplateConfig>
 ChannelBase<ChannelTemplateConfig>::~ChannelBase() {}
@@ -59,7 +96,7 @@ bool VirtualChannel::receive(Fw::Buffer& buffer, VCAService::Primitive_t& result
 }
 
 bool VirtualChannel::generate(VCFUserData_t& arg) {
-    FW_ASSERT(arg.sap == this->m_id);
+    FW_ASSERT(arg.sap == this->id);
     VCFRequestPrimitive_t prim;
     bool status;
 
@@ -73,9 +110,9 @@ bool VirtualChannel::generate(VCFUserData_t& arg) {
     frame.primaryHeader.get(primaryHeaderCI);
     // Update the transfer count
     primaryHeaderCI.virtualChannelFrameCount = this->m_channelTransferCount;
-    primaryHeaderCI.spacecraftId = this->m_id.MCID.SCID;
-    primaryHeaderCI.transferFrameVersion = this->m_id.MCID.TFVN;
-    primaryHeaderCI.virtualChannelId = this->m_id.VCID;
+    primaryHeaderCI.spacecraftId = this->id.MCID.SCID;
+    primaryHeaderCI.transferFrameVersion = this->id.MCID.TFVN;
+    primaryHeaderCI.virtualChannelId = this->id.VCID;
     // TODO
     // primaryHeaderCI.dataFieldStatus = arg.statusFields
 
@@ -134,15 +171,15 @@ bool MasterChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& ma
     Os::Queue::Status qStatus;
     bool status;
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
-        VirtualChannel& vc = m_subChannels.at(vcIdx).get();
+        VirtualChannel& vc = m_subChannels.at(vcIdx);
 
         std::array<U8, FPrimeTransferFrame::SERIALIZED_SIZE> m_serBuff;
         Fw::ComBuffer serialBuffer(m_serBuff.data(), m_serBuff.size());
 
         FwQueuePriorityType currentPriority = m_priority;
         FwSizeType actualSize;
-        qStatus = vc.m_externalQueue.receive(serialBuffer.getBuffAddr(), serialBuffer.getBuffLength(), m_blockType,
-                                             actualSize, currentPriority);
+        // qStatus = vc.m_externalQueue.receive(serialBuffer.getBuffAddr(), serialBuffer.getBuffLength(), m_blockType,
+        //                                      actualSize, currentPriority);
         FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
         FW_ASSERT(actualSize == static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE), actualSize,
                   static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
@@ -159,8 +196,7 @@ bool MasterChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrames)
     Os::Queue::Status qStatus;
 
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
-        VirtualChannel& vc = m_subChannels.at(vcIdx).get();
-        Os::Generic::PriorityQueue& frameQ = vc.m_externalQueue;  // Use reference
+        VirtualChannel& vc = m_subChannels.at(vcIdx);
 
         FPrimeTransferFrame& frame = masterChannelFrames.at(vcIdx);
         PrimaryHeaderControlInfo_t primaryHeaderCI;
@@ -173,13 +209,32 @@ bool MasterChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrames)
         status = masterChannelFrames.at(vcIdx).insert(serialBuffer);
         FW_ASSERT(status);
 
-        qStatus = this->m_externalQueue.send(serialBuffer.getBuffAddr(), serialBuffer.getBuffLength(), m_priority,
+        qStatus = vc.m_externalQueue.send(serialBuffer.getBuffAddr(), serialBuffer.getBuffLength(), m_priority,
                                              m_blockType);
         FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     }
     // If we got this far that indicates that the transfer succeeded and we can increment the count
     this->m_channelTransferCount += 1;
     return true;
+}
+
+template <FwSizeType NumSubChannels>
+VirtualChannel& MasterChannel<NumSubChannels>::getChannel(GVCID_t const gvcid) {
+    FW_ASSERT(gvcid.MCID == this->id);
+    NATIVE_UINT_TYPE i = 0;
+
+    // do {
+    //     Fw::Logger::log("%d Looking for Id %d %d %d -> %d %d %d\n", i, gvcid.MCID.TFVN, gvcid.MCID.SCID, gvcid.VCID,
+    //                     m_subChannels.at(i).id.MCID.TFVN, m_subChannels.at(i).id.MCID.SCID,
+    //                     m_subChannels.at(i).id.VCID);
+    //     if (m_subChannels.at(i).id == gvcid) {
+    //         return m_subChannels.at(i);
+    //     }
+    // } while (i++ < m_subChannels.size());
+    // FW_ASSERT(0, gvcid.MCID.SCID, gvcid.MCID.TFVN, gvcid.VCID);
+    // FIXME this is here so the compiler won't complain,
+    // the above line should keep this from ever happenening tho
+    return m_subChannels.at(0);
 }
 
 // Master Channel instantiations
@@ -205,7 +260,7 @@ bool PhysicalChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& 
     Os::Queue::Status qStatus;
     bool status;
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
-        SingleMasterChannel& mc = m_subChannels.at(vcIdx).get();
+        SingleMasterChannel& mc = m_subChannels.at(vcIdx);
 
         std::array<U8, FPrimeTransferFrame::SERIALIZED_SIZE> m_serBuff;
         Fw::ComBuffer serialBuffer(m_serBuff.data(), m_serBuff.size());
@@ -230,8 +285,7 @@ bool PhysicalChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrame
     Os::Queue::Status qStatus;
 
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
-        SingleMasterChannel& mc = m_subChannels.at(vcIdx).get();
-        Os::Generic::PriorityQueue& frameQ = mc.m_externalQueue;  // Use reference
+        SingleMasterChannel& mc = m_subChannels.at(vcIdx);
 
         // TODO Check the CRC here
 
@@ -240,7 +294,7 @@ bool PhysicalChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrame
         status = masterChannelFrames.at(vcIdx).insert(serialBuffer);
         FW_ASSERT(status);
 
-        qStatus = this->m_externalQueue.send(serialBuffer.getBuffAddr(), serialBuffer.getBuffLength(), m_priority,
+        qStatus = mc.m_externalQueue.send(serialBuffer.getBuffAddr(), serialBuffer.getBuffLength(), m_priority,
                                              m_blockType);
         FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     }

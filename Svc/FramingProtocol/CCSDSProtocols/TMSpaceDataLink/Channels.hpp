@@ -68,8 +68,6 @@ class ChannelBase {
 
   protected:
     // Member variables
-    Id_t m_id;
-    Queue_t m_externalQueue;
     U8 m_channelTransferCount{0};
 
     // NOTE consider collect/emit instead of receive/generate
@@ -89,7 +87,13 @@ class ChannelBase {
     virtual bool generate(TransferOut_t& arg) = 0;
 
   public:
+    Id_t id;
+    Queue_t m_externalQueue;
+
+    ChannelBase(const ChannelBase& other);
     ChannelBase(Id_t const& id);
+
+    virtual ChannelBase& operator=(const ChannelBase& other);
     virtual ~ChannelBase();
 
     virtual bool transfer(TransferIn_t& transferIn);
@@ -126,13 +130,16 @@ class VirtualChannel : public VirtualChannelBase {
 
   public:
     using Base = VirtualChannelBase;
-    using Base::ChannelBase;  // Inherit constructor
-    using Base::m_externalQueue;
-    using typename Base::Id_t;
-    using typename Base::Queue_t;
-    using typename Base::TransferIn_t;
-    using typename Base::TransferOut_t;
+    using Base::Base;  // Inherit all public members
+    // using Base::ChannelBase;  // Inherit constructor
+    // using Base::m_externalQueue;
+    // using typename Base::Id_t;
+    // using typename Base::Queue_t;
+    // using typename Base::TransferIn_t;
+    // using typename Base::TransferOut_t;
+    // using Base::operator=;
 
+    // using Base::id;
     VirtualChannel(Id_t const& id);
     ~VirtualChannel();
 
@@ -145,8 +152,8 @@ template <typename ChannelType, FwSizeType ChannelSize>
 
 // Used because the queues cant delete
 // TODO I had a workaround earlier but I cant remember what that was right now so just use this
-using ChannelList = std::array<std::reference_wrapper<ChannelType>, ChannelSize>;
-// using ChannelList = std::array<ChannelType, ChannelSize>;
+// using ChannelList = std::array<std::reference_wrapper<ChannelType>, ChannelSize>;
+using ChannelList = std::array<ChannelType, ChannelSize>;
 
 template <FwSizeType ChannelNumber, typename ChannelType>
 struct SubChannelParams {
@@ -191,14 +198,18 @@ class MasterChannel : public MasterChannelBase {
 
   public:
     using Base = MasterChannelBase;
-    using Base::ChannelBase;  // Inherit constructor
-    using Base::m_externalQueue;
-    using typename Base::Id_t;
-    using typename Base::Queue_t;
-    using typename Base::TransferIn_t;
-    using typename Base::TransferOut_t;
+    using Base::Base;
+    // using Base::ChannelBase;  // Inherit constructor
+    // using Base::m_externalQueue;
+    // using typename Base::Id_t;
+    // using typename Base::Queue_t;
+    // using typename Base::TransferIn_t;
+    // using typename Base::TransferOut_t;
+    // using Base::operator=;
     using VirtualChannelList = ChannelList<VirtualChannel, NumSubChannels>;
     using Channel_t = VirtualChannel;
+
+    VirtualChannel& getChannel(GVCID_t const gvcid);
 
     MasterChannel(Id_t const& id, VirtualChannelList& subChannels);
     ~MasterChannel();
@@ -246,15 +257,18 @@ template <FwSizeType NumSubChannels>
 class PhysicalChannel : public PhysicalChannelBase {
   public:
     using Base = PhysicalChannelBase;
-    using Base::ChannelBase;  // Inherit constructor
-    using Base::m_externalQueue;
-    using typename Base::Id_t;
-    using typename Base::Queue_t;
-    using typename Base::TransferIn_t;
-    using typename Base::TransferOut_t;
+  // using Base::ChannelBase;  // Inherit constructor
+    // using Base::m_externalQueue;
+    using Base::Base;
+    // using typename Base::Id_t;
+    // using typename Base::Queue_t;
+    // using typename Base::TransferIn_t;
+    // using typename Base::TransferOut_t;
+    // using Base::operator=;
     using MasterChannelList = ChannelList<SingleMasterChannel, NumSubChannels>;
     using Channel_t = SingleMasterChannel;
 
+    VirtualChannel& getChannel(GVCID_t const gvcid);
     PhysicalChannel(Id_t const& id, MasterChannelList& subChannels);
     ~PhysicalChannel();
 
