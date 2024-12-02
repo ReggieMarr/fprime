@@ -90,7 +90,7 @@ class ChannelBase {
     // At the end generate frame function propogates its result to the consumer of this channel.
     virtual bool generate(TransferOut_t& arg) = 0;
 
-    std::array<U8, FPrimeTransferFrame::SERIALIZED_SIZE> m_serBuff;
+    Fw::ComBuffer serialBuffer;
     bool pullFrame(Queue_t &queue, FPrimeTransferFrame &frame);
     bool pushFrame(Queue_t &queue, FPrimeTransferFrame &frame);
 

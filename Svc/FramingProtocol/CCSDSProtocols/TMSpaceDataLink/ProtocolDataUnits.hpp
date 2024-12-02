@@ -13,17 +13,6 @@
 #include "TransferFrameDefs.hpp"
 #include "config/FpConfig.h"
 
-namespace Svc {
-namespace FrameDetectors {
-using TMSpaceDataLinkStartWord = StartToken<U16, static_cast<U16>(0 | TM_SCID_VAL_TO_FIELD(CCSDS_SCID)), TM_SCID_MASK>;
-using TMSpaceDataLinkLength =
-    LengthToken<FwSizeType, sizeof(FwSizeType), TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), TM_LENGTH_MASK>;
-using TMSpaceDataLinkChecksum = CRC<U16, TM_TRANSFER_FRAME_SIZE(TM_DATA_FIELD_DFLT_SIZE), -2, CRC16_CCITT>;
-using TMSpaceDataLinkDetector =
-    StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
-}  // namespace FrameDetectors
-}  // namespace Svc
-
 namespace TMSpaceDataLink {
 
 template <FwSizeType FieldSize, typename FieldValueType>
