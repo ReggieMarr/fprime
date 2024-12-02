@@ -69,6 +69,10 @@ class ChannelBase {
   protected:
     // Member variables
     U8 m_channelTransferCount{0};
+    // TODO set m_priority based on something user driven
+    FwQueuePriorityType m_priority = 0;
+    Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::BLOCKING;
+
 
     // NOTE consider collect/emit instead of receive/generate
 
@@ -85,6 +89,10 @@ class ChannelBase {
     // then we leverage them to set fields. If there is a Framing service (Such as VCF) then we create the frame.
     // At the end generate frame function propogates its result to the consumer of this channel.
     virtual bool generate(TransferOut_t& arg) = 0;
+
+    std::array<U8, FPrimeTransferFrame::SERIALIZED_SIZE> m_serBuff;
+    bool pullFrame(Queue_t &queue, FPrimeTransferFrame &frame);
+    bool pushFrame(Queue_t &queue, FPrimeTransferFrame &frame);
 
   public:
     Id_t id;
@@ -124,9 +132,6 @@ class VirtualChannel : public VirtualChannelBase {
   protected:
     VCAService m_receiveService;
     VCFService m_frameService;
-    // TODO set m_priority based on something user driven
-    FwQueuePriorityType m_priority = 0;
-    Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::BLOCKING;
 
   public:
     using Base = VirtualChannelBase;
@@ -187,11 +192,6 @@ static_assert(std::is_same<MasterChannelBase::TransferOut_t, MasterChannelGenera
 
 template <FwSizeType NumSubChannels>
 class MasterChannel : public MasterChannelBase {
-  protected:
-    // TODO set m_priority based on something user driven
-    FwQueuePriorityType m_priority = 0;
-    Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::BLOCKING;
-
   public:
     using Base = MasterChannelBase;
     using Base::Base;
@@ -270,9 +270,6 @@ class PhysicalChannel : public PhysicalChannelBase {
     MasterChannelList m_subChannels;
 
   protected:
-    // TODO set m_priority based on something user driven
-    FwQueuePriorityType m_priority = 0;
-    Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::BLOCKING;
     virtual bool receive(TransferIn_t& arg, TransferOut_t& result) override;
     virtual bool generate(TransferOut_t& frame) override;
 };

@@ -36,7 +36,7 @@ class NullField : public ProtocolDataUnit<0, std::nullptr_t> {
     using Base = ProtocolDataUnit<0, std::nullptr_t>;
 
     // Inherit constructors
-    using Base::ProtocolDataUnit;
+    using Base::Base;
     using typename Base::FieldValue_t;
     using Base::operator=;
 };
@@ -84,7 +84,7 @@ class DataField : public ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>> 
     static constexpr FwSizeType MIN_SIZE = 1;
     static_assert(FieldSize >= MIN_SIZE, "FieldSize must be at least MIN_FSDU_LEN");
 
-    DataField(Fw::Buffer & srcBuff);
+    DataField(Fw::Buffer& srcBuff);
 };
 
 // NOTE This could leverage some optional template class
@@ -139,6 +139,7 @@ class TransferFrameBase {
                           DataFieldType::SERIALIZED_SIZE + +OperationalControlFieldType::SERIALIZED_SIZE +
                           ErrorControlFieldType::SERIALIZED_SIZE,  //!< Size of DataField when serialized
     };
+    static_assert(SERIALIZED_SIZE <= FW_COM_BUFFER_MAX_SIZE, "TransferFrame must fit within a Coms buffer");
 
     TransferFrameBase();
     virtual ~TransferFrameBase() = default;
