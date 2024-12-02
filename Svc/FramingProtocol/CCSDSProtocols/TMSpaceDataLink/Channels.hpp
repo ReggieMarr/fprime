@@ -73,7 +73,6 @@ class ChannelBase {
     FwQueuePriorityType m_priority = 0;
     Os::QueueInterface::BlockingType m_blockType = Os::QueueInterface::BlockingType::BLOCKING;
 
-
     // NOTE consider collect/emit instead of receive/generate
 
     // This receives data from either the user that has access to it or the
@@ -91,8 +90,8 @@ class ChannelBase {
     virtual bool generate(TransferOut_t& arg) = 0;
 
     Fw::ComBuffer serialBuffer;
-    bool pullFrame(Queue_t &queue, FPrimeTransferFrame &frame);
-    bool pushFrame(Queue_t &queue, FPrimeTransferFrame &frame);
+    bool pullFrame(Queue_t& queue, FPrimeTransferFrame& frame);
+    bool pushFrame(Queue_t& queue, FPrimeTransferFrame& frame);
 
   public:
     Id_t id;
@@ -162,7 +161,7 @@ struct SubChannelParams {
     using Channel_t = ChannelType;
 };
 
-using MasterChannelSubChannelParams = SubChannelParams<1, VirtualChannel>;
+using MasterChannelSubChannelParams = SubChannelParams<NUM_VIRTUAL_CHANNELS, VirtualChannel>;
 
 using MasterChannelGenerateType = std::array<FPrimeTransferFrame, MasterChannelSubChannelParams::ChannelNum>;
 
@@ -217,7 +216,7 @@ class MasterChannel : public MasterChannelBase {
 };
 
 // NOTE this is a temporary value that represents the most common implementation
-using SingleMasterChannel = MasterChannel<1>;
+using SingleMasterChannel = MasterChannel<NUM_VIRTUAL_CHANNELS>;
 
 using PhysicalChannelSubChannelParams = SubChannelParams<1, SingleMasterChannel>;
 

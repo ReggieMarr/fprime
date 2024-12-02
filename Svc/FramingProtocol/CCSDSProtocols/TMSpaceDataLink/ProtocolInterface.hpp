@@ -60,24 +60,30 @@ class ProtocolEntity {
     // Implements constant rate transfer requirement from 2.3.1
     void generateNextFrame(Fw::Buffer& nextFrameBuffer);
 
+    SinglePhysicalChannel m_physicalChannel;
+
   private:
     // NOTE could be made as a deserializer
     ManagedParameters_t m_params;
 
-    SinglePhysicalChannel m_physicalChannel;
     static SinglePhysicalChannel createPhysicalChannel(PhysicalChannelParams_t& params) {
         MCID_t mcid = {
             .SCID = params.subChannels.at(0).spaceCraftId,
             .TFVN = params.transferFrameVersion,
         };
-        GVCID_t gvcid = {
+        GVCID_t gvcidPrimary = {
             .MCID = mcid,
             .VCID = 0,
         };
-        VirtualChannel vc(gvcid);
-        std::array<VirtualChannel, 1> vcs{vc};
-        MasterChannel<1> mc(gvcid.MCID, vcs);
-        std::array<MasterChannel<1>, 1> mcs{mc};
+        GVCID_t gvcidSecondary = {
+            .MCID = mcid,
+            .VCID = 1,
+        };
+        VirtualChannel vcPrimary(gvcidPrimary);
+        VirtualChannel vcSecondary(gvcidSecondary);
+        std::array<VirtualChannel, 2> vcs{vcPrimary, vcSecondary};
+        MasterChannel<NUM_VIRTUAL_CHANNELS> mc(gvcidPrimary.MCID, vcs);
+        std::array<MasterChannel<NUM_VIRTUAL_CHANNELS>, 1> mcs{mc};
         Fw::String pcName("Physical Channel");
         PhysicalChannel<1> pc(pcName, mcs);
         return pc;

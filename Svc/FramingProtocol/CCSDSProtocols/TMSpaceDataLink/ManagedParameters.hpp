@@ -19,11 +19,13 @@
 #include "Fw/Types/SerialBuffer.hpp"
 #include "Fw/Types/String.hpp"
 
+static constexpr FwSizeType NUM_MASTER_CHANNELS = 1;
+static constexpr FwSizeType NUM_VIRTUAL_CHANNELS = 2;
 // Based on the definition of MCID addressing we infer that we can only
 // have one master channel per physical channel
-constexpr FwSizeType MAX_MASTER_CHANNELS = 1;
+constexpr FwSizeType MAX_MASTER_CHANNELS = NUM_MASTER_CHANNELS;
 // Per Master Channel
-constexpr FwSizeType MAX_VIRTUAL_CHANNELS = 1;
+constexpr FwSizeType MAX_VIRTUAL_CHANNELS = NUM_VIRTUAL_CHANNELS;
 // FIXME See the SANA Packet Version Number registry @ https://sanaregistry.org/r/packet_version_number/
 constexpr FwSizeType NUM_SUPPORTED_PACKET_VERSIONS = 1;
 
@@ -88,7 +90,6 @@ typedef struct PhysicalChannelParams_s {
 typedef struct ManagedParameters_s {
     PhysicalChannelParams_t physicalParams;
 } ManagedParameters_t;
-
 
 }  // namespace TMSpaceDataLink
 
