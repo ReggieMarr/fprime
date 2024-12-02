@@ -52,7 +52,6 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // NOTE we should get this via a physical channel getter
     SingleMasterChannel& mc = m_physicalChannel.m_subChannels.at(0);
     VirtualChannel& vc = mc.m_subChannels.at(0);
-    // FIXME theres a linter error here but it doesnt seem to actually point to a bug
     vc.transfer(data);
 
     return true;
@@ -61,7 +60,10 @@ bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
 void ProtocolEntity::generateNextFrame(Fw::Buffer& nextFrameBuffer) {
     // Generate Physical Channel frames
     std::nullptr_t null_arg = nullptr;
-    // FIXME theres a linter error here but it doesnt seem to actually point to a bug
+
+    // NOTE we should actually be doing this periodicially.
+    m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
+
     m_physicalChannel.transfer(null_arg);
     Fw::SerializeBufferBase& serBuff = nextFrameBuffer.getSerializeRepr();
 
