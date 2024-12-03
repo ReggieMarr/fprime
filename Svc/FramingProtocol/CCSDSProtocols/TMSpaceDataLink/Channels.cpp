@@ -62,6 +62,7 @@ bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t& queue, FPrimeTransfe
     // NOTE this is a hugely inefficient way of sending the channel info around.
     // This is just done for now as a convinient mechanism for testing out the architecture.
     // TODO replace with either a standard queue or queued component interfaces + buffer memory management
+    (void)std::memset(serialBuffer.getBuffAddr(), 0, frame.SERIALIZED_SIZE);
     serialBuffer.resetDeser();
     serialBuffer.setBuffLen(frame.SERIALIZED_SIZE);
 
@@ -85,6 +86,7 @@ bool ChannelBase<ChannelTemplateConfig>::pushFrame(Queue_t& queue, FPrimeTransfe
     // NOTE this is a hugely inefficient way of sending the channel info around.
     // This is just done for now as a convinient mechanism for testing out the architecture.
     // TODO replace with either a standard queue or queued component interfaces + buffer memory management
+    (void)std::memset(serialBuffer.getBuffAddr(), 0, frame.SERIALIZED_SIZE);
     serialBuffer.setBuffLen(frame.SERIALIZED_SIZE);
     serialBuffer.resetSer();
     status = frame.insert(serialBuffer);

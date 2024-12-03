@@ -62,11 +62,10 @@ class ProtocolEntity {
     void generateNextFrame(Fw::Buffer& nextFrameBuffer);
 
     SinglePhysicalChannel m_physicalChannel;
-
-  private:
     // NOTE could be made as a deserializer
     ManagedParameters_t m_params;
 
+  private:
     static SinglePhysicalChannel createPhysicalChannel(PhysicalChannelParams_t& params) {
         MCID_t mcid = {
             .SCID = params.subChannels.at(0).spaceCraftId,
@@ -85,8 +84,8 @@ class ProtocolEntity {
             MCID_t mcid;
             mcid.TFVN = params.transferFrameVersion;
             mcid.SCID = params.subChannels.at(0).spaceCraftId;
-            paramIds.at(0).MCID = mcid;
-            paramIds.at(0).VCID = params.subChannels.at(0).subChannels.at(i).virtualChannelId;
+            paramIds.at(i).MCID = mcid;
+            paramIds.at(i).VCID = params.subChannels.at(0).subChannels.at(i).virtualChannelId;
         }
 
         std::array<VirtualChannel, NUM_VIRTUAL_CHANNELS> vcs{
