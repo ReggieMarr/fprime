@@ -50,9 +50,10 @@ class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, Pr
     // Inherit parent's type definitions
     using Base = ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>;
 
+    enum { SERIALIZED_SIZE = 6 };
+
     // Inherit constructors
     using Base::ProtocolDataUnit;
-    using Base::SERIALIZED_SIZE;
     using typename Base::FieldValue_t;
     using Base::operator=;
     using Base::set;
