@@ -1,4 +1,5 @@
 #include "Channels.hpp"
+#include <cstring>
 #include <memory>
 #include "FpConfig.h"
 #include "Fw/Com/ComBuffer.hpp"
@@ -29,8 +30,6 @@ ChannelBase<ChannelTemplateConfig>::ChannelBase(const ChannelBase& other) : id(o
     Fw::String name = "Base Channel";
     status =
         m_externalQueue.create(name, CHANNEL_Q_DEPTH, static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
-    //
-    // Fw::Logger::log("Created VC (copy) for Id %d %d %d \n", id.MCID.TFVN, id.MCID.SCID, id.VCID);
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 
     m_channelTransferCount = other.m_channelTransferCount;
@@ -73,6 +72,14 @@ bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t& queue, FPrimeTransfe
 
     status = frame.extract(serialBuffer);
     FW_ASSERT(status);
+
+    PrimaryHeaderControlInfo_t ci;
+    frame.primaryHeader.get(ci);
+    U16 testVal = ((static_cast<U8>(ci.dataFieldStatus.isPacketOrdered) << 13) & 0x1) |
+                  ((ci.dataFieldStatus.segmentLengthId << 11) & 0x7) | (ci.dataFieldStatus.firstHeaderPointer & 0x7FF);
+    Fw::Logger::log("\nGot frame.\n \t-> SCID %d, VCID %d, VC Count %d MC Count %d testVal 0x%04X\n\n", ci.spacecraftId,
+                    ci.virtualChannelId, ci.virtualChannelFrameCount, ci.masterChannelFrameCount, testVal);
+
     return true;
 }
 
@@ -91,6 +98,15 @@ bool ChannelBase<ChannelTemplateConfig>::pushFrame(Queue_t& queue, FPrimeTransfe
 
     qStatus = queue.send(serialBuffer.getBuffAddr(), frame.SERIALIZED_SIZE, m_priority, m_blockType);
     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
+
+    PrimaryHeaderControlInfo_t ci;
+    frame.primaryHeader.get(ci);
+    U16 testVal = ((static_cast<U8>(ci.dataFieldStatus.isPacketOrdered) << 13) & 0x1) |
+                  ((ci.dataFieldStatus.segmentLengthId << 11) & 0x7) | (ci.dataFieldStatus.firstHeaderPointer & 0x7FF);
+    Fw::Logger::log("\nSending frame.\n \t-> SCID %d, VCID %d, VC Count %d MC Count %d testVal 0x%04X\n",
+                    ci.spacecraftId, ci.virtualChannelId, ci.virtualChannelFrameCount, ci.masterChannelFrameCount,
+                    testVal);
+
     return true;
 }
 
@@ -163,7 +179,12 @@ bool VirtualChannel::generate(VCFUserData_t& arg) {
     primaryHeaderCI.dataFieldStatus.segmentLengthId = arg.statusFields.segmentLengthId;
     primaryHeaderCI.dataFieldStatus.firstHeaderPointer = arg.statusFields.firstHeaderPointer;
 
+    U16 testVal = ((static_cast<U8>(primaryHeaderCI.dataFieldStatus.isPacketOrdered) << 13) & 0x1) |
+                  ((primaryHeaderCI.dataFieldStatus.segmentLengthId << 11) & 0x7) |
+                  (primaryHeaderCI.dataFieldStatus.firstHeaderPointer & 0x7FF);
     prim.frame.primaryHeader.set(primaryHeaderCI);
+    Fw::Logger::log("\t-> SCID %d, VCID %d, VC Count %d MC Count xx testVal 0x%04X\n\n", id.MCID.SCID, id.VCID,
+                    m_channelTransferCount, testVal);
 
     status = this->pushFrame(this->m_externalQueue, prim.frame);
     FW_ASSERT(status);

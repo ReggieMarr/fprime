@@ -143,8 +143,6 @@ bool FrameErrorControlField<StartWord, TransferFrameLength>::calcBufferCRC(U8* s
     Types::CircularBuffer circBuff(sourceBufferPtr, sourceBufferSize);
     Fw::SerializeStatus stat = circBuff.serialize(sourceBufferPtr, sourceBufferSize);
 
-    circBuff.print();
-
     // Calculate the CRC based off of the buffer serialized into the circBuff
     FwSizeType sizeOut;
     // Add frame error control (CRC-16)

@@ -81,7 +81,7 @@ typedef struct PhysicalChannelParams_s {
     // NOTE we could restructure things to imply this better
     // maybe bring in span ?
     FwSizeType numSubChannels;
-    std::array<MasterChannelParams_t, MAX_VIRTUAL_CHANNELS> subChannels;
+    std::array<MasterChannelParams_t, MAX_MASTER_CHANNELS> subChannels;
     // NOTE should this be a function pointer instead ?
     MC_MUX_TYPE mcMuxScheme;
     bool isFrameErrorControlEnabled;
