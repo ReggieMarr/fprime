@@ -64,6 +64,7 @@ class ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>
 
     virtual void set(Fw::SerializeBufferBase const& buffer);
     virtual void set(U8 const* buffPtr, FwSizeType size);
+    virtual void print();
 
   protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;

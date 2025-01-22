@@ -68,11 +68,13 @@ void ProtocolEntity::generateNextFrame(Fw::Buffer& nextFrameBuffer) {
     Fw::SerializeBufferBase& serBuff = nextFrameBuffer.getSerializeRepr();
 
     m_physicalChannel.popFrameBuff(serBuff);
-    Fw::Logger::log("\nGot ser buff \n");
     NATIVE_UINT_TYPE idx = 0;
     Fw::Logger::log("Exiting Frame Buff: \n");
     for (NATIVE_UINT_TYPE i = 0; i < serBuff.getBuffLength(); i++) {
         Fw::Logger::log("%02x ", serBuff.getBuffAddr()[i]);
+        if (idx++ % 32 == 0) {
+            Fw::Logger::log("\n");
+        }
     }
     Fw::Logger::log("\n");
 

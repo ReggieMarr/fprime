@@ -1,7 +1,9 @@
 #include "ProtocolDataUnits.hpp"
 #include <cstddef>
 #include <cstring>
+#include <string>
 #include "Fw/Types/Serializable.hpp"
+#include <iostream>
 
 namespace TMSpaceDataLink {
 
@@ -118,6 +120,21 @@ void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::set(U8 const* buffP
     FW_ASSERT(buffPtr != nullptr, size);
     FW_ASSERT(size <= this->m_value.size(), size, this->m_value.size());
     (void)std::memcpy(this->m_value.data(), buffPtr, size);
+}
+
+template <FwSizeType FieldSize>
+void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::print() {
+  std::string dataStr(reinterpret_cast<const char *>(
+                           this->m_value.data() + sizeof(FwPacketDescriptorType)),
+                           FieldSize);
+
+  // NOTE this assumes that the underlying data unit is a c_string.
+  // this will usually not be the case.
+  size_t nullPos = dataStr.find('\0');
+  if (nullPos != std::string::npos) {
+      dataStr = dataStr.substr(0, nullPos);
+  }
+  std::cout << "Received:[" << dataStr << "]" << std::endl;
 }
 
 // nullptr specialization implementations
