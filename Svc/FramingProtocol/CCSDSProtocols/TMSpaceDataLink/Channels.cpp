@@ -66,6 +66,10 @@ bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t& queue, FPrimeTransfe
     FwSizeType actualSize;
     qStatus =
         queue.receive(serialBuffer.getBuffAddr(), frame.SERIALIZED_SIZE, m_blockType, actualSize, currentPriority);
+    if (qStatus == Os::Queue::Status::EMPTY) {
+        return true;
+    }
+
     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     FW_ASSERT(actualSize == static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE), actualSize,
               static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
