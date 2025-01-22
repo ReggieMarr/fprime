@@ -17,9 +17,6 @@
 #include <array>
 #include <cstddef>
 #include "Fw/Buffer/Buffer.hpp"
-#include "Fw/Com/ComBuffer.hpp"
-#include "Fw/Types/Assert.hpp"
-#include "Fw/Types/SerialStatusEnumAc.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "ProtocolDataUnits.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"

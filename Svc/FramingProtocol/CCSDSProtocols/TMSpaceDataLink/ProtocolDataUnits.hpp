@@ -4,12 +4,7 @@
 #include <array>
 #include <cstddef>
 #include "Fw/Buffer/Buffer.hpp"
-#include "Fw/Com/ComBuffer.hpp"
-#include "Fw/Types/Assert.hpp"
-#include "Fw/Types/SerialStatusEnumAc.hpp"
 #include "Fw/Types/Serializable.hpp"
-#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "TransferFrameDefs.hpp"
 #include "config/FpConfig.h"
 
@@ -74,7 +69,7 @@ class ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>
 template <>
 class ProtocolDataUnit<0, std::nullptr_t> : public ProtocolDataUnitBase<0, std::nullptr_t> {
   public:
-    using Base = ProtocolDataUnitBase<0, nullptr_t>;
+    using Base = ProtocolDataUnitBase<0, std::nullptr_t>;
     using typename Base::FieldValue_t;
     using Base::Base;   // Inheriting constructor
 

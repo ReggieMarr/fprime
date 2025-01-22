@@ -18,22 +18,9 @@
 
 #ifndef SVC_TM_SPACE_DATA_LINK_PROTOCOL_HPP
 #define SVC_TM_SPACE_DATA_LINK_PROTOCOL_HPP
-
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
-#include <cstddef>
-#include <cstdint>
-#include <map>
-#include <memory>
-#include <queue>
-#include <vector>
 #include "Channels.hpp"
-#include "Fw/Com/ComBuffer.hpp"
-#include "Fw/Types/SerialStatusEnumAc.hpp"
-#include "Fw/Types/Serializable.hpp"
 #include "ManagedParameters.hpp"
-#include "Os/Queue.hpp"
-#include "ProtocolDataUnits.hpp"
-#include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
 #include "TransferFrame.hpp"

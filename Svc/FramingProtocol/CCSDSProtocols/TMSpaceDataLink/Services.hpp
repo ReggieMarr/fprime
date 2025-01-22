@@ -2,18 +2,11 @@
 #ifndef SVC_VIRTUAL_CHANNEL_ACCESS_HPP
 #define SVC_VIRTUAL_CHANNEL_ACCESS_HPP
 
-#include <array>
-#include <type_traits>
 #include "FpConfig.h"
 #include "Fw/Buffer/Buffer.hpp"
-#include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Com/ComPacket.hpp"
 #include "Fw/Types/BasicTypes.hpp"
-#include "Fw/Types/Serializable.hpp"
 #include "Fw/Types/String.hpp"
-#include "Os/Mutex.hpp"
-#include "Os/Queue.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
 
