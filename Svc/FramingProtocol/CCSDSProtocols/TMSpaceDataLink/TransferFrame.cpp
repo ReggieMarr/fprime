@@ -25,16 +25,16 @@ Fw::SerializeStatus ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHead
     Fw::SerializeStatus status;
     // Fw::ExternalSerializeBuffer buffer(buffer.getBuffAddr(), buffer.getBuffCapacity());
     U16 firstTwoOctets = 0;
-    firstTwoOctets |= (m_value.transferFrameVersion & 0x03) << 14;
-    firstTwoOctets |= (m_value.spacecraftId & 0x3FF) << 4;
-    firstTwoOctets |= (m_value.virtualChannelId & 0x07) << 1;   // Virtual Channel ID (3 bits)
-    firstTwoOctets |= (m_value.operationalControlFlag & 0x01);  // Operational Control Field Flag (1 bit)
+    firstTwoOctets |= (this->m_value.transferFrameVersion & 0x03) << 14;
+    firstTwoOctets |= (this->m_value.spacecraftId & 0x3FF) << 4;
+    firstTwoOctets |= (this->m_value.virtualChannelId & 0x07) << 1;   // Virtual Channel ID (3 bits)
+    firstTwoOctets |= (this->m_value.operationalControlFlag & 0x01);  // Operational Control Field Flag (1 bit)
     status = buffer.serialize(firstTwoOctets);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
     U16 frameCounts = 0;
-    frameCounts |= (m_value.masterChannelFrameCount & 0xFF00) << 8;
-    frameCounts |= (m_value.virtualChannelFrameCount & 0x00FF);
+    frameCounts |= (this->m_value.masterChannelFrameCount & 0xFF00) << 8;
+    frameCounts |= (this->m_value.virtualChannelFrameCount & 0x00FF);
 
     status = buffer.serialize(frameCounts);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
@@ -44,34 +44,34 @@ Fw::SerializeStatus ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHead
 
     // Bit 32: Transfer Frame Secondary Header Flag (0 if no secondary header)
     // Must be static throughout Mission Phase per 4.1.2.7.2.3
-    dataFieldStatus |= (m_value.dataFieldStatus.hasSecondaryHeader ? 1 : 0) << 15;
+    dataFieldStatus |= (this->m_value.dataFieldStatus.hasSecondaryHeader ? 1 : 0) << 15;
 
     // Bit 33: Synchronization Flag
     // 0 for octet-synchronized and forward-ordered Packets or Idle Data
     // 1 for VCA_SDU
     // Must be static within Virtual Channel per 4.1.2.7.3.3
-    dataFieldStatus |= (m_value.dataFieldStatus.isSyncFlagEnabled ? 1 : 0) << 14;
+    dataFieldStatus |= (this->m_value.dataFieldStatus.isSyncFlagEnabled ? 1 : 0) << 14;
 
     // Bit 34: Packet Order Flag
     // Set to 0 when Synchronization Flag is 0 per 4.1.2.7.4
-    dataFieldStatus |= m_value.dataFieldStatus.isPacketOrdered << 13;
+    dataFieldStatus |= this->m_value.dataFieldStatus.isPacketOrdered << 13;
 
     // Bits 35-36: Segment Length Identifier
     // Must be set to '11' (3) when Synchronization Flag is 0 per 4.1.2.7.5.2
     // NOTE may replace this with an assert/enforcement later
-    if (!m_value.dataFieldStatus.isSyncFlagEnabled && m_value.dataFieldStatus.segmentLengthId) {
+    if (!this->m_value.dataFieldStatus.isSyncFlagEnabled && this->m_value.dataFieldStatus.segmentLengthId) {
         Fw::Logger::log("[WARNING] when sync flag is enabled segLength should be 0x00 not %d\n",
-                        m_value.dataFieldStatus.segmentLengthId);
+                        this->m_value.dataFieldStatus.segmentLengthId);
     }
     // dataFieldStatus |= (m_value.dataFieldStatus.isSyncFlagEnabled ? 0 : 0x3) << 11;
-    dataFieldStatus |= (m_value.dataFieldStatus.segmentLengthId) << 11;
+    dataFieldStatus |= (this->m_value.dataFieldStatus.segmentLengthId) << 11;
 
     // Bits 37-47: First Header Pointer (11 bits)
     // For this implementation, assuming packet starts at beginning of data field
     // Therefore setting to 0 per 4.1.2.7.6.3
     // Set to 0x7FF (11111111111) if no packet starts in frame per 4.1.2.7.6.4
     // Set to 0x7FE (11111111110) if only idle data per 4.1.2.7.6.5
-    dataFieldStatus |= m_value.dataFieldStatus.firstHeaderPointer;
+    dataFieldStatus |= this->m_value.dataFieldStatus.firstHeaderPointer;
     status = buffer.serialize(dataFieldStatus);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
@@ -246,21 +246,21 @@ bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFie
     U8 const* startPtr = buffer.getBuffAddrLeft();
     bool status;
     // Extract primary header first
-    status = primaryHeader.extract(buffer);
+    status = this->primaryHeader.extract(buffer);
     FW_ASSERT(status);
 
     // Extract operational control field if present
     // if (m_primaryHeader.hasOperationalControl()) {
-    status = secondaryHeader.extract(buffer);
+    status = this->secondaryHeader.extract(buffer);
     FW_ASSERT(status);
 
     // Extract data field
-    status = dataField.extract(buffer);
+    status = this->dataField.extract(buffer);
     FW_ASSERT(status);
 
     // Extract operational control field if present
     // if (m_primaryHeader.hasOperationalControl()) {
-    status = operationalControlField.extract(buffer);
+    status = this->operationalControlField.extract(buffer);
     FW_ASSERT(status);
 
     // Extract and verify error control field
@@ -270,13 +270,13 @@ bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFie
     // TODO remove during performance stripping
     std::array<U8, SERIALIZED_SIZE> crcBuff;
     (void)std::memcpy(crcBuff.data(), startPtr, crcBuff.size());
-    status = errorControlField.get(crcBuff.data(), crcBuff.size(), calculatedCrc);
+    status = this->errorControlField.get(crcBuff.data(), crcBuff.size(), calculatedCrc);
 
-    status = errorControlField.extract(buffer);
+    status = this->errorControlField.extract(buffer);
     FW_ASSERT(status);
 
     U16 retrievedCrc;
-    errorControlField.get(retrievedCrc);
+    this->errorControlField.get(retrievedCrc);
     FW_ASSERT(retrievedCrc == calculatedCrc, retrievedCrc, calculatedCrc);
 
     return true;
