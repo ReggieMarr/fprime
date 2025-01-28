@@ -24,7 +24,7 @@ bool VCAService::generatePrimitive(Fw::Buffer& data, VCARequestPrimitive_t& prim
 bool VCFService::generatePrimitive(VCFUserData_t& request, VCFRequestPrimitive_t& prim) const {
     // Set whatever we can at this time provided the context
     // from request.statusData
-    PrimaryHeaderControlInfo_t controlInfo;
+    PrimaryHeaderControlInfo_t controlInfo = {};
     prim.frame.primaryHeader.set(controlInfo);
     prim.frame.dataField = request.sdu;
     prim.sap = request.sap;

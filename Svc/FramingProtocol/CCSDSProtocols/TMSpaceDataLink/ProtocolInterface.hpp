@@ -20,6 +20,7 @@
 #define SVC_TM_SPACE_DATA_LINK_PROTOCOL_HPP
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
 #include "Channels.hpp"
+#include "Fw/Buffer/Buffer.hpp"
 #include "ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
@@ -38,8 +39,7 @@ namespace TMSpaceDataLink {
  */
 class ProtocolEntity {
   public:
-    ProtocolEntity(ManagedParameters_t& params)
-        : m_params(params), m_physicalChannel(createPhysicalChannel(params.physicalParams)) {}
+    ProtocolEntity(ManagedParameters_t const& params);
 
     // Process incoming telemetry data
     bool UserComIn_handler(Fw::Buffer& data, U32 context);
@@ -48,12 +48,12 @@ class ProtocolEntity {
     // Implements constant rate transfer requirement from 2.3.1
     void generateNextFrame(Fw::Buffer& nextFrameBuffer);
 
-    SinglePhysicalChannel m_physicalChannel;
     // NOTE could be made as a deserializer
     ManagedParameters_t m_params;
+    SinglePhysicalChannel m_physicalChannel;
 
   private:
-    static SinglePhysicalChannel createPhysicalChannel(PhysicalChannelParams_t& params) {
+    static SinglePhysicalChannel createPhysicalChannel(PhysicalChannelParams_t const& params) {
         MCID_t mcid = {
             .SCID = params.subChannels.at(0).spaceCraftId,
             .TFVN = params.transferFrameVersion,
@@ -62,12 +62,12 @@ class ProtocolEntity {
             .MCID = mcid,
             .VCID = 0,
         };
-        GVCID_t gvcidSecondary = {
-            .MCID = mcid,
-            .VCID = 1,
-        };
+        // GVCID_t gvcidSecondary = {
+        //     .MCID = mcid,
+        //     .VCID = 1,
+        // };
         std::array<GVCID_t, NUM_VIRTUAL_CHANNELS> paramIds;
-        for (int i = 0; i < paramIds.size(); i++) {
+        for (NATIVE_UINT_TYPE i = 0; i < paramIds.size(); i++) {
             MCID_t mcid;
             mcid.TFVN = params.transferFrameVersion;
             mcid.SCID = params.subChannels.at(0).spaceCraftId;

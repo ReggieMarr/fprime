@@ -22,6 +22,9 @@
 
 namespace TMSpaceDataLink {
 
+ProtocolEntity::ProtocolEntity(ManagedParameters_t const& params)
+    :  m_params(params), m_physicalChannel(createPhysicalChannel(params.physicalParams)) {}
+
 bool ProtocolEntity::UserComIn_handler(Fw::Buffer& data, U32 context) {
     // Determine the channel mapping from context
 
@@ -60,7 +63,7 @@ void ProtocolEntity::generateNextFrame(Fw::Buffer& nextFrameBuffer) {
     this->m_physicalChannel.popFrameBuff(serBuff);
     NATIVE_UINT_TYPE idx = 0;
     Fw::Logger::log("Exiting Frame Buff: \n");
-    for (NATIVE_UINT_TYPE i = 0; i < serBuff.getBuffLength(); i++) {
+    for (FwSizeType i = 0; i < serBuff.getBuffLength(); i++) {
         Fw::Logger::log("%02x ", serBuff.getBuffAddr()[i]);
         if (idx++ % 32 == 0) {
             Fw::Logger::log("\n");
@@ -107,7 +110,7 @@ void TMSpaceDataLinkProtocol::frame(const U8* const data, const U32 size, Fw::Co
         .MCID = mcid,
         .VCID = 0,
     };
-    U32 context;
+    U32 context = 10;
     TMSpaceDataLink::GVCID_t::fromVal(gvcid, context);
 
     // NOTE this copy is just needed at the momemnt since the FramingProtocol interface requires data to be const
@@ -122,4 +125,4 @@ void TMSpaceDataLinkProtocol::frame(const U8* const data, const U32 size, Fw::Co
     this->m_interface->send(sendBuffer);
 }
 
-}  // namespace Svc
+}  // namespace TMSpaceDataLink

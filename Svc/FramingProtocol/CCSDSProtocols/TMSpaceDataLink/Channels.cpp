@@ -8,9 +8,8 @@
 #include "Fw/Types/Serializable.hpp"
 #include "Fw/Types/String.hpp"
 #include "ManagedParameters.hpp"
-#include "Os/Models/QueueBlockingTypeEnumAc.hpp"
-#include "Os/Models/QueueStatusEnumAc.hpp"
 #include "Os/Queue.hpp"
+#include "Os/Generic/PriorityQueue.hpp"
 #include "Services.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
@@ -244,7 +243,7 @@ bool MasterChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& ma
 template <FwSizeType NumSubChannels>
 bool MasterChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrames) {
     bool status = true;  // Initialize status
-    Os::Queue::Status qStatus;
+    // Os::Queue::Status qStatus;
 
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
         PrimaryHeaderControlInfo_t primaryHeaderCI;
@@ -310,7 +309,7 @@ bool PhysicalChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& 
 template <FwSizeType NumSubChannels>
 bool PhysicalChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrames) {
     bool status = true;  // Initialize status
-    Os::Queue::Status qStatus;
+    // Os::Queue::Status qStatus;
 
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
         // TODO Check the CRC here

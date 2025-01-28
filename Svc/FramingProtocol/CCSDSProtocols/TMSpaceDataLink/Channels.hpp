@@ -1,7 +1,7 @@
 #ifndef SVC_TM_SPACE_DATA_LINK_CHANNELS_HPP
 #define SVC_TM_SPACE_DATA_LINK_CHANNELS_HPP
 
-#include <Os/Generic/PriorityQueue.hpp>
+#include <Os/Queue.hpp>
 #include <Svc/FramingProtocol/FramingProtocol.hpp>
 #include <array>
 #include <cstddef>
@@ -12,6 +12,7 @@
 #include "Fw/Types/String.hpp"
 #include "ManagedParameters.hpp"
 #include "Os/Queue.hpp"
+#include "Os/Generic/PriorityQueue.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
@@ -130,6 +131,7 @@ class VirtualChannel : public VirtualChannelBase {
     using typename Base::Queue_t;
     using typename Base::TransferIn_t;
     using typename Base::TransferOut_t;
+    using Base::operator=;
 
     VirtualChannel(Id_t const& id);
     ~VirtualChannel();
@@ -189,6 +191,7 @@ class MasterChannel : public MasterChannelBase {
     using typename Base::Queue_t;
     using typename Base::TransferIn_t;
     using typename Base::TransferOut_t;
+    using Base::operator=;
 
     using VirtualChannelList = ChannelList<VirtualChannel, NumSubChannels>;
     using Channel_t = VirtualChannel;
@@ -246,6 +249,7 @@ class PhysicalChannel : public PhysicalChannelBase {
     using typename Base::Queue_t;
     using typename Base::TransferIn_t;
     using typename Base::TransferOut_t;
+    using Base::operator=;
 
     using MasterChannelList = ChannelList<SingleMasterChannel, NumSubChannels>;
     using Channel_t = SingleMasterChannel;
