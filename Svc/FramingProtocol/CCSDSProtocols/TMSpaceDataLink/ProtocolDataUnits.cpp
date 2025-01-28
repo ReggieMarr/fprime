@@ -11,6 +11,11 @@ template <FwSizeType FieldSize, typename FieldValueType>
 ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase() : m_value() {}
 
 template <FwSizeType FieldSize, typename FieldValueType>
+bool ProtocolDataUnitBase<FieldSize, FieldValueType>::operator==(ProtocolDataUnitBase const &other) const {
+    return this->m_value == other.m_value;
+}
+
+template <FwSizeType FieldSize, typename FieldValueType>
 ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase(FieldValueType const& srcVal) : m_value(srcVal) {}
 
 template <FwSizeType FieldSize, typename FieldValueType>

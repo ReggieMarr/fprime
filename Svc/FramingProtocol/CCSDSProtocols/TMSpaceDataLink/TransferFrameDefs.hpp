@@ -161,6 +161,21 @@ typedef struct DataFieldStatus_s {
     // If the sync flag field is 0 then this field indicates the position of
     // the first octet of the first packet in the transfer frame data field.
     U16 firstHeaderPointer : 11;
+
+    bool operator==(const DataFieldStatus_s& other) const {
+        return (hasSecondaryHeader == other.hasSecondaryHeader) &&
+               (isSyncFlagEnabled == other.isSyncFlagEnabled) &&
+               (isPacketOrdered == other.isPacketOrdered) &&
+               (segmentLengthId == other.segmentLengthId) &&
+               (firstHeaderPointer == other.firstHeaderPointer);
+    }
+    bool operator!=(const DataFieldStatus_s& other) const {
+        return (hasSecondaryHeader != other.hasSecondaryHeader) ||
+               (isSyncFlagEnabled != other.isSyncFlagEnabled) ||
+               (isPacketOrdered != other.isPacketOrdered) ||
+               (segmentLengthId != other.segmentLengthId) ||
+               (firstHeaderPointer != other.firstHeaderPointer);
+    }
 } __attribute__((packed)) DataFieldStatus_t;
 
 // clang-format off
@@ -183,6 +198,25 @@ typedef struct PrimaryHeaderControlInfo_s {
     U8 masterChannelFrameCount;
     U8 virtualChannelFrameCount;
     DataFieldStatus_t dataFieldStatus;
+
+    bool operator==(const PrimaryHeaderControlInfo_s& other) const {
+        return (transferFrameVersion == other.transferFrameVersion) &&
+               (spacecraftId == other.spacecraftId) &&
+               (virtualChannelId == other.virtualChannelId) &&
+               (operationalControlFlag == other.operationalControlFlag) &&
+               (masterChannelFrameCount == other.masterChannelFrameCount) &&
+               (virtualChannelFrameCount == other.virtualChannelFrameCount) &&
+               (dataFieldStatus == other.dataFieldStatus);
+    }
+    bool operator!=(const PrimaryHeaderControlInfo_s& other) const {
+        return (transferFrameVersion != other.transferFrameVersion) ||
+               (spacecraftId != other.spacecraftId) ||
+               (virtualChannelId != other.virtualChannelId) ||
+               (operationalControlFlag != other.operationalControlFlag) ||
+               (masterChannelFrameCount != other.masterChannelFrameCount) ||
+               (virtualChannelFrameCount != other.virtualChannelFrameCount) ||
+               (dataFieldStatus != other.dataFieldStatus);
+    }
 } __attribute__((packed)) PrimaryHeaderControlInfo_t;
 
 // TM Primary Header: 6 octets (CCSDS 132.0-B-3, Section 4.1.2)

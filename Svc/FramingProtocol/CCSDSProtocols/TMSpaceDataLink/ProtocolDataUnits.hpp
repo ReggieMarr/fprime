@@ -28,6 +28,8 @@ class ProtocolDataUnitBase {
     virtual bool extract(Fw::SerializeBufferBase& buffer);
     virtual bool extract(Fw::SerializeBufferBase& buffer, FieldValueType& val);
 
+    bool operator==(ProtocolDataUnitBase const & other) const;
+
   protected:
     FieldValueType m_value;
     virtual Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const = 0;

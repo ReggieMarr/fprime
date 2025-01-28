@@ -53,6 +53,7 @@ class PrimaryHeader : public ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, Pr
     using Base::ProtocolDataUnit;
     using typename Base::FieldValue_t;
     using Base::operator=;
+    using Base::operator==;
     using Base::set;
     // If data field is an extension of some previous packet and the sync flag is 1
     // this should be the firstHeaderPointerField
@@ -116,15 +117,16 @@ class FrameErrorControlField : public ProtocolDataUnit<sizeof(U16), U16> {
     using CheckSum = TMSpaceDataLinkChecksum;
 
   public:
-    // Determines the fields value from a provided buffer and startPoint
-    // bool set(U8 const* const startPtr, Fw::SerializeBufferBase& buffer);
-    bool calcBufferCRC(U8* sourceBufferPtr, FwSizeType const sourceBufferSize, U16& crcValue) const;
-
-    bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer) const;
+    bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer);
+    using Base::insert;
     using Base::extract;
 
-    using Base::get;
     using Base::set;
+    bool set(U8* sourceBufferPtr, FwSizeType const sourceBufferSize);
+
+    bool get(U8* sourceBufferPtr, FwSizeType const sourceBufferSize, U16& crcValue);
+    using Base::get;
+    using Base::operator==;
 };
 
 // clang-format off
@@ -161,9 +163,10 @@ class TransferFrameBase {
 
     TransferFrameBase();
     virtual ~TransferFrameBase() = default;
+    bool operator==(TransferFrameBase const & other) const;
 
-    virtual bool insert(Fw::SerializeBufferBase& buffer) const;
-    virtual bool extract(Fw::SerializeBufferBase& buffer);
+    bool insert(Fw::SerializeBufferBase& buffer);
+    bool extract(Fw::SerializeBufferBase& buffer);
 
     // NOTE We used to have getters here but since each class protects itself pretty well
     // we changed that for simplicity. Revisit if implementations need it.
@@ -182,9 +185,10 @@ using FPrimeOperationalControlField = NullField;
 using FPrimeErrorControlField =
     FrameErrorControlField<CCSDS_SCID,
                            PrimaryHeader::SERIALIZED_SIZE + FPrimeSecondaryHeaderField::SERIALIZED_SIZE +
-                               FPrimeDataField::SERIALIZED_SIZE + FPrimeOperationalControlField::SERIALIZED_SIZE +
-                               // To account for the size of the error field itself
-                               sizeof(U16)>;
+                           FPrimeDataField::SERIALIZED_SIZE + FPrimeOperationalControlField::SERIALIZED_SIZE +
+                           // To account for the size of the error field itself
+                           sizeof(U16)>;
+
 using FPrimeTransferFrame = TransferFrameBase<FPrimeSecondaryHeaderField,
                                               FPrimeDataField,
                                               FPrimeOperationalControlField,
