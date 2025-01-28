@@ -3,7 +3,6 @@
 #include <cstring>
 #include <string>
 #include "Fw/Types/Serializable.hpp"
-#include <iostream>
 
 namespace TMSpaceDataLink {
 
@@ -11,8 +10,13 @@ template <FwSizeType FieldSize, typename FieldValueType>
 ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase() : m_value() {}
 
 template <FwSizeType FieldSize, typename FieldValueType>
-bool ProtocolDataUnitBase<FieldSize, FieldValueType>::operator==(ProtocolDataUnitBase const &other) const {
+bool ProtocolDataUnitBase<FieldSize, FieldValueType>::operator==(ProtocolDataUnitBase const& other) const {
     return this->m_value == other.m_value;
+}
+
+template <FwSizeType FieldSize, typename FieldValueType>
+bool ProtocolDataUnitBase<FieldSize, FieldValueType>::operator!=(ProtocolDataUnitBase const& other) const {
+    return this->m_value != other.m_value;
 }
 
 template <FwSizeType FieldSize, typename FieldValueType>
@@ -129,17 +133,15 @@ void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::set(U8 const* buffP
 
 template <FwSizeType FieldSize>
 void ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>::print() {
-  std::string dataStr(reinterpret_cast<const char *>(
-                           this->m_value.data() + sizeof(FwPacketDescriptorType)),
-                           FieldSize);
+    std::string dataStr(reinterpret_cast<const char*>(this->m_value.data() + sizeof(FwPacketDescriptorType)),
+                        FieldSize);
 
-  // NOTE this assumes that the underlying data unit is a c_string.
-  // this will usually not be the case.
-  size_t nullPos = dataStr.find('\0');
-  if (nullPos != std::string::npos) {
-      dataStr = dataStr.substr(0, nullPos);
-  }
-  std::cout << "Received:[" << dataStr << "]" << std::endl;
+    // NOTE this assumes that the underlying data unit is a c_string.
+    // this will usually not be the case.
+    size_t nullPos = dataStr.find('\0');
+    if (nullPos != std::string::npos) {
+        dataStr = dataStr.substr(0, nullPos);
+    }
 }
 
 // nullptr specialization implementations

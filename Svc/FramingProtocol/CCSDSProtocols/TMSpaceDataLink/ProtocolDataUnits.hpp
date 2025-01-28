@@ -28,7 +28,8 @@ class ProtocolDataUnitBase {
     virtual bool extract(Fw::SerializeBufferBase& buffer);
     virtual bool extract(Fw::SerializeBufferBase& buffer, FieldValueType& val);
 
-    bool operator==(ProtocolDataUnitBase const & other) const;
+    bool operator==(ProtocolDataUnitBase const& other) const;
+    bool operator!=(ProtocolDataUnitBase const& other) const;
 
   protected:
     FieldValueType m_value;
@@ -40,7 +41,7 @@ template <FwSizeType FieldSize, typename FieldValueType>
 class ProtocolDataUnit : public ProtocolDataUnitBase<FieldSize, FieldValueType> {
   public:
     using Base = ProtocolDataUnitBase<FieldSize, FieldValueType>;
-    using Base::Base;   // Inheriting constructor
+    using Base::Base;  // Inheriting constructor
     ProtocolDataUnit() = default;
 
   protected:
@@ -53,8 +54,8 @@ class ProtocolDataUnit<FieldSize, std::array<U8, FieldSize>>
     : public ProtocolDataUnitBase<FieldSize, std::array<U8, FieldSize>> {
   public:
     using Base = ProtocolDataUnitBase<FieldSize, std::array<U8, FieldSize>>;
+    using Base::Base;  // Inheriting constructor
     using typename Base::FieldValue_t;
-    using Base::Base;   // Inheriting constructor
 
     virtual void get(FieldValue_t& val) const override;
     virtual void set(FieldValue_t const& val) override;
@@ -72,8 +73,8 @@ template <>
 class ProtocolDataUnit<0, std::nullptr_t> : public ProtocolDataUnitBase<0, std::nullptr_t> {
   public:
     using Base = ProtocolDataUnitBase<0, std::nullptr_t>;
+    using Base::Base;  // Inheriting constructor
     using typename Base::FieldValue_t;
-    using Base::Base;   // Inheriting constructor
 
   protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
@@ -85,12 +86,12 @@ class ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_
     : public ProtocolDataUnitBase<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t> {
   public:
     using Base = ProtocolDataUnitBase<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>;
+    using Base::Base;  // Inheriting constructor
     using typename Base::FieldValue_t;
-    using Base::Base;   // Inheriting constructor
 
     // Use the base implementation of the getter/setter
-    using Base::set;
     using Base::get;
+    using Base::set;
 
   protected:
     Fw::SerializeStatus serializeValue(Fw::SerializeBufferBase& buffer) const override;
