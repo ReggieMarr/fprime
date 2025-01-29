@@ -34,11 +34,11 @@ static void setRandomControlInfo(TMSpaceDataLink::PrimaryHeaderControlInfo_t& ci
 
 static void setRandomData(TMSpaceDataLink::FPrimeDataField::FieldValue_t& data) {
     for (U32 i = 0; i < data.size(); i++) {
-        U8 originalData = data.at(i);
+        // U8 originalData = data.at(i);
         data.at(i) = STest::Pick::lowerUpper(0, 0xFF);
         // we expected that the data has changed, this won't always be the case
         // but we should be notified when it is
-        EXPECT_NE(originalData, data.at(i));
+        // EXPECT_NE(originalData, data.at(i));
     }
 }
 
