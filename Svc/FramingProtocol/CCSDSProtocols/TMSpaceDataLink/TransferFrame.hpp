@@ -17,8 +17,10 @@
 #include <array>
 #include <cstddef>
 #include "Fw/Buffer/Buffer.hpp"
+#include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "ProtocolDataUnits.hpp"
+#include "Svc/FrameAccumulator/FrameDetector.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/StartLengthCrcDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/CCSDSProtocolDefs.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolDataUnits.hpp"
@@ -104,17 +106,7 @@ class FrameErrorControlField : public ProtocolDataUnit<sizeof(U16), U16> {
     using Base::operator=;
 
   private:
-    using TMSpaceDataLinkStartWord =
-        Svc::FrameDetectors::StartToken<U16, static_cast<U16>(0 | TM_SCID_VAL_TO_FIELD(StartWord)), Svc::TM_SCID_MASK>;
-    using TMSpaceDataLinkLength =
-        Svc::FrameDetectors::LengthToken<FwSizeType, sizeof(FwSizeType), TransferFrameLength, Svc::TM_LENGTH_MASK>;
-    // Sets up the crc checker to check the transferFrameLength minus the last field (this one)
-    using TMSpaceDataLinkChecksum =
-        Svc::FrameDetectors::CRC<U16, TransferFrameLength - SERIALIZED_SIZE, 0, Svc::FrameDetectors::CRC16_CCITT>;
-    using TMSpaceDataLinkDetector = Svc::FrameDetectors::
-        StartLengthCrcDetector<TMSpaceDataLinkStartWord, TMSpaceDataLinkLength, TMSpaceDataLinkChecksum>;
-
-    using CheckSum = TMSpaceDataLinkChecksum;
+    using CrcHandler = Svc::FrameDetectors::CRC16_CCITT;
 
   public:
     bool insert(U8* startPtr, Fw::SerializeBufferBase& buffer);
@@ -122,9 +114,9 @@ class FrameErrorControlField : public ProtocolDataUnit<sizeof(U16), U16> {
     using Base::insert;
 
     using Base::set;
-    void set(U8* sourceBufferPtr, FwSizeType const sourceBufferSize);
+    void set(Fw::Buffer const &dataBuff);
 
-    void get(U8* sourceBufferPtr, FwSizeType const sourceBufferSize, U16& crcValue);
+    void get(Fw::Buffer const &dataBuff, U16& crcValue);
     using Base::get;
     using Base::operator==;
 };

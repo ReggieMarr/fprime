@@ -1,6 +1,8 @@
+#include <array>
 #include <cstdio>
 #include <cstring>
 
+#include "Fw/Buffer/Buffer.hpp"
 #include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Test/UnitTest.hpp"
 #include "STest/Pick/Pick.hpp"
@@ -32,11 +34,11 @@ static void setRandomControlInfo(TMSpaceDataLink::PrimaryHeaderControlInfo_t& ci
 
 static void setRandomData(TMSpaceDataLink::FPrimeDataField::FieldValue_t& data) {
     for (U32 i = 0; i < data.size(); i++) {
-        // U8 originalData = data.at(i);
+        U8 originalData = data.at(i);
         data.at(i) = STest::Pick::lowerUpper(0, 0xFF);
         // we expected that the data has changed, this won't always be the case
         // but we should be notified when it is
-        // EXPECT_NE(originalData, data.at(i));
+        EXPECT_NE(originalData, data.at(i));
     }
 }
 
@@ -64,16 +66,13 @@ TEST(FPrimeFraming, HeaderSetterTest) {
 
 TEST(FPrimeFraming, DataFieldValidate) {
     COMMENT("Testing DataField and FrameErrorControlField setting/getting");
-    Fw::ComBuffer buffer;
+    Fw::ComBuffer comBuff;
     TMSpaceDataLink::FPrimeDataField::FieldValue_t dataIn, dataOut;
     TMSpaceDataLink::FPrimeDataField dataFieldIn, dataFieldOut;
     TMSpaceDataLink::FPrimeErrorControlField errorControlField;
-    TMSpaceDataLink::PrimaryHeaderControlInfo_t controlInfo;
-    TMSpaceDataLink::PrimaryHeader header;
     bool status = false;;
 
-    setRandomControlInfo(controlInfo);
-    header.set(controlInfo);
+    ASSERT_GT(comBuff.getBuffCapacity(), dataFieldIn.SERIALIZED_SIZE);
 
     // Fill both data sets with unique sets of unique data
     setRandomData(dataIn);
@@ -88,31 +87,33 @@ TEST(FPrimeFraming, DataFieldValidate) {
     ASSERT_EQ(dataIn, dataOut);
 
     // The error control fields CRC check assumes that the buffer starts with a header
-    status = header.insert(buffer);
-    ASSERT_EQ(status, true);
-
-    status = dataFieldIn.insert(buffer);
+    comBuff.resetSer();
+    status = dataFieldIn.insert(comBuff);
     ASSERT_EQ(status, true);
 
     U16 calculatedCrc, retrievedCrc;
-    errorControlField.get(buffer.getBuffAddr(), header.SERIALIZED_SIZE + dataFieldIn.SERIALIZED_SIZE, calculatedCrc);
+    Fw::Buffer buff(comBuff.getBuffAddr(), dataFieldIn.SERIALIZED_SIZE);
+    errorControlField.get(buff, calculatedCrc);
+    status = errorControlField.insert(comBuff);
+    ASSERT_EQ(status, true);
 
-    errorControlField.extract(buffer, retrievedCrc);
-    ASSERT_EQ(calculatedCrc, retrievedCrc);
-
-    dataFieldOut.extract(buffer);
+    dataFieldOut.extract(comBuff);
     ASSERT_EQ(dataFieldIn, dataFieldOut);
+
+    errorControlField.extract(comBuff, retrievedCrc);
+    ASSERT_EQ(calculatedCrc, retrievedCrc);
 }
 
 TEST(FPrimeFraming, FrameSetterTest) {
     COMMENT("Test the FPrimeFrame set/get");
 
     bool status;
-    Fw::ComBuffer buffer;
+    Fw::ComBuffer comBuff;
     TMSpaceDataLink::PrimaryHeaderControlInfo_t controlInfo;
     TMSpaceDataLink::FPrimeTransferFrame frameIn;
     TMSpaceDataLink::FPrimeTransferFrame frameOut;
     TMSpaceDataLink::FPrimeDataField::FieldValue_t data;
+    TMSpaceDataLink::FPrimeDataField dataField;
 
     setRandomControlInfo(controlInfo);
 
@@ -125,18 +126,36 @@ TEST(FPrimeFraming, FrameSetterTest) {
 
     frameIn.dataField.set(data);
 
-    (void)std::memset(buffer.getBuffAddr(), 0, frameIn.SERIALIZED_SIZE);
-    buffer.setBuffLen(frameIn.SERIALIZED_SIZE);
-    buffer.resetSer();
+    // (void)std::memset(comBuff.getBuffAddr(), 0, frameIn.SERIALIZED_SIZE);
+    comBuff.resetSer();
 
-    status = frameIn.insert(buffer);
+    U16 calculatedCrc, retrievedCrc;
+
+    status = frameIn.insert(comBuff);
     ASSERT_EQ(status, true);
 
-    status = frameOut.extract(buffer);
+    frameIn.errorControlField.get(calculatedCrc);
+
+    status = frameOut.extract(comBuff);
     ASSERT_EQ(status, true);
 
+    ASSERT_EQ(frameIn.primaryHeader, frameOut.primaryHeader);
+    ASSERT_EQ(frameIn.secondaryHeader, frameOut.secondaryHeader);
+    ASSERT_EQ(frameIn.operationalControlField, frameOut.operationalControlField);
+    ASSERT_EQ(frameIn.dataField, frameOut.dataField);
+    ASSERT_EQ(frameIn.errorControlField, frameOut.errorControlField);
     ASSERT_EQ(frameIn, frameOut);
+
+    frameOut.errorControlField.get(retrievedCrc);
+    ASSERT_EQ(retrievedCrc, calculatedCrc);
+
 }
+
+// TEST(FPrimeFraming, FrameDetectorTest) {
+//     COMMENT("Test the FPrimeFrameDetector/accumulator stuff");
+
+//     // TODO
+// }
 
 // ----------------------------------------------------------------------
 // Main function

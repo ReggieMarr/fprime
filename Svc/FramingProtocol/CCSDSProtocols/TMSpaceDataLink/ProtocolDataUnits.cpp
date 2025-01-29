@@ -3,6 +3,7 @@
 #include <cstring>
 #include <string>
 #include "Fw/Types/Serializable.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
 
 namespace TMSpaceDataLink {
 
@@ -20,7 +21,9 @@ bool ProtocolDataUnitBase<FieldSize, FieldValueType>::operator!=(ProtocolDataUni
 }
 
 template <FwSizeType FieldSize, typename FieldValueType>
-ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase(FieldValueType const& srcVal) : m_value(srcVal) {}
+ProtocolDataUnitBase<FieldSize, FieldValueType>::ProtocolDataUnitBase(FieldValueType const& srcVal)
+    : m_value(srcVal) {
+}
 
 template <FwSizeType FieldSize, typename FieldValueType>
 void ProtocolDataUnitBase<FieldSize, FieldValueType>::set(FieldValueType const& val) {
@@ -73,6 +76,18 @@ ProtocolDataUnitBase<FieldSize, FieldValueType>& ProtocolDataUnitBase<FieldSize,
         set(other.m_value);
     }
     return *this;
+}
+
+template<>
+bool ProtocolDataUnitBase<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>::operator==(ProtocolDataUnitBase const& other) const {
+    return ((this->m_value.transferFrameVersion & 0b11)  ==
+            (other.m_value.transferFrameVersion & 0b11)) &&
+            ((this->m_value.spacecraftId & 0x3ff)  ==
+             (other.m_value.spacecraftId & 0x3ff)) &&
+            ((this->m_value.virtualChannelId & 0b111)  ==
+             (other.m_value.virtualChannelId & 0b111)) &&
+            ((this->m_value.operationalControlFlag & 0b1)  ==
+             (other.m_value.operationalControlFlag & 0b1));
 }
 
 template <FwSizeType FieldSize, typename FieldValueType>
@@ -162,7 +177,7 @@ Fw::SerializeStatus ProtocolDataUnit<0, std::nullptr_t>::deserializeValue(Fw::Se
 // Instantiate the base class
 template class ProtocolDataUnitBase<247, std::array<U8, 247>>;
 template class ProtocolDataUnitBase<sizeof(U16), U16>;
-template class ProtocolDataUnitBase<6, PrimaryHeaderControlInfo_t>;
+template class ProtocolDataUnitBase<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHeaderControlInfo_t>;
 template class ProtocolDataUnitBase<0, std::nullptr_t>;
 
 // Instantiate the primary template (if needed)

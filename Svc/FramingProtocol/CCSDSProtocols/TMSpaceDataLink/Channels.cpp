@@ -94,7 +94,6 @@ bool ChannelBase<ChannelTemplateConfig>::pushFrame(Queue_t& queue, FPrimeTransfe
     // This is just done for now as a convinient mechanism for testing out the architecture.
     // TODO replace with either a standard queue or queued component interfaces + buffer memory management
     (void)std::memset(serialBuffer.getBuffAddr(), 0, frame.SERIALIZED_SIZE);
-    serialBuffer.setBuffLen(frame.SERIALIZED_SIZE);
     serialBuffer.resetSer();
     status = frame.insert(serialBuffer);
     FW_ASSERT(status);

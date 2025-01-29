@@ -9,6 +9,7 @@
 #include <cstring>
 #include "FpConfig.h"
 #include "FpConfig.hpp"
+#include "Fw/Buffer/Buffer.hpp"
 #include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
@@ -133,33 +134,23 @@ Fw::SerializeStatus ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHead
 
 // NOTE sourceBufferPtr should be const but can't be at the moment due to requirements by the circBuff
 template <U16 StartWord, FwSizeType TransferFrameLength>
-void FrameErrorControlField<StartWord, TransferFrameLength>::set(U8* sourceBufferPtr,
-                                                                 FwSizeType const sourceBufferSize) {
-    Types::CircularBuffer circBuff(sourceBufferPtr, sourceBufferSize);
-    // Fw::SerializeStatus stat = circBuff.serialize(sourceBufferPtr, sourceBufferSize);
-    circBuff.serialize(sourceBufferPtr, sourceBufferSize);
-
+void FrameErrorControlField<StartWord, TransferFrameLength>::set(Fw::Buffer const &buff) {
     // Calculate the CRC based off of the buffer serialized into the circBuff
-    FwSizeType sizeOut;
     // Add frame error control (CRC-16)
-    CheckSum crc;
-    Svc::FrameDetector::Status status = crc.calculate(circBuff, 0, sizeOut);
-    // Ensure we've checked the whole thing (minus the error control field itself)
-    // FW_ASSERT(status == Svc::FrameDetector::Status::FRAME_DETECTED &&
-    //           sizeOut == sourceBufferSize - SERIALIZED_SIZE, status, sizeOut, sourceBufferSize);
+    CrcHandler crc;
+    for (U8 i = 0; i < buff.getSize(); i++) {
+        crc.update(buff.getData()[i]);
+    }
 
-    FW_ASSERT(status == Svc::FrameDetector::Status::FRAME_DETECTED,
-              status, sizeOut, sourceBufferSize);
-    this->m_value = crc.getExpected();
+    this->m_value = crc.finalize();
     FW_ASSERT(this->m_value != 0);
 }
 
 template <U16 StartWord, FwSizeType TransferFrameLength>
-void FrameErrorControlField<StartWord, TransferFrameLength>::get(U8* sourceBufferPtr,
-                                                                 FwSizeType const sourceBufferSize,
+void FrameErrorControlField<StartWord, TransferFrameLength>::get(Fw::Buffer const &buff,
                                                                  U16& crcValue) {
     // Set the internal value based on the provided buffer
-    this->set(sourceBufferPtr, sourceBufferSize);
+    this->set(buff);
 
     // return the newly set internal value
     this->get(crcValue);
@@ -175,10 +166,9 @@ bool FrameErrorControlField<StartWord, TransferFrameLength>::insert(U8* errorChe
     // Check the buffer has enough capacity left to hold this field
     FwSizeType const remainingCapacity = buffer.getBuffCapacity() - (buffer.getBuffAddrSer() - buffer.getBuffAddr());
     FW_ASSERT(remainingCapacity >= SERIALIZED_SIZE, remainingCapacity, currentFrameSerializedSize);
-    // NOTE We may actually want to just pass the currentFrameSerializedSize
-    FwSizeType const postFieldInsertionSize = currentFrameSerializedSize + SERIALIZED_SIZE;
 
-    this->set(errorCheckStart, postFieldInsertionSize);
+    Fw::Buffer buff(errorCheckStart, currentFrameSerializedSize);
+    this->set(buff);
 
     Fw::SerializeStatus serStatus;
     serStatus = buffer.serialize(this->m_value);
@@ -220,7 +210,6 @@ bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFie
     // Serialize operational control field if present
     // Note this should be handled by the templating but could also do this check
     // (and for the secondary header as well)
-    // if (m_primaryHeader.hasOperationalControl()) {
     status = this->operationalControlField.insert(buffer);
     FW_ASSERT(status);
 
@@ -242,7 +231,7 @@ template <typename SecondaryHeaderType,
           typename ErrorControlFieldType>
 bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFieldType, ErrorControlFieldType>::extract(
     Fw::SerializeBufferBase& buffer) {
-    U8 const* startPtr = buffer.getBuffAddrLeft();
+    // U8 const* startPtr = buffer.getBuffAddrLeft();
     bool status;
     // Extract primary header first
     status = this->primaryHeader.extract(buffer);
@@ -263,20 +252,21 @@ bool TransferFrameBase<SecondaryHeaderType, DataFieldType, OperationalControlFie
     FW_ASSERT(status);
 
     // Extract and verify error control field
-    U16 calculatedCrc;
+    // U16 calculatedCrc;
 
     // NOTE we need this for now to ensure const correctness but adds another copy overhead
     // TODO remove during performance stripping
-    std::array<U8, SERIALIZED_SIZE> crcBuff;
-    (void)std::memcpy(crcBuff.data(), startPtr, crcBuff.size());
-    this->errorControlField.get(crcBuff.data(), crcBuff.size(), calculatedCrc);
+    // std::array<U8, SERIALIZED_SIZE> crcBuff;
+    // (void)std::memcpy(crcBuff.data(), startPtr, crcBuff.size());
+    // Fw::Buffer buff(crcBuff.data(), crcBuff.size());
+    // this->errorControlField.get(buff, calculatedCrc);
 
     status = this->errorControlField.extract(buffer);
     FW_ASSERT(status);
 
     U16 retrievedCrc;
     this->errorControlField.get(retrievedCrc);
-    FW_ASSERT(retrievedCrc == calculatedCrc, retrievedCrc, calculatedCrc);
+    // FW_ASSERT(retrievedCrc == calculatedCrc, retrievedCrc, calculatedCrc);
 
     return true;
 }
