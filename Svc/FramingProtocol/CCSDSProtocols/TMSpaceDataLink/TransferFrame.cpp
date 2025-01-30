@@ -35,7 +35,7 @@ Fw::SerializeStatus ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHead
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
     U16 frameCounts = 0;
-    frameCounts |= (this->m_value.masterChannelFrameCount & 0xFF00) << 8;
+    frameCounts |= (this->m_value.masterChannelFrameCount << 8) & 0xFF00;
     frameCounts |= (this->m_value.virtualChannelFrameCount & 0x00FF);
 
     status = buffer.serialize(frameCounts);
@@ -103,9 +103,6 @@ Fw::SerializeStatus ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHead
     status = buffer.deserialize(frameCounts);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
-    frameCounts |= (m_value.masterChannelFrameCount & 0xFF00) << 8;
-    frameCounts |= (m_value.virtualChannelFrameCount & 0x00FF);
-
     this->m_value.virtualChannelFrameCount = frameCounts & 0x00FF;
     this->m_value.masterChannelFrameCount = (frameCounts >> 8) & 0x00FF;
 
@@ -134,7 +131,7 @@ Fw::SerializeStatus ProtocolDataUnit<PRIMARY_HEADER_SERIALIZED_SIZE, PrimaryHead
 
 // NOTE sourceBufferPtr should be const but can't be at the moment due to requirements by the circBuff
 template <U16 StartWord, FwSizeType TransferFrameLength>
-void FrameErrorControlField<StartWord, TransferFrameLength>::set(Fw::Buffer const &buff) {
+void FrameErrorControlField<StartWord, TransferFrameLength>::set(Fw::Buffer const& buff) {
     // Calculate the CRC based off of the buffer serialized into the circBuff
     // Add frame error control (CRC-16)
     CrcHandler crc;
@@ -147,8 +144,7 @@ void FrameErrorControlField<StartWord, TransferFrameLength>::set(Fw::Buffer cons
 }
 
 template <U16 StartWord, FwSizeType TransferFrameLength>
-void FrameErrorControlField<StartWord, TransferFrameLength>::get(Fw::Buffer const &buff,
-                                                                 U16& crcValue) {
+void FrameErrorControlField<StartWord, TransferFrameLength>::get(Fw::Buffer const& buff, U16& crcValue) {
     // Set the internal value based on the provided buffer
     this->set(buff);
 

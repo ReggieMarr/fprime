@@ -1,15 +1,13 @@
 #include "Channels.hpp"
 #include <cstring>
-#include <memory>
 #include "FpConfig.h"
 #include "Fw/Com/ComBuffer.hpp"
-#include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "Fw/Types/String.hpp"
 #include "ManagedParameters.hpp"
-#include "Os/Queue.hpp"
 #include "Os/Generic/PriorityQueue.hpp"
+#include "Os/Queue.hpp"
 #include "Services.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
@@ -27,8 +25,7 @@ ChannelBase<ChannelTemplateConfig>::ChannelBase(const ChannelBase& other) : id(o
     Os::Queue::Status status;
     // TODO name the channel based on the id
     Fw::String name = "Base Channel";
-    status =
-        m_externalQueue.create(name, CHANNEL_Q_DEPTH, static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
+    status = m_externalQueue.create(name, this->DEPTH, static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 
     m_channelTransferCount = other.m_channelTransferCount;
@@ -61,13 +58,13 @@ bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t& queue, FPrimeTransfe
     serialBuffer.resetDeser();
     serialBuffer.setBuffLen(frame.SERIALIZED_SIZE);
 
-    FwQueuePriorityType currentPriority = m_priority;
+   FwQueuePriorityType currentPriority = this->m_priority;
     FwSizeType actualSize;
     qStatus =
         queue.receive(serialBuffer.getBuffAddr(), frame.SERIALIZED_SIZE, m_blockType, actualSize, currentPriority);
-    if (qStatus == Os::Queue::Status::EMPTY) {
-        return true;
-    }
+    // if (qStatus == Os::Queue::Status::EMPTY) {
+    //     return true;
+    // }
 
     FW_ASSERT(qStatus == Os::Queue::Status::OP_OK, qStatus);
     FW_ASSERT(actualSize == static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE), actualSize,
@@ -78,10 +75,6 @@ bool ChannelBase<ChannelTemplateConfig>::pullFrame(Queue_t& queue, FPrimeTransfe
 
     PrimaryHeaderControlInfo_t ci;
     frame.primaryHeader.get(ci);
-    U16 testVal = ((static_cast<U8>(ci.dataFieldStatus.isPacketOrdered) << 13) & 0x1) |
-                  ((ci.dataFieldStatus.segmentLengthId << 11) & 0x7) | (ci.dataFieldStatus.firstHeaderPointer & 0x7FF);
-    Fw::Logger::log("\nGot frame.\n \t-> SCID %d, VCID %d, VC Count %d MC Count %d testVal 0x%04X\n\n", ci.spacecraftId,
-                    ci.virtualChannelId, ci.virtualChannelFrameCount, ci.masterChannelFrameCount, testVal);
 
     return true;
 }
@@ -103,11 +96,6 @@ bool ChannelBase<ChannelTemplateConfig>::pushFrame(Queue_t& queue, FPrimeTransfe
 
     PrimaryHeaderControlInfo_t ci;
     frame.primaryHeader.get(ci);
-    U16 testVal = ((static_cast<U8>(ci.dataFieldStatus.isPacketOrdered) << 13) & 0x1) |
-                  ((ci.dataFieldStatus.segmentLengthId << 11) & 0x7) | (ci.dataFieldStatus.firstHeaderPointer & 0x7FF);
-    Fw::Logger::log("\nSending frame.\n \t-> SCID %d, VCID %d, VC Count %d MC Count %d testVal 0x%04X\n",
-                    ci.spacecraftId, ci.virtualChannelId, ci.virtualChannelFrameCount, ci.masterChannelFrameCount,
-                    testVal);
 
     return true;
 }
@@ -137,8 +125,8 @@ static_assert(std::is_same<typename VirtualChannel::Queue_t, Os::Generic::Priori
 VirtualChannel::VirtualChannel(GVCID_t const& id) : Base(id), m_receiveService(id), m_frameService(id) {
     Os::Queue::Status status;
     Fw::String name = "Channel";
-    status = this->m_externalQueue.create(name, CHANNEL_Q_DEPTH,
-                                          static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
+    status =
+        this->m_externalQueue.create(name, this->DEPTH, static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 }
 
@@ -162,8 +150,8 @@ bool VirtualChannel::generate(VCFUserData_t& arg) {
     PrimaryHeaderControlInfo_t primaryHeaderCI;
     // Get our primary header parameters that have been set so far.
     prim.frame.primaryHeader.get(primaryHeaderCI);
-    // Update the transfer count
-    primaryHeaderCI.virtualChannelFrameCount = this->m_channelTransferCount;
+    // Update the transfer count (assumes this transfer will succeed)
+    primaryHeaderCI.virtualChannelFrameCount = ++this->m_channelTransferCount;
     primaryHeaderCI.spacecraftId = this->id.MCID.SCID;
     primaryHeaderCI.transferFrameVersion = this->id.MCID.TFVN;
     primaryHeaderCI.virtualChannelId = this->id.VCID;
@@ -181,12 +169,7 @@ bool VirtualChannel::generate(VCFUserData_t& arg) {
     primaryHeaderCI.dataFieldStatus.segmentLengthId = arg.statusFields.segmentLengthId;
     primaryHeaderCI.dataFieldStatus.firstHeaderPointer = arg.statusFields.firstHeaderPointer;
 
-    U16 testVal = ((static_cast<U8>(primaryHeaderCI.dataFieldStatus.isPacketOrdered) << 13) & 0x1) |
-                  ((primaryHeaderCI.dataFieldStatus.segmentLengthId << 11) & 0x7) |
-                  (primaryHeaderCI.dataFieldStatus.firstHeaderPointer & 0x7FF);
     prim.frame.primaryHeader.set(primaryHeaderCI);
-    Fw::Logger::log("\t-> SCID %d, VCID %d, VC Count %d MC Count xx testVal 0x%04X\n\n", id.MCID.SCID, id.VCID,
-                    m_channelTransferCount, testVal);
 
     status = this->pushFrame(this->m_externalQueue, prim.frame);
     FW_ASSERT(status);
@@ -220,8 +203,8 @@ MasterChannel<NumSubChannels>::MasterChannel(Id_t const& id, VirtualChannelList&
     : Base(id), m_subChannels(subChannels) {
     Os::Queue::Status status;
     Fw::String name = "Channel";
-    status = this->m_externalQueue.create(name, CHANNEL_Q_DEPTH,
-                                          static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
+    status =
+        this->m_externalQueue.create(name, this->DEPTH, static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 }
 
@@ -232,7 +215,6 @@ template <FwSizeType NumSubChannels>
 bool MasterChannel<NumSubChannels>::receive(std::nullptr_t& _, TransferOut_t& masterChannelFrames) {
     bool status;
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
-        Fw::Logger::log("Receiving %d %d \n", vcIdx, m_subChannels.at(vcIdx).m_externalQueue.getMessagesAvailable());
         status = this->pullFrame(m_subChannels.at(vcIdx).m_externalQueue, masterChannelFrames.at(vcIdx));
         FW_ASSERT(status);
     }
@@ -244,19 +226,20 @@ bool MasterChannel<NumSubChannels>::generate(TransferOut_t& masterChannelFrames)
     bool status = true;  // Initialize status
     // Os::Queue::Status qStatus;
 
+    // Assuming this succeeded our transfer count should increment
+    this->m_channelTransferCount += 1;
     for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < m_subChannels.size(); vcIdx++) {
         PrimaryHeaderControlInfo_t primaryHeaderCI;
         // Get our primary header parameters that have been set so far.
         masterChannelFrames.at(vcIdx).primaryHeader.get(primaryHeaderCI);
         // Update the transfer count
         primaryHeaderCI.masterChannelFrameCount = this->m_channelTransferCount;
+        masterChannelFrames.at(vcIdx).primaryHeader.set(primaryHeaderCI);
 
         // Propogate the frame
         status = this->pushFrame(this->m_externalQueue, masterChannelFrames.at(vcIdx));
         FW_ASSERT(status);
     }
-    // If we got this far that indicates that the transfer succeeded and we can increment the count
-    this->m_channelTransferCount += 1;
     return true;
 }
 
@@ -266,9 +249,6 @@ VirtualChannel& MasterChannel<NumSubChannels>::getChannel(GVCID_t const gvcid) {
     NATIVE_UINT_TYPE i = 0;
 
     do {
-        Fw::Logger::log("%d Looking for Id %d %d %d -> %d %d %d\n", i, gvcid.MCID.TFVN, gvcid.MCID.SCID, gvcid.VCID,
-                        m_subChannels.at(i).id.MCID.TFVN, m_subChannels.at(i).id.MCID.SCID,
-                        m_subChannels.at(i).id.VCID);
         if (m_subChannels.at(i).id == gvcid) {
             return m_subChannels.at(i);
         }
@@ -285,8 +265,8 @@ template <FwSizeType NumSubChannels>
 PhysicalChannel<NumSubChannels>::PhysicalChannel(Id_t const& id, MasterChannelList& subChannels)
     : Base(id), m_subChannels(subChannels) {
     Os::Queue::Status status;
-    status = this->m_externalQueue.create(id, CHANNEL_Q_DEPTH,
-                                          static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
+    status =
+        this->m_externalQueue.create(id, this->DEPTH, static_cast<FwSizeType>(FPrimeTransferFrame::SERIALIZED_SIZE));
     FW_ASSERT(status == Os::Queue::Status::OP_OK, status);
 }
 

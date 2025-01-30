@@ -11,8 +11,8 @@
 #include "Fw/Types/Serializable.hpp"
 #include "Fw/Types/String.hpp"
 #include "ManagedParameters.hpp"
-#include "Os/Queue.hpp"
 #include "Os/Generic/PriorityQueue.hpp"
+#include "Os/Queue.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Services.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
@@ -21,8 +21,6 @@
 #include "TransferFrameDefs.hpp"
 
 namespace TMSpaceDataLink {
-constexpr FwSizeType CHANNEL_Q_DEPTH = 10;
-
 template <typename TransferInType, typename TransferOutType, typename QueueType, typename IdType>
 struct ChannelParameterConfig {
     using TransferIn_t = TransferInType;
@@ -52,6 +50,7 @@ struct ChannelParameterConfig {
 template <typename ChannelTemplateConfig>
 class ChannelBase {
   public:
+    static constexpr FwSizeType DEPTH = 10;
     // Channel type definitions
     using TransferIn_t = typename ChannelTemplateConfig::TransferIn_t;
     using Queue_t = typename ChannelTemplateConfig::Queue_t;
