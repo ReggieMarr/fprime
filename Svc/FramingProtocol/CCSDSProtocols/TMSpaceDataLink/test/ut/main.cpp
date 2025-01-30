@@ -18,24 +18,24 @@
 // ----------------------------------------------------------------------
 
 static void setRandomControlInfo(TMSpaceDataLink::PrimaryHeaderControlInfo_t& ci) {
-    ci.virtualChannelFrameCount = STest::Pick::lowerUpper(0, 0xFF);
-    ci.masterChannelFrameCount = STest::Pick::lowerUpper(0, 0xFF);
-    ci.spacecraftId = STest::Pick::lowerUpper(0, 0b1111111111);
-    ci.transferFrameVersion = STest::Pick::lowerUpper(0, 0b11);
-    ci.virtualChannelId = STest::Pick::lowerUpper(0, 0b111);
+    ci.virtualChannelFrameCount = STest::Random::lowerUpper(0, 0xFF);
+    ci.masterChannelFrameCount = STest::Random::lowerUpper(0, 0xFF);
+    ci.spacecraftId = STest::Random::lowerUpper(0, 0b1111111111);
+    ci.transferFrameVersion = STest::Random::lowerUpper(0, 0b11);
+    ci.virtualChannelId = STest::Random::lowerUpper(0, 0b111);
 
-    ci.operationalControlFlag = STest::Pick::lowerUpper(0, 1);
-    ci.dataFieldStatus.hasSecondaryHeader = STest::Pick::lowerUpper(0, 1);
-    ci.dataFieldStatus.isSyncFlagEnabled = STest::Pick::lowerUpper(0, 1);
-    ci.dataFieldStatus.isPacketOrdered = STest::Pick::lowerUpper(0, 1);
-    ci.dataFieldStatus.segmentLengthId = STest::Pick::lowerUpper(0, 0b111);
-    ci.dataFieldStatus.firstHeaderPointer = STest::Pick::lowerUpper(0, 0b11111111111);
+    ci.operationalControlFlag = STest::Random::lowerUpper(0, 1);
+    ci.dataFieldStatus.hasSecondaryHeader = STest::Random::lowerUpper(0, 1);
+    ci.dataFieldStatus.isSyncFlagEnabled = STest::Random::lowerUpper(0, 1);
+    ci.dataFieldStatus.isPacketOrdered = STest::Random::lowerUpper(0, 1);
+    ci.dataFieldStatus.segmentLengthId = STest::Random::lowerUpper(0, 0b111);
+    ci.dataFieldStatus.firstHeaderPointer = STest::Random::lowerUpper(0, 0b11111111111);
 }
 
 static void setRandomData(TMSpaceDataLink::FPrimeDataField::FieldValue_t& data) {
     for (U32 i = 0; i < data.size(); i++) {
         // U8 originalData = data.at(i);
-        data.at(i) = STest::Pick::lowerUpper(0, 0xFF);
+        data.at(i) = STest::Random::lowerUpper(0, 0xFF);
         // we expected that the data has changed, this won't always be the case
         // but we should be notified when it is
         // EXPECT_NE(originalData, data.at(i));
@@ -70,7 +70,7 @@ TEST(FPrimeFraming, DataFieldValidate) {
     TMSpaceDataLink::FPrimeDataField::FieldValue_t dataIn, dataOut;
     TMSpaceDataLink::FPrimeDataField dataFieldIn, dataFieldOut;
     TMSpaceDataLink::FPrimeErrorControlField errorControlField;
-    bool status = false;;
+    bool status = false;
 
     ASSERT_GT(comBuff.getBuffCapacity(), dataFieldIn.SERIALIZED_SIZE);
 
@@ -121,7 +121,7 @@ TEST(FPrimeFraming, FrameSetterTest) {
 
     // Fill in random data
     for (U32 i = 0; i < data.size(); i++) {
-        data.at(i) = STest::Pick::lowerUpper(0, 0xFF);
+        data.at(i) = STest::Random::lowerUpper(0, 0xFF);
     }
 
     frameIn.dataField.set(data);
@@ -148,7 +148,6 @@ TEST(FPrimeFraming, FrameSetterTest) {
 
     frameOut.errorControlField.get(retrievedCrc);
     ASSERT_EQ(retrievedCrc, calculatedCrc);
-
 }
 
 // TEST(FPrimeFraming, FrameDetectorTest) {
