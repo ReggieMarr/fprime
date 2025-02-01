@@ -62,10 +62,6 @@ class ProtocolEntity {
             .MCID = mcid,
             .VCID = 0,
         };
-        // GVCID_t gvcidSecondary = {
-        //     .MCID = mcid,
-        //     .VCID = 1,
-        // };
         std::array<GVCID_t, NUM_VIRTUAL_CHANNELS> paramIds;
         for (NATIVE_UINT_TYPE i = 0; i < paramIds.size(); i++) {
             MCID_t mcid;

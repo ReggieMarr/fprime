@@ -10,6 +10,7 @@
 #include "STest/Random/Random.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolInterface.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrameDefs.hpp"
 #include "Svc/FramingProtocol/test/ut/DeframingTester.hpp"
@@ -20,7 +21,7 @@
 // Tests
 // ----------------------------------------------------------------------
 
-static void setRandomControlInfo(TMSpaceDataLink::PrimaryHeaderControlInfo_t& ci) {
+static void pickRandomHeader(TMSpaceDataLink::PrimaryHeaderControlInfo_t& ci) {
     ci.virtualChannelFrameCount = STest::Random::lowerUpper(0, 0xFF);
     ci.masterChannelFrameCount = STest::Random::lowerUpper(0, 0xFF);
     ci.spacecraftId = STest::Random::lowerUpper(0, 0b1111111111);
@@ -63,9 +64,9 @@ TEST(FPrimeFraming, HeaderSetterTest) {
     TMSpaceDataLink::PrimaryHeader headerIn, headerOut;
 
     COMMENT("Populate control info in/out with unique sets of random data");
-    setRandomControlInfo(controlInfoIn);
+    pickRandomHeader(controlInfoIn);
     controlInfoIn.masterChannelFrameCount = 1;
-    setRandomControlInfo(controlInfoOut);
+    pickRandomHeader(controlInfoOut);
     controlInfoOut.operationalControlFlag = !controlInfoIn.operationalControlFlag;
     controlInfoOut.dataFieldStatus.hasSecondaryHeader = !controlInfoIn.dataFieldStatus.hasSecondaryHeader;
     controlInfoOut.dataFieldStatus.isSyncFlagEnabled = !controlInfoIn.dataFieldStatus.isSyncFlagEnabled;
@@ -80,7 +81,7 @@ TEST(FPrimeFraming, HeaderSetterTest) {
     ASSERT_EQ(headerIn, headerOut);
 
     COMMENT("Populate the control info out with a new and different set of data from the input");
-    setRandomControlInfo(controlInfoOut);
+    pickRandomHeader(controlInfoOut);
     controlInfoOut.operationalControlFlag = !controlInfoIn.operationalControlFlag;
     controlInfoOut.dataFieldStatus.hasSecondaryHeader = !controlInfoIn.dataFieldStatus.hasSecondaryHeader;
     controlInfoOut.dataFieldStatus.isSyncFlagEnabled = !controlInfoIn.dataFieldStatus.isSyncFlagEnabled;
@@ -149,7 +150,7 @@ TEST(FPrimeFraming, FrameSetterTest) {
     TMSpaceDataLink::FPrimeDataField::FieldValue_t data;
     TMSpaceDataLink::FPrimeDataField dataField;
 
-    setRandomControlInfo(controlInfo);
+    pickRandomHeader(controlInfo);
 
     frameIn.primaryHeader.set(controlInfo);
 
@@ -274,7 +275,7 @@ TEST(ChannelTest, VirtualChannelFrameContent) {
     TMSpaceDataLink::PrimaryHeaderControlInfo_t headerIn;
     bool status;
 
-    setRandomControlInfo(headerIn);
+    pickRandomHeader(headerIn);
 
     headerIn.spacecraftId = vcId.MCID.SCID;
     headerIn.virtualChannelId = vcId.VCID;
@@ -501,6 +502,172 @@ TEST(ChannelTest, GetChannelValidGVCID) {
         TMSpaceDataLink::VirtualChannel& vc = mc.getChannel(id);
         ASSERT_EQ(vc.id, id);
     };
+}
+
+typedef struct {
+  const FwOpcodeType opCode;
+  const U32 cmdSeq;
+  const U32 testCnt;
+} loopbackMsgHeader_t;
+
+constexpr FwSizeType MessageNum = NUM_VIRTUAL_CHANNELS;
+constexpr FwSizeType MessageSize = 55;
+
+// Config
+// Assumes largest message looks like this "{opCode: 123, testCnt: 1234, cmdSeq: 1234, pld: '12345678'}"
+// Provides enough space for that + padding for others
+// constexpr std::array<std::array<U8, MessageSize>, MessageNum> ChannelMsgs = {{
+//     {'B', 'O', 'N', 'J', 'O', 'U', 'R'}, // Channel 0: "BONJOUR"
+//     {'S', 'A', 'L', 'U', 'T', 0, 0},  // Channel 1: "SALUT" (padded with 0s)
+//     {0xF0, 0x9F, 0x8D, 0x81, 0, 0, 0} // Channel 2: Oh Canada (padded with 0s)
+// }};
+
+static constexpr std::array<TMSpaceDataLink::VirtualChannelParams_t, MessageNum>
+    VCParams = {
+        {{
+             0,           // virtualChannelId = 0,
+             MessageSize, // VCA_SDULength = 7 (channelMessages max size),
+             0,           // VC_FSHLength = 0,
+             false,       // isVC_OCFPresent = false,
+         },
+         {
+             1,           // virtualChannelId = 1,
+             MessageSize, // VCA_SDULength = 7 (channelMessages max size),
+             0,           // VC_FSHLength = 0,
+             false,       // isVC_OCFPresent = false,
+         },
+         {
+             2,           // virtualChannelId = 2,
+             MessageSize, // VCA_SDULength = 7 (channelMessages max size),
+             0,           // VC_FSHLength = 0,
+             false,       // isVC_OCFPresent = false,
+         }}};
+
+static constexpr TMSpaceDataLink::MasterChannelParams_t MasterChannelParams = {
+    .spaceCraftId = CCSDS_SCID,
+    .numSubChannels = 3,
+    .subChannels = VCParams,
+    .vcMuxScheme = VC_MUX_TYPE::VC_MUX_TIME_DIVSION,
+    .MC_FSHLength = 0,
+    .isMC_OCFPresent = false,
+};
+
+TMSpaceDataLink::ProtocolEntity createProtocolEntity() {
+
+  // NOTE this must be defined on the stack as a consequence of using the
+  // non-trivial type Fw::String
+  // TODO consider removing that constraint
+  const TMSpaceDataLink::PhysicalChannelParams_t PhysicalChannelParams = {
+      .channelName = "Loopback Channel",
+      .transferFrameSize = 255,
+      .transferFrameVersion = 0x00,
+      .numSubChannels = 1,
+      .subChannels = {MasterChannelParams},
+      .mcMuxScheme = MC_MUX_TYPE::MC_MUX_TIME_DIVSION,
+      .isFrameErrorControlEnabled = true,
+  };
+
+  TMSpaceDataLink::ManagedParameters_t ManagedParams = {
+      .physicalParams = PhysicalChannelParams,
+  };
+
+  return TMSpaceDataLink::ProtocolEntity(ManagedParams);
+}
+
+static void routeMessage(TMSpaceDataLink::ProtocolEntity &protocolEntity, Fw::Buffer &messageBuffer, const U8 vcIdx) {
+
+  // Only one master channel supported
+  TMSpaceDataLink::PhysicalChannelParams_t params =
+      protocolEntity.m_params.physicalParams;
+  FW_ASSERT(params.numSubChannels == 1, params.subChannels.size());
+  constexpr FwSizeType masterChannelIdx = 0;
+  TMSpaceDataLink::MCID_t mcid = {
+      .SCID = params.subChannels.at(masterChannelIdx).spaceCraftId,
+      .TFVN = params.transferFrameVersion};
+  TMSpaceDataLink::GVCID_t gvcid = {.MCID = mcid,
+                                    .VCID =
+                                        params.subChannels.at(masterChannelIdx)
+                                            .subChannels.at(vcIdx)
+                                            .virtualChannelId};
+  U32 gvcidVal;
+  TMSpaceDataLink::GVCID_t::toVal(gvcid, gvcidVal);
+
+  // NOTE manually offsetting to data for now
+  FwSizeType messageSendSize =
+      params.subChannels.at(0).subChannels.at(vcIdx).VCA_SDULength;
+  std::string messageText(
+      reinterpret_cast<const char *>(messageBuffer.getData() +
+                                     sizeof(FwPacketDescriptorType)),
+      messageSendSize);
+  Fw::Logger::log(messageText.c_str());
+
+  protocolEntity.UserComIn_handler(messageBuffer, gvcidVal);
+}
+
+static void pickRandomDataFieldData(TMSpaceDataLink::FPrimeDataField::FieldValue_t& data) {
+    COMMENT("Populate Message data");
+    loopbackMsgHeader_t header = {
+        .opCode = static_cast<FwOpcodeType>(STest::Random::lowerUpper(0, std::numeric_limits<U16>::max())),
+        .cmdSeq = STest::Random::lowerUpper(0, std::numeric_limits<U32>::max()),
+        .testCnt = STest::Random::lowerUpper(0, std::numeric_limits<U32>::max()),
+    };
+
+    std::memcpy(data.data(), &header, sizeof(loopbackMsgHeader_t));
+    for (U32 j = sizeof(loopbackMsgHeader_t); j < data.size(); j++) {
+        data.at(j) = STest::Random::lowerUpper(0, 0xFF);
+    }
+}
+
+static void sendProtocolEntityData(TMSpaceDataLink::ProtocolEntity &protocol, Fw::Buffer &buffer, U8 const &vcId) {
+
+    COMMENT("Push Message into the ProtocolEntity");
+    routeMessage(protocol, buffer, vcId);
+
+    COMMENT("Ensure that master channels are transfered");
+    std::nullptr_t null_arg = nullptr;
+    for (U32 i = 0; i < protocol.m_physicalChannel.m_subChannels.size(); i++) {
+        protocol.m_physicalChannel.m_subChannels.at(i).transfer(null_arg);
+    }
+}
+
+static void receiveProtocolEntityData(TMSpaceDataLink::ProtocolEntity &protocol,
+                                      std::array<U8, TMSpaceDataLink::FPrimeDataField::SERIALIZED_SIZE> & msgs) {
+    COMMENT("Push Messages into the ProtocolEntity");
+    Fw::Buffer buffer(msgs.data(), msgs.size());
+    protocol.generateNextFrame(buffer);
+}
+
+TEST(ProtocolInterfaceTester, TestInterfaceMapping) {
+    TMSpaceDataLink::ProtocolEntity protocol = createProtocolEntity();
+    std::array<std::array<U8, TMSpaceDataLink::FPrimeDataField::SERIALIZED_SIZE>, MessageNum> msgsIn, msgsOut;
+
+    TMSpaceDataLink::FPrimeTransferFrame frameIn, frameOut;
+    TMSpaceDataLink::PrimaryHeaderControlInfo_t headerInfoIn;
+    TMSpaceDataLink::FPrimeDataField::FieldValue_t data;
+    TMSpaceDataLink::FPrimeDataField dataField;
+
+    for (U32 i = 0; i < MessageNum; i++) {
+        pickRandomHeader(headerInfoIn);
+        frameIn.primaryHeader.set(headerInfoIn);
+        pickRandomDataFieldData(data);
+        frameIn.dataField.set(data);
+        Fw::Buffer msgBuffer(msgsIn.at(i).data(), msgsIn.at(i).size());
+
+        sendProtocolEntityData(protocol, msgBuffer, headerInfoIn.virtualChannelFrameCount);
+
+        COMMENT("Ensure these buffs are different from one another");
+        for (FwSizeType msgIdx = 0; msgIdx < msgsOut.size(); msgIdx++) {
+            for (FwSizeType buffIdx = 0; buffIdx < msgsOut.size(); buffIdx++) {
+                msgsOut.at(msgIdx).at(buffIdx) = ~msgsIn.at(msgIdx).at(buffIdx);
+            }
+        }
+    }
+
+
+    for (U32 i = 0; i < MessageNum; i++) {
+        receiveProtocolEntityData(protocol, msgsOut.at(i));
+    }
+
 }
 
 // ----------------------------------------------------------------------

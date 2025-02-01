@@ -5,7 +5,6 @@
 //
 // ======================================================================
 #include "TransferFrame.hpp"
-#include <array>
 #include <cstring>
 #include "FpConfig.h"
 #include "FpConfig.hpp"
@@ -14,9 +13,7 @@
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "ProtocolDataUnits.hpp"
-#include "Svc/FrameAccumulator/FrameDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolDataUnits.hpp"
-#include "Utils/Types/CircularBuffer.hpp"
 
 namespace TMSpaceDataLink {
 
