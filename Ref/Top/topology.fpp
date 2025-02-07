@@ -59,6 +59,7 @@ module Ref {
     instance dpWriter
     instance dpBufferManager
     instance version
+    instance telemComm
 
     # ----------------------------------------------------------------------
     # Pattern graph specifiers
@@ -89,10 +90,10 @@ module Ref {
       fileDownlink.bufferSendOut -> downlink.bufferIn
 
       downlink.framedAllocate -> staticMemory.bufferAllocate[Ports_StaticMemory.downlink]
-      downlink.framedOut -> comm.$send
+      downlink.framedOut -> telemComm.$send
       downlink.bufferDeallocate -> fileDownlink.bufferReturn
 
-      comm.deallocate -> staticMemory.bufferDeallocate[Ports_StaticMemory.downlink]
+      telemComm.deallocate -> staticMemory.bufferDeallocate[Ports_StaticMemory.downlink]
 
       dpCat.fileOut -> fileDownlink.SendFile
       fileDownlink.FileComplete -> dpCat.fileDone

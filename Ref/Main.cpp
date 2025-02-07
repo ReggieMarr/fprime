@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
             case 'a':
                 hostname = optarg;
                 break;
-            // Handle the -p port number argument
+            // Handle the -p port number argument. Temporarily this is for TC and telem is TC+1
             case 'p':
                 port_number = static_cast<U32>(atoi(optarg));
                 break;
@@ -84,6 +84,7 @@ int main(int argc, char* argv[]) {
     Ref::TopologyState inputs;
     inputs.hostname = hostname;
     inputs.port = port_number;
+    inputs.telemPort = port_number+1;
 
     // Setup program shutdown via Ctrl-C
     signal(SIGINT, signalHandler);

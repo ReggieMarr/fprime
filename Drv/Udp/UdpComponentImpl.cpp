@@ -82,7 +82,13 @@ void UdpComponentImpl::connected() {
 // Handler implementations for user-defined typed input ports
 // ----------------------------------------------------------------------
 
+//Temp
+#include <stdio.h>
+
 Drv::SendStatus UdpComponentImpl::send_handler(const NATIVE_INT_TYPE portNum, Fw::Buffer& fwBuffer) {
+    //Temp
+    printf("---Sending via UDP\n");
+
     Drv::SocketIpStatus status = send(fwBuffer.getData(), fwBuffer.getSize());
     // Always return the buffer
     deallocate_out(0, fwBuffer);

@@ -76,7 +76,13 @@ void TcpClientComponentImpl::connected() {
 // Handler implementations for user-defined typed input ports
 // ----------------------------------------------------------------------
 
+//Temp
+#include <stdio.h>
+
 Drv::SendStatus TcpClientComponentImpl::send_handler(const NATIVE_INT_TYPE portNum, Fw::Buffer& fwBuffer) {
+    //Temp
+    printf("---Sending via TCP\n");
+
     Drv::SocketIpStatus status = send(fwBuffer.getData(), fwBuffer.getSize());
     // Only deallocate buffer when the caller is not asked to retry
     if (status == SOCK_INTERRUPTED_TRY_AGAIN) {

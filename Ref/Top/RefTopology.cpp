@@ -58,7 +58,7 @@ enum TopologyConstants {
     UPLINK_BUFFER_MANAGER_QUEUE_SIZE = 30,
     UPLINK_BUFFER_MANAGER_ID = 200,
     DP_BUFFER_MANAGER_STORE_SIZE = 10000,
-    DP_BUFFER_MANAGER_QUEUE_SIZE = 10,
+    DP_BUFFER_MANAGER_QUEUE_SIZE = 100, //Temp
     DP_BUFFER_MANAGER_ID = 300
 };
 
@@ -120,7 +120,7 @@ void configureTopology() {
     dpWriter.configure(dpDir);
 
     // Note: Uncomment when using Svc:TlmPacketizer
-    // tlmSend.setPacketList(RefPacketsPkts, RefPacketsIgnore, 1);
+    tlmSend.setPacketList(RefPacketsPkts, RefPacketsIgnore, 1);
 }
 
 // Public functions for use in main program are namespaced with deployment name Ref
@@ -148,10 +148,13 @@ void setupTopology(const TopologyState& state) {
     // Startup TLM and Config verbosity for Versions
     version.config(true);
     // Initialize socket client communication if and only if there is a valid specification
-    if (state.hostname != nullptr && state.port != 0) {
-        Os::TaskString name("ReceiveTask");
+    if (state.hostname != nullptr && state.port != 0 && state.telemPort != 0) {
+        Os::TaskString nameRX("ReceiveTask");
         // Uplink is configured for receive so a socket task is started
-        comm.start(name, COMM_PRIORITY, Default::STACK_SIZE);
+        comm.configure(state.hostname, state.port);
+        comm.start(nameRX, true, COMM_PRIORITY, Default::STACK_SIZE);
+        // Downlink is configured for sending only
+        telemComm.configureSend(state.hostname, state.telemPort);
     }
 }
 

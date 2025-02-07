@@ -31,6 +31,7 @@ namespace Ref {
 struct TopologyState {
     const char* hostname;
     U32 port;
+    U32 telemPort;
 };
 
 /**

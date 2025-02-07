@@ -20,7 +20,7 @@
         <channel name="Ref.fileDownlink.PacketsSent"/>
         <channel name="Ref.fileManager.CommandsExecuted"/>
         <!-- Uncomment to use Svc::TlmPacketizer -->
-        <!-- channel name="Ref.tlmSend.SendLevel"/-->
+        <channel name="Ref.tlmSend.SendLevel"/>
     </packet>
 
     <packet name="CDHErrors" id="2" level="1">
@@ -34,7 +34,6 @@
         <channel name="Ref.fileManager.Errors"/>
         <channel name="Ref.fileUplinkBufferManager.NoBuffs"/>
         <channel name="Ref.fileUplinkBufferManager.EmptyBuffs"/>
-        <channel name="Ref.fileManager.Errors"/>
     </packet>
 
     <packet name="DriveTlm" id="3" level="1">
