@@ -266,6 +266,14 @@ endfunction()
 function(is_target_library OUTPUT TEST_TARGET)
     set("${OUTPUT}" FALSE PARENT_SCOPE)
     if (TARGET "${TEST_TARGET}")
+        # Check if marked as deployment
+        get_target_property(IS_DEPLOYMENT "${TEST_TARGET}" IS_DEPLOYMENT_LIB)
+        if(IS_DEPLOYMENT)
+            set("${OUTPUT}" FALSE PARENT_SCOPE)
+            return()
+        endif()
+
+        # Original library check
         get_target_property(TARGET_TYPE "${TEST_TARGET}" TYPE)
         ends_with(IS_LIBRARY "${TARGET_TYPE}" "_LIBRARY")
         set("${OUTPUT}" "${IS_LIBRARY}" PARENT_SCOPE)
