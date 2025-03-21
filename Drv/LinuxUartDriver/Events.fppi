@@ -63,3 +63,12 @@ event BufferTooSmall(
   severity warning high \
   id 6 \
   format "UART Device {} target buffer too small. Size: {} Needs: {}"
+
+
+@ UART port closed event, added to the end for backwards compatibility
+event PortClosed(
+                     device: string size 40 @< The device
+                   ) \
+  severity activity high \
+  id 7 \
+  format "UART Device {} disconnected"

@@ -73,6 +73,7 @@ class LinuxUartDriver final : public LinuxUartDriverComponentBase {
               UartFlowControl fc,
               UartParity parity,
               FwSizeType allocationSize);
+    bool stop();
 
     //! start the serial poll thread.
     //! buffSize is the max receive buffer size

@@ -8,6 +8,9 @@ module Drv {
 
     import ByteStreamDriver
 
+    @ Port invoked when the driver is no longer ready to send/receive data
+    output port notReady: Drv.ByteStreamReady
+
     @ Allocation port used for allocating memory in the receive task
     output port allocate: Fw.BufferGet
 

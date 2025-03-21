@@ -285,6 +285,24 @@ bool LinuxUartDriver::open(const char* const device,
     return true;
 }
 
+bool LinuxUartDriver ::stop() {
+    if (this->m_fd != -1) {
+        (void)close(this->m_fd);
+    }
+    this->m_quitReadThread = true;
+
+    bool ret = this->join() == Os::Task::Status::OP_OK;
+
+    // Closed device
+    Fw::LogStringArg _arg = this->m_device;
+    this->log_ACTIVITY_HI_PortClosed(_arg);
+    if (this->isConnected_notReady_OutputPort(0)) {
+        this->notReady_out(0); // Indicate the driver is connected
+    }
+
+    return ret;
+}
+
 LinuxUartDriver ::~LinuxUartDriver() {
     if (this->m_fd != -1) {
         (void)close(this->m_fd);
@@ -380,6 +398,13 @@ void LinuxUartDriver ::start(FwTaskPriorityType priority,
     Os::Task::Arguments arguments(task, serialReadTaskEntry, this, priority, stackSize, cpuAffinity);
     Os::Task::Status stat = this->m_readTask.start(arguments);
     FW_ASSERT(stat == Os::Task::OP_OK, stat);
+
+    // Now we're ready
+    Fw::LogStringArg _arg = this->m_device;
+    this->log_ACTIVITY_HI_PortOpened(_arg);
+    if (this->isConnected_ready_OutputPort(0)) {
+        this->ready_out(0); // Indicate the driver is connected
+    }
 }
 
 void LinuxUartDriver ::quitReadThread() {
