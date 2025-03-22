@@ -8,6 +8,9 @@ module Drv {
 
     import ByteStreamDriver
 
+    @ Port invoked to send data out the driver
+    guarded input port readPoll: Drv.ByteStreamPoll
+
     @ Port invoked when the driver is no longer ready to send/receive data
     output port notReady: Drv.ByteStreamReady
 

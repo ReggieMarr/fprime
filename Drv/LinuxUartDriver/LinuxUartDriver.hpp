@@ -14,11 +14,12 @@
 #define LinuxUartDriver_HPP
 
 #include <Drv/LinuxUartDriver/LinuxUartDriverComponentAc.hpp>
-#include <Os/Mutex.hpp>
 #include <Os/Task.hpp>
+#include "Fw/Buffer/Buffer.hpp"
 
-#include <termios.h>
-#include <atomic>
+// #include <termios.h>
+
+#include <asm-generic/termbits.h>
 
 namespace Drv {
 
@@ -98,11 +99,14 @@ class LinuxUartDriver final : public LinuxUartDriverComponentBase {
     // ----------------------------------------------------------------------
 
     //! Handler implementation for run
-    //!
     //! The rate group input for sending telemetry
     void run_handler(FwIndexType portNum,  //!< The port number
                      U32 context           //!< The call order
                      ) override;
+    //! Port invoked to send data out the driver
+    //! Handler implementation for readPoll
+    Drv::PollStatus readPoll_handler(FwIndexType portNum,  //!< The port number
+                                     Fw::Buffer& pollBuffer) override;
 
     //! Handler implementation for serialSend
     //!
@@ -121,7 +125,9 @@ class LinuxUartDriver final : public LinuxUartDriverComponentBase {
     const char* m_device;         //!< original device path
 
     //! This method will be called by the new thread to wait for input on the serial port.
-    static void serialReadTaskEntry(void* ptr);
+    static void serialReadToRecvOutTaskEntry(void* ptr);
+
+    static bool readIntoBuff(LinuxUartDriver* comp, Fw::Buffer &buff);
 
     Os::Task m_readTask;  //!< task instance for thread to read serial port
 
