@@ -19,6 +19,13 @@ register_fprime_library(
     Svc_FprimeProtocol
     Svc_Ccsds_Types
 )
+set(MOD_DEPS
+    Utils/Types
+    Svc/FprimeProtocol
+    Components/DVBS2Protocol
+)
+
+register_fprime_module()
 
 #### UTs ####
 register_fprime_ut(
@@ -36,7 +43,7 @@ register_fprime_ut(
 
 register_fprime_ut(
   "Svc_FrameAccumulator_FprimeFrameDetector_test"
-  SOURCES 
+  SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/test/ut/detectors/FprimeFrameDetectorTestMain.cpp"
   HEADERS
     "${CMAKE_CURRENT_LIST_DIR}/FrameDetector/FprimeFrameDetector.hpp"
@@ -47,7 +54,7 @@ register_fprime_ut(
 
 register_fprime_ut(
   "Svc_FrameAccumulator_CcsdsTcFrameDetector_test"
-  SOURCES 
+  SOURCES
     "${CMAKE_CURRENT_LIST_DIR}/test/ut/detectors/CcsdsTcFrameDetectorTestMain.cpp"
   HEADERS
     "${CMAKE_CURRENT_LIST_DIR}/FrameDetector/CcsdsTcFrameDetector.hpp"
