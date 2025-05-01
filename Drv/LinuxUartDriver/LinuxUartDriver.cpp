@@ -43,6 +43,7 @@
 
 namespace Drv {
 
+#define DEBUG
 // ----------------------------------------------------------------------
 // Construction, initialization, and destruction
 // ----------------------------------------------------------------------
@@ -161,45 +162,66 @@ bool LinuxUartDriver::open(const char* const device) {
     return true;
 }
 
+static void printTtyConfig(termios2 const *tty) {
+    // Check baud rate
+    Fw::Logger::log("ispeed/ospeed: %u/%u\n", tty->c_ispeed, tty->c_ospeed);
+
+    // Check flags
+    Fw::Logger::log("c_cflag: requested=0x%X\n", tty->c_cflag);
+    Fw::Logger::log("c_iflag: requested=0x%X\n", tty->c_iflag);
+    Fw::Logger::log("c_lflag: requested=0x%X\n", tty->c_lflag);
+
+    // Check specific important flags
+    Fw::Logger::log("Hardware flow control: %s\n",
+                       (tty->c_cflag & CRTSCTS) ? "ON" : "OFF");
+    Fw::Logger::log("Software flow control: %s\n",
+                       (tty->c_iflag & IXON) ? "ON" : "OFF");
+    Fw::Logger::log("Canonical mode: %s\n",
+                       (tty->c_lflag & ICANON) ? "ON" : "OFF");
+    Fw::Logger::log("Echo: %s\n",
+                       (tty->c_lflag & ECHO) ? "ON" : "OFF");
+    Fw::Logger::log("VMIN: %u, VTIME: %u\n",
+                       tty->c_cc[VMIN], tty->c_cc[VTIME]);
+}
+
+static void printUartConfig(UartConfig& cfg) {
+    // Check baud rate
+    Fw::Logger::log("baudrate: %u\n", cfg.baudRate);
+
+    // Check flags
+    Fw::Logger::log("dataBits: requested=0x%X\n", cfg.dataBits);
+    Fw::Logger::log("stopBits_iflag: requested=0x%X\n", cfg.dataBits);
+
+    // Check specific important flags
+    Fw::Logger::log("Hardware flow control: %s\n", cfg.enableHardwareFlowControl ? "ON" : "OFF");
+    Fw::Logger::log("Software flow control: %s\n", cfg.enableSoftwareFlowControl ? "ON" : "OFF");
+    Fw::Logger::log("Canonical mode: %s\n", cfg.enableInputProcessingMode ? "ON" : "OFF");
+    Fw::Logger::log("Echo: %s\n", cfg.enableEchoMode ? "ON" : "OFF");
+    Fw::Logger::log("MinChars: %u, TimeoutMs: %u\n", cfg.minChars, cfg.timeoutMs);
+}
+
 static bool setTtyConfig(termios2* tty, UartConfig& cfg) {
-    // Reset these flags
-    // TODO determine what the behaviour is here
-    tty->c_iflag = (ICRNL | ONLCR);
-    tty->c_oflag = 0;
-    tty->c_lflag = 0;
+    // Start by getting current flags rather than resetting them
+    // We'll modify specific bits rather than overwriting everything
 
-    // See https://man7.org/linux/man-pages/man3/tcflush.3.html
-    tty->c_cflag &= ~CSIZE;  // CSIZE is a mask for the number of bits per character
+    // Clear and set appropriate bits for data bits
+    tty->c_cflag &= ~CSIZE;  // Clear the data bits field
     switch (cfg.dataBits) {
-        case UartConfig::DataBits::DATA_5:
-            tty->c_cflag |= CS5;
-            break;
-        case UartConfig::DataBits::DATA_6:
-            tty->c_cflag |= CS6;
-            break;
-        case UartConfig::DataBits::DATA_7:
-            tty->c_cflag |= CS7;
-            break;
-        case UartConfig::DataBits::DATA_8:
-            tty->c_cflag |= CS8;
-            break;
-        default:
-            return false;
+        case UartConfig::DataBits::DATA_5: tty->c_cflag |= CS5; break;
+        case UartConfig::DataBits::DATA_6: tty->c_cflag |= CS6; break;
+        case UartConfig::DataBits::DATA_7: tty->c_cflag |= CS7; break;
+        case UartConfig::DataBits::DATA_8: tty->c_cflag |= CS8; break;
+        default: return false;
     }
 
-    // 1 Stop bit is standard
-    // Set num. stop bits
-    switch (cfg.stopBits) {
-        case UartConfig::StopBits::STOP_1:
-            tty->c_cflag &= ~CSTOPB;
-            break;
-        case UartConfig::StopBits::STOP_2:
-            tty->c_cflag |= CSTOPB;
-            break;
-        default:
-            return false;
+    // Set stop bits
+    if (cfg.stopBits == UartConfig::StopBits::STOP_1) {
+        tty->c_cflag &= ~CSTOPB;
+    } else {
+        tty->c_cflag |= CSTOPB;
     }
 
+    // Set flow control
     if (cfg.enableHardwareFlowControl) {
         tty->c_cflag |= CRTSCTS;
     } else {
@@ -207,19 +229,18 @@ static bool setTtyConfig(termios2* tty, UartConfig& cfg) {
     }
 
     if (cfg.enableSoftwareFlowControl) {
-        tty->c_iflag |= (IXON | IXOFF | IXANY);
+        tty->c_iflag |= (IXON | IXOFF);
     } else {
         tty->c_iflag &= ~(IXON | IXOFF | IXANY);
     }
 
-    // Ignore modem
+    // Set local mode and receiver enabling
     if (cfg.localMode) {
         tty->c_cflag |= CLOCAL;
     } else {
         tty->c_cflag &= ~CLOCAL;
     }
 
-    // Enable receiver
     if (cfg.receiverEnable) {
         tty->c_cflag |= CREAD;
     } else {
@@ -227,154 +248,135 @@ static bool setTtyConfig(termios2* tty, UartConfig& cfg) {
     }
 
     // Set parity
-    // See https://man7.org/linux/man-pages/man3/tcflush.3.html
     switch (cfg.parity) {
         case UartConfig::Parity::PARITY_NONE:
             tty->c_cflag &= ~PARENB;
             break;
         case UartConfig::Parity::PARITY_EVEN:
             tty->c_cflag |= PARENB;
-            tty->c_cflag &= ~PARODD;  // Clearing PARODD makes the parity even
+            tty->c_cflag &= ~PARODD;
             break;
         case UartConfig::Parity::PARITY_ODD:
-            tty->c_cflag |= (PARENB | PARODD);
+            tty->c_cflag |= PARENB;
+            tty->c_cflag |= PARODD;
             break;
         default:
             return false;
     }
 
-    // Use the custom baud rate mechanism
-    tty->c_cflag &= ~CBAUD;
-    // According to this CBAUDEX is often more reliable than BOTHER
-    // https://blog.mbedded.ninja/programming/operating-systems/linux/linux-serial-ports-using-c-cpp/
-    // tty->c_cflag |= CBAUDEX;
-    tty->c_cflag |= BOTHER;
-    // Set baud rate values
+    // Determine numeric baud speed
+    speed_t baudspeed;
     switch (cfg.baudRate) {
-        case UartConfig::BaudRate::BAUD_9600:
-            tty->c_ispeed = tty->c_ospeed = 9600;
-            break;
-        case UartConfig::BaudRate::BAUD_19200:
-            tty->c_ispeed = tty->c_ospeed = 19200;
-            break;
-        case UartConfig::BaudRate::BAUD_38400:
-            tty->c_ispeed = tty->c_ospeed = 38400;
-            break;
-        case UartConfig::BaudRate::BAUD_57600:
-            tty->c_ispeed = tty->c_ospeed = 57600;
-            break;
-        case UartConfig::BaudRate::BAUD_115K:
-            tty->c_ispeed = tty->c_ospeed = 115200;
-            break;
-        case UartConfig::BaudRate::BAUD_230K:
-            tty->c_ispeed = tty->c_ospeed = 230400;
-            break;
-#ifdef TGT_OS_TYPE_LINUX
-        case UartConfig::BaudRate::BAUD_460K:
-            tty->c_ispeed = tty->c_ospeed = 460800;
-            break;
-        case UartConfig::BaudRate::BAUD_921K:
-            tty->c_ispeed = tty->c_ospeed = 921600;
-            break;
-        case UartConfig::BaudRate::BAUD_1000K:
-            tty->c_ispeed = tty->c_ospeed = 1000000;
-            break;
-        case UartConfig::BaudRate::BAUD_1152K:
-            tty->c_ispeed = tty->c_ospeed = 1152000;
-            break;
-        case UartConfig::BaudRate::BAUD_1500K:
-            tty->c_ispeed = tty->c_ospeed = 1500000;
-            break;
-        case UartConfig::BaudRate::BAUD_2000K:
-            tty->c_ispeed = tty->c_ospeed = 2000000;
-            break;
+        case UartConfig::BaudRate::BAUD_9600:   baudspeed = 9600;   break;
+        case UartConfig::BaudRate::BAUD_19200:  baudspeed = 19200;  break;
+        case UartConfig::BaudRate::BAUD_38400:  baudspeed = 38400;  break;
+        case UartConfig::BaudRate::BAUD_57600:  baudspeed = 57600;  break;
+        case UartConfig::BaudRate::BAUD_115K:   baudspeed = 115200; break;
+        case UartConfig::BaudRate::BAUD_230K:   baudspeed = 230400; break;
+        case UartConfig::BaudRate::BAUD_460K:   baudspeed = 460800; break;
+        case UartConfig::BaudRate::BAUD_921K:   baudspeed = 921600; break;
+        case UartConfig::BaudRate::BAUD_1000K:  baudspeed = 1000000;break;
+        case UartConfig::BaudRate::BAUD_1152K:  baudspeed = 1152000;break;
+        case UartConfig::BaudRate::BAUD_1500K:  baudspeed = 1500000;break;
+        case UartConfig::BaudRate::BAUD_2000K:  baudspeed = 2000000;break;
 #ifdef B2500000
-        case UartConfig::BaudRate::BAUD_2500K:
-            tty->c_ispeed = tty->c_ospeed = 2500000;
-            break;
+        case UartConfig::BaudRate::BAUD_2500K:  baudspeed = 2500000;break;
 #endif
 #ifdef B3000000
-        case UartConfig::BaudRate::BAUD_3000K:
-            tty->c_ispeed = tty->c_ospeed = 3000000;
-            break;
+        case UartConfig::BaudRate::BAUD_3000K:  baudspeed = 3000000;break;
 #endif
 #ifdef B3500000
-        case UartConfig::BaudRate::BAUD_3500K:
-            tty->c_ispeed = tty->c_ospeed = 3500000;
-            break;
+        case UartConfig::BaudRate::BAUD_3500K:  baudspeed = 3500000;break;
 #endif
 #ifdef B4000000
-        case UartConfig::BaudRate::BAUD_4000K:
-            tty->c_ispeed = tty->c_ospeed = 4000000;
-            break;
-#endif
+        case UartConfig::BaudRate::BAUD_4000K:  baudspeed = 4000000;break;
 #endif
         default:
             return false;
     }
 
-    // Canonical input is when read waits for EOL or EOF characters before returning. In non-canonical mode, the rate at
-    // which read() returns is instead controlled by c_cc[VMIN] and c_cc[VTIME] Configure input processing modes
+    // Clear old baud bits and set new
+    tty->c_cflag &= ~CBAUD;
+    switch (cfg.baudRate) {
+        case UartConfig::BaudRate::BAUD_9600:   tty->c_cflag |= B9600;   break;
+        case UartConfig::BaudRate::BAUD_19200:  tty->c_cflag |= B19200;  break;
+        case UartConfig::BaudRate::BAUD_38400:  tty->c_cflag |= B38400;  break;
+        case UartConfig::BaudRate::BAUD_57600:  tty->c_cflag |= B57600;  break;
+        case UartConfig::BaudRate::BAUD_115K:   tty->c_cflag |= B115200; break;
+        case UartConfig::BaudRate::BAUD_230K:   tty->c_cflag |= B230400; break;
+        case UartConfig::BaudRate::BAUD_460K:   tty->c_cflag |= B460800; break;
+        case UartConfig::BaudRate::BAUD_921K:   tty->c_cflag |= B921600; break;
+        default:
+            // non-standard rate: use BOTHER
+            tty->c_cflag |= BOTHER;
+            break;
+    }
+    // Apply numeric speed regardless
+    tty->c_ispeed = baudspeed;
+    tty->c_ospeed = baudspeed;
+
+    // Set canonical mode and echo settings
     if (cfg.enableInputProcessingMode) {
-        tty->c_lflag |= ICANON;  // Enable canonical mode
-        tty->c_lflag |= ISIG;    // Enable signals
-        tty->c_lflag |= IEXTEN;  // Enable extended functions
+        tty->c_lflag |= ICANON;
+        tty->c_lflag |= ISIG;
+        tty->c_lflag |= IEXTEN;
     } else {
-        tty->c_lflag &= ~ICANON;  // Disable canonical mode
-        tty->c_lflag &= ~ISIG;    // Disable signals
-        tty->c_lflag &= ~IEXTEN;  // Disable extended functions
+        tty->c_lflag &= ~ICANON;
+        tty->c_lflag &= ~ISIG;
+        tty->c_lflag &= ~IEXTEN;
     }
 
-    // Turn off echo erase (echo erase only relevant if canonical input is active)
     if (cfg.enableEchoMode) {
         tty->c_lflag |= (ECHO | ECHOE | ECHOK);
     } else {
         tty->c_lflag &= ~(ECHO | ECHOE | ECHOK | ECHONL);
     }
 
-    /* In non canonical mode (Ctrl-C and other disabled, no echo,...) VMIN and VTIME work this way:
-    if the function read() has'nt read at least VMIN chars it waits until has read at least VMIN
-    chars (even if VTIME timeout expires); once it has read at least vmin chars, if subsequent
-    chars do not arrive before VTIME expires, it returns error; if a char arrives, it resets the
-    timeout, so the internal timer will again start from zero (for the nex char,if any)*/
-    // tty->c_cc[VMIN]=1;// Minimum number of characters to read before returning error
-    // tty->c_cc[VTIME]=1;// Set timeouts in tenths of second
+    // Set VMIN and VTIME
+    tty->c_cc[VMIN] = cfg.minChars;
+
     if (cfg.timeoutMs == -1) {
-        // Always wait for at least one byte, this could
-        // block indefinitely
         tty->c_cc[VTIME] = 0;
     } else if (cfg.timeoutMs == 0) {
-        // Setting both to 0 will give a non-blocking read
         tty->c_cc[VTIME] = 0;
-    } else if (cfg.timeoutMs > 0) {
-        // round up to nearest 100ms
-        // NOTE there was some comments that the max should be 25500
+    } else {
         tty->c_cc[VTIME] = (cc_t)((cfg.timeoutMs + 99) / 100);
     }
 
-    // TODO theres some mutual exclusion to the above options that we should account for
-    tty->c_cc[VMIN] = cfg.minChars;
+    // These were causing issues, setting specific terminal input/output settings
+    if (cfg.enableInputProcessingMode) {
+        // Canonical mode typically wants ICRNL
+        tty->c_iflag |= ICRNL;
+    } else {
+        // Raw mode wants minimal processing
+        tty->c_iflag &= ~(ICRNL | INLCR | IGNCR);
+    }
 
-    // Configure echo depending on echo_ boolean
-    tty->c_lflag &= ~ECHOE;   // Turn off echo erase (echo erase only relevant if canonical input is active)
-    tty->c_lflag &= ~ECHONL;  //
-    tty->c_lflag &= ~ISIG;    // Disables recognition of INTR (interrupt), QUIT and SUSP (suspend) characters
+    // Disable output processing for raw mode
+    if (cfg.enableInputProcessingMode) {
+        // If in canonical mode, you might want some output processing
+        tty->c_oflag |= ONLCR;  // Map NL to CR-NL on output
+    } else {
+        // Raw output
+        tty->c_oflag &= ~OPOST;
+    }
 
     return true;
 }
 
-bool LinuxUartDriver::open(const char* const device, UartConfig& cfg) {
+bool LinuxUartDriver::open(const char* const device, UartConfig& cfg, FwSizeType allocationSize) {
     Fw::LogStringArg deviceArg = device;
+    this->m_allocationSize = allocationSize;
 
     // Check if device exists first
-    if (access(device, F_OK) == -1) {
+    if (access(device, F_OK) > 0) {
         Fw::LogStringArg errorStr = strerror(errno);
         this->log_WARNING_HI_OpenError(deviceArg, -1, errorStr);
         return false;
     }
 
     I32 ret = ::open(device, O_RDWR | O_NOCTTY | O_SYNC);
-    if (ret == -1) {
+    if (ret < 0) {
         Fw::LogStringArg errorStr = strerror(errno);
         this->log_WARNING_HI_OpenError(deviceArg, ret, errorStr);
         return false;
@@ -391,6 +393,8 @@ bool LinuxUartDriver::open(const char* const device, UartConfig& cfg) {
         ::close(this->m_fd);
         return false;
     }
+    printUartConfig(cfg);
+    printTtyConfig(&tty);
 
     if (!setTtyConfig(&tty, cfg)) {
         Fw::LogStringArg errorStr = strerror(errno);
@@ -399,9 +403,7 @@ bool LinuxUartDriver::open(const char* const device, UartConfig& cfg) {
         return false;
     }
 
-    // Flush and apply the settings
-    // tcflush(this->m_fd, TCIFLUSH);
-    ioctl(this->m_fd, TCIFLUSH);
+    // Apply the settings
     ret = ioctl(this->m_fd, TCSETS2, &tty);
     if (ret < 0) {
         // Handle error
@@ -410,6 +412,9 @@ bool LinuxUartDriver::open(const char* const device, UartConfig& cfg) {
         ::close(this->m_fd);
         return false;
     }
+
+    Fw::Logger::log("Post set settings:\n");
+    printTtyConfig(&tty);
 
     // Now we're ready
     this->m_device = device;
@@ -465,19 +470,6 @@ Drv::ByteStreamStatus LinuxUartDriver ::send_handler(const FwIndexType portNum, 
         NATIVE_INT_TYPE xferSize = static_cast<NATIVE_INT_TYPE>(serBuffer.getSize());
         Fw::String byteStr;
         Fw::String buffStr;
-        buffStr += "->(0x";
-        for (FwIndexType i = 0; i < serBuffer.getSize(); ++i) {
-            byteStr.format("%x", *static_cast<U8*>(serBuffer.getData() + i));
-            buffStr += byteStr;
-        }
-        buffStr += ")";
-        byteStr.format("%u/%u", serBuffer.getSerializeRepr().getBuffLength(), serBuffer.getSize());
-        buffStr += byteStr;
-        buffStr += "\n";
-
-#ifdef DEBUG
-        Fw::Logger::log("Sending %p %d %s", data, serBuffer.getSize(), buffStr.toChar());
-#endif
 
         ssize_t stat = ::write(this->m_fd, data, xferSize);
 

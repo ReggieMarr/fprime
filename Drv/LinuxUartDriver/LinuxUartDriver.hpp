@@ -74,7 +74,7 @@ class LinuxUartDriver final : public LinuxUartDriverComponentBase {
     enum UartParity { PARITY_NONE, PARITY_ODD, PARITY_EVEN };
 
     // Open device with specified baud and flow control.
-    bool open(const char* const device, UartConfig &uartConfig);
+    bool open(const char* const device, UartConfig &uartConfig, FwSizeType allocationSize);
     bool open(const char* const device);
     bool stop();
     bool resetHardware();
