@@ -10,27 +10,36 @@
 //
 // ======================================================================
 
-#include <unistd.h>
 #include <Drv/LinuxUartDriver/LinuxUartDriver.hpp>
 #include <Os/TaskString.hpp>
 
 #include "Drv/ByteStreamDriverModel/PollStatusEnumAc.hpp"
 #include "Drv/ByteStreamDriverModel/RecvStatusEnumAc.hpp"
+#include "Drv/LinuxUartDriver/UartConfig.hpp"
 #include "FpConfig.h"
 #include "Fw/Logger/Logger.hpp"
 #include "Fw/Time/TimeInterval.hpp"
 #include "Fw/Types/BasicTypes.hpp"
+#include "Fw/Types/String.hpp"
 
+// Linux headers
+// #include <fcntl.h> // Contains file controls like O_RDWR
+// #include <errno.h> // Error integer and strerror() function
+// // Contains POSIX terminal control definitions
+// // #include <termios.h> This must be removed, otherwise we'll get "redefinition of ‘struct termios’" errors
+// #include <sys/ioctl.h> // Used for TCGETS2/TCSETS2, which is required for custom baud rates
+// #include <unistd.h> // write(), read(), close()
+
+// old
 #include <fcntl.h>
 // #include <termios.h>
 #include <cerrno>
 
 // #include <termios.h>
 
-#include <sys/ioctl.h>
 #include <asm-generic/termbits.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
-
 
 namespace Drv {
 
@@ -47,11 +56,36 @@ LinuxUartDriver ::LinuxUartDriver(const char* const compName)
       m_bytesReceived(0),
       m_quitReadThread(false) {}
 
-bool LinuxUartDriver::open(const char* const device,
-                          UartBaudRate baud,
-                          UartFlowControl fc,
-                          UartParity parity,
-                          U32 allocationSize) {
+bool LinuxUartDriver::resetHardware() {
+    if (this->m_fd < 0) {
+        return false;
+    }
+
+    // Get current state
+    int status;
+    if (ioctl(this->m_fd, TIOCMGET, &status) < 0) {
+        return false;
+    }
+
+    // Toggle DTR (Data Terminal Ready)
+    status &= ~TIOCM_DTR;  // Clear DTR
+    if (ioctl(this->m_fd, TIOCMSET, &status) < 0) {
+        return false;
+    }
+
+    // Wait briefly
+    usleep(200000);  // 200ms
+
+    // Set DTR back
+    status |= TIOCM_DTR;
+    if (ioctl(this->m_fd, TIOCMSET, &status) < 0) {
+        return false;
+    }
+
+    return true;
+}
+
+bool LinuxUartDriver::open(const char* const device) {
     this->m_fd = ::open(device, O_RDWR | O_NOCTTY | O_SYNC);
 
     if (this->m_fd == -1) {
@@ -77,18 +111,18 @@ bool LinuxUartDriver::open(const char* const device,
     txTty.c_ospeed = 3000000;
 
     // Set data bits, parity, stop bits: 8N1
-    txTty.c_cflag &= ~PARENB; // No parity
-    txTty.c_cflag &= ~CSTOPB; // 1 stop bit
+    txTty.c_cflag &= ~PARENB;  // No parity
+    txTty.c_cflag &= ~CSTOPB;  // 1 stop bit
     txTty.c_cflag &= ~CSIZE;
-    txTty.c_cflag |= CS8;     // 8 data bits
-
+    txTty.c_cflag |= CS8;  // 8 data bits
 
     // Disable hardware flow control if needed (or enable if fc == HW_FLOW)
     txTty.c_cflag &= ~CRTSCTS;  // Disable hardware flow control by default
     // Configure control flags for local connection and enabling receiver
-    txTty.c_cflag |= CLOCAL | CREAD; // turn on READ & ignore ctrl lines
+    txTty.c_cflag |= CLOCAL | CREAD;  // turn on READ & ignore ctrl lines
 
-    txTty.c_iflag &= ~(IXON | IXOFF | IXANY); // turn off s/w flow ctrl
+    // turn off s/w flow ctrl
+    txTty.c_iflag &= ~(IXON | IXOFF | IXANY);
 
     // Set raw mode (non-canonical, no echo, etc.)
     txTty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
@@ -96,7 +130,8 @@ bool LinuxUartDriver::open(const char* const device,
 
     // Configure timeout: don't wait for a character, 2.5s timeout
     txTty.c_cc[VMIN] = 0;
-    txTty.c_cc[VTIME] = 1; // Timeout at 1 decisecond or 100ms // static_cast<cc_t>(2500 / 100.0 + 0.5); // Convert ms to deciseconds
+    txTty.c_cc[VTIME] =
+        1;  // Timeout at 1 decisecond or 100ms // static_cast<cc_t>(2500 / 100.0 + 0.5); // Convert ms to deciseconds
 
     // Flush and apply the settings
     // tcflush(this->m_fd, TCIFLUSH);
@@ -114,7 +149,7 @@ bool LinuxUartDriver::open(const char* const device,
     Fw::LogStringArg _arg = this->m_device;
     this->log_ACTIVITY_HI_PortOpened(_arg);
     if (this->isConnected_ready_OutputPort(0)) {
-        this->ready_out(0); // Indicate the driver is connected
+        this->ready_out(0);  // Indicate the driver is connected
     }
 
     // All done!
@@ -126,179 +161,266 @@ bool LinuxUartDriver::open(const char* const device,
     return true;
 }
 
-// bool LinuxUartDriver::open(const char* const device,
-//                           UartBaudRate baud,
-//                           UartFlowControl fc,
-//                           UartParity parity,
-//                           U32 allocationSize) {
-//     FW_ASSERT(device != nullptr);
-//     NATIVE_INT_TYPE fd = -1;
-//     NATIVE_INT_TYPE stat = -1;
-//     this->m_allocationSize = allocationSize;
-//     this->m_device = device;
+static bool setTtyConfig(termios2* tty, UartConfig& cfg) {
+    // Reset these flags
+    // TODO determine what the behaviour is here
+    tty->c_iflag = (ICRNL | ONLCR);
+    tty->c_oflag = 0;
+    tty->c_lflag = 0;
 
-//     fd = ::open(device, O_RDWR | O_NOCTTY | O_SYNC);
-//     if (fd == -1) {
-//         Fw::LogStringArg _arg = device;
-//         Fw::LogStringArg _err = strerror(errno);
-//         this->log_WARNING_HI_OpenError(_arg, this->m_fd, _err);
-//         return false;
-//     }
-//     this->m_fd = fd;
+    // See https://man7.org/linux/man-pages/man3/tcflush.3.html
+    tty->c_cflag &= ~CSIZE;  // CSIZE is a mask for the number of bits per character
+    switch (cfg.dataBits) {
+        case UartConfig::DataBits::DATA_5:
+            tty->c_cflag |= CS5;
+            break;
+        case UartConfig::DataBits::DATA_6:
+            tty->c_cflag |= CS6;
+            break;
+        case UartConfig::DataBits::DATA_7:
+            tty->c_cflag |= CS7;
+            break;
+        case UartConfig::DataBits::DATA_8:
+            tty->c_cflag |= CS8;
+            break;
+        default:
+            return false;
+    }
 
-//     // Get the current terminal settings
-//     struct termios newtio;
-//     stat = tcgetattr(fd, &newtio);
-//     if (stat == -1) {
-//         close(fd);
-//         Fw::LogStringArg _arg = device;
-//         Fw::LogStringArg _err = strerror(errno);
-//         this->log_WARNING_HI_OpenError(_arg, fd, _err);
-//         return false;
-//     }
+    // 1 Stop bit is standard
+    // Set num. stop bits
+    switch (cfg.stopBits) {
+        case UartConfig::StopBits::STOP_1:
+            tty->c_cflag &= ~CSTOPB;
+            break;
+        case UartConfig::StopBits::STOP_2:
+            tty->c_cflag |= CSTOPB;
+            break;
+        default:
+            return false;
+    }
 
-//     // Start with a clean state by zeroing the structure
-//     // This is safer than modifying existing flags
-//     memset(&newtio, 0, sizeof(newtio));
+    if (cfg.enableHardwareFlowControl) {
+        tty->c_cflag |= CRTSCTS;
+    } else {
+        tty->c_cflag &= ~CRTSCTS;
+    }
 
-//     // Configure baud rate using BOTHER approach (like the old implementation)
-// #ifdef BOTHER
-//     // If BOTHER is defined, use the custom baud rate approach
-//     struct termios2 tio2;
-//     stat = ioctl(fd, TCGETS2, &tio2);
-//     if (stat != -1) {
-//         tio2.c_cflag &= ~CBAUD;
-//         tio2.c_cflag |= BOTHER;
+    if (cfg.enableSoftwareFlowControl) {
+        tty->c_iflag |= (IXON | IXOFF | IXANY);
+    } else {
+        tty->c_iflag &= ~(IXON | IXOFF | IXANY);
+    }
 
-//         // Set the actual numeric baud rate based on the enum
-//         switch (baud) {
-//             case BAUD_3000K:
-//                 tio2.c_ispeed = tio2.c_ospeed = 3000000;
-//                 break;
-//             // Add other cases as needed
-//             default:
-//                 // Handle default case
-//                 close(fd);
-//                 return false;
-//         }
+    // Ignore modem
+    if (cfg.localMode) {
+        tty->c_cflag |= CLOCAL;
+    } else {
+        tty->c_cflag &= ~CLOCAL;
+    }
 
-//         // Apply the settings
-//         stat = ioctl(fd, TCSETS2, &tio2);
-//         if (stat == -1) {
-//             close(fd);
-//             Fw::LogStringArg _arg = device;
-//             Fw::LogStringArg _err = strerror(errno);
-//             this->log_WARNING_HI_OpenError(_arg, fd, _err);
-//             return false;
-//         }
-//     } else
-// #endif
-//     {
-//         // Standard baud rate setting as fallback
-//         speed_t relayRate = B0;
-//         switch (baud) {
-//             // ... your existing cases ...
-// #ifdef B3000000
-//             case BAUD_3000K:
-//                 relayRate = B3000000;
-//                 break;
-// #endif
-//             default:
-//                 FW_ASSERT(0, static_cast<FwAssertArgType>(baud));
-//                 break;
-//         }
+    // Enable receiver
+    if (cfg.receiverEnable) {
+        tty->c_cflag |= CREAD;
+    } else {
+        tty->c_cflag &= ~CREAD;
+    }
 
-//         // Set standard baud rate
-//         stat = cfsetispeed(&newtio, relayRate);
-//         if (stat) {
-//             close(fd);
-//             Fw::LogStringArg _arg = device;
-//             Fw::LogStringArg _err = strerror(errno);
-//             this->log_WARNING_HI_OpenError(_arg, fd, _err);
-//             return false;
-//         }
-//         stat = cfsetospeed(&newtio, relayRate);
-//         if (stat) {
-//             close(fd);
-//             Fw::LogStringArg _arg = device;
-//             Fw::LogStringArg _err = strerror(errno);
-//             this->log_WARNING_HI_OpenError(_arg, fd, _err);
-//             return false;
-//         }
-//     }
+    // Set parity
+    // See https://man7.org/linux/man-pages/man3/tcflush.3.html
+    switch (cfg.parity) {
+        case UartConfig::Parity::PARITY_NONE:
+            tty->c_cflag &= ~PARENB;
+            break;
+        case UartConfig::Parity::PARITY_EVEN:
+            tty->c_cflag |= PARENB;
+            tty->c_cflag &= ~PARODD;  // Clearing PARODD makes the parity even
+            break;
+        case UartConfig::Parity::PARITY_ODD:
+            tty->c_cflag |= (PARENB | PARODD);
+            break;
+        default:
+            return false;
+    }
 
-//     // Set data bits - IMPORTANT: Set CS8 AFTER clearing CSIZE
-//     newtio.c_cflag &= ~CSIZE;  // Clear size bits
-//     newtio.c_cflag |= CS8;     // Set 8 data bits
+    // Use the custom baud rate mechanism
+    tty->c_cflag &= ~CBAUD;
+    // According to this CBAUDEX is often more reliable than BOTHER
+    // https://blog.mbedded.ninja/programming/operating-systems/linux/linux-serial-ports-using-c-cpp/
+    // tty->c_cflag |= CBAUDEX;
+    tty->c_cflag |= BOTHER;
+    // Set baud rate values
+    switch (cfg.baudRate) {
+        case UartConfig::BaudRate::BAUD_9600:
+            tty->c_ispeed = tty->c_ospeed = 9600;
+            break;
+        case UartConfig::BaudRate::BAUD_19200:
+            tty->c_ispeed = tty->c_ospeed = 19200;
+            break;
+        case UartConfig::BaudRate::BAUD_38400:
+            tty->c_ispeed = tty->c_ospeed = 38400;
+            break;
+        case UartConfig::BaudRate::BAUD_57600:
+            tty->c_ispeed = tty->c_ospeed = 57600;
+            break;
+        case UartConfig::BaudRate::BAUD_115K:
+            tty->c_ispeed = tty->c_ospeed = 115200;
+            break;
+        case UartConfig::BaudRate::BAUD_230K:
+            tty->c_ispeed = tty->c_ospeed = 230400;
+            break;
+#ifdef TGT_OS_TYPE_LINUX
+        case UartConfig::BaudRate::BAUD_460K:
+            tty->c_ispeed = tty->c_ospeed = 460800;
+            break;
+        case UartConfig::BaudRate::BAUD_921K:
+            tty->c_ispeed = tty->c_ospeed = 921600;
+            break;
+        case UartConfig::BaudRate::BAUD_1000K:
+            tty->c_ispeed = tty->c_ospeed = 1000000;
+            break;
+        case UartConfig::BaudRate::BAUD_1152K:
+            tty->c_ispeed = tty->c_ospeed = 1152000;
+            break;
+        case UartConfig::BaudRate::BAUD_1500K:
+            tty->c_ispeed = tty->c_ospeed = 1500000;
+            break;
+        case UartConfig::BaudRate::BAUD_2000K:
+            tty->c_ispeed = tty->c_ospeed = 2000000;
+            break;
+#ifdef B2500000
+        case UartConfig::BaudRate::BAUD_2500K:
+            tty->c_ispeed = tty->c_ospeed = 2500000;
+            break;
+#endif
+#ifdef B3000000
+        case UartConfig::BaudRate::BAUD_3000K:
+            tty->c_ispeed = tty->c_ospeed = 3000000;
+            break;
+#endif
+#ifdef B3500000
+        case UartConfig::BaudRate::BAUD_3500K:
+            tty->c_ispeed = tty->c_ospeed = 3500000;
+            break;
+#endif
+#ifdef B4000000
+        case UartConfig::BaudRate::BAUD_4000K:
+            tty->c_ispeed = tty->c_ospeed = 4000000;
+            break;
+#endif
+#endif
+        default:
+            return false;
+    }
 
-//     // Set parity
-//     switch (parity) {
-//         case PARITY_ODD:
-//             newtio.c_cflag |= (PARENB | PARODD);
-//             break;
-//         case PARITY_EVEN:
-//             newtio.c_cflag |= PARENB;
-//             break;
-//         case PARITY_NONE:
-//             newtio.c_cflag &= ~PARENB;
-//             break;
-//         default:
-//             FW_ASSERT(0, parity);
-//             break;
-//     }
+    // Canonical input is when read waits for EOL or EOF characters before returning. In non-canonical mode, the rate at
+    // which read() returns is instead controlled by c_cc[VMIN] and c_cc[VTIME] Configure input processing modes
+    if (cfg.enableInputProcessingMode) {
+        tty->c_lflag |= ICANON;  // Enable canonical mode
+        tty->c_lflag |= ISIG;    // Enable signals
+        tty->c_lflag |= IEXTEN;  // Enable extended functions
+    } else {
+        tty->c_lflag &= ~ICANON;  // Disable canonical mode
+        tty->c_lflag &= ~ISIG;    // Disable signals
+        tty->c_lflag &= ~IEXTEN;  // Disable extended functions
+    }
 
-//     // Set flow control
-//     if (fc == HW_FLOW) {
-//         newtio.c_cflag |= CRTSCTS;  // Enable hardware flow control
-//     } else {
-//         newtio.c_cflag &= ~CRTSCTS; // Disable hardware flow control
-//     }
+    // Turn off echo erase (echo erase only relevant if canonical input is active)
+    if (cfg.enableEchoMode) {
+        tty->c_lflag |= (ECHO | ECHOE | ECHOK);
+    } else {
+        tty->c_lflag &= ~(ECHO | ECHOE | ECHOK | ECHONL);
+    }
 
-//     // Set other flags exactly as in the old implementation
-//     newtio.c_cflag |= CLOCAL | CREAD;  // Enable receiver and ignore modem control lines
-//     newtio.c_cflag &= ~CSTOPB;         // 1 stop bit
+    /* In non canonical mode (Ctrl-C and other disabled, no echo,...) VMIN and VTIME work this way:
+    if the function read() has'nt read at least VMIN chars it waits until has read at least VMIN
+    chars (even if VTIME timeout expires); once it has read at least vmin chars, if subsequent
+    chars do not arrive before VTIME expires, it returns error; if a char arrives, it resets the
+    timeout, so the internal timer will again start from zero (for the nex char,if any)*/
+    // tty->c_cc[VMIN]=1;// Minimum number of characters to read before returning error
+    // tty->c_cc[VTIME]=1;// Set timeouts in tenths of second
+    if (cfg.timeoutMs == -1) {
+        // Always wait for at least one byte, this could
+        // block indefinitely
+        tty->c_cc[VTIME] = 0;
+    } else if (cfg.timeoutMs == 0) {
+        // Setting both to 0 will give a non-blocking read
+        tty->c_cc[VTIME] = 0;
+    } else if (cfg.timeoutMs > 0) {
+        // round up to nearest 100ms
+        // NOTE there was some comments that the max should be 25500
+        tty->c_cc[VTIME] = (cc_t)((cfg.timeoutMs + 99) / 100);
+    }
 
-//     // Input flags - CRITICAL: Don't overwrite with INPCK alone
-//     newtio.c_iflag &= ~(IXON | IXOFF | IXANY); // Disable software flow control
-//     if (parity != PARITY_NONE) {
-//         newtio.c_iflag |= INPCK;  // Only enable parity checking if parity is enabled
-//     } else {
-//         newtio.c_iflag &= ~INPCK; // Disable parity checking for no parity
-//     }
+    // TODO theres some mutual exclusion to the above options that we should account for
+    tty->c_cc[VMIN] = cfg.minChars;
 
-//     // Local flags - Set raw mode
-//     newtio.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    // Configure echo depending on echo_ boolean
+    tty->c_lflag &= ~ECHOE;   // Turn off echo erase (echo erase only relevant if canonical input is active)
+    tty->c_lflag &= ~ECHONL;  //
+    tty->c_lflag &= ~ISIG;    // Disables recognition of INTR (interrupt), QUIT and SUSP (suspend) characters
 
-//     // Output flags - Raw output
-//     newtio.c_oflag &= ~OPOST;
+    return true;
+}
 
-//     // Set timeouts
-//     FwSizeType timeoutMs = 5000;
-//     newtio.c_cc[VMIN] = 1;  // Return when at least 1 character is available
-//     newtio.c_cc[VTIME] = static_cast<cc_t>(timeoutMs / 100.0 + 0.5); // Timeout in deciseconds
+bool LinuxUartDriver::open(const char* const device, UartConfig& cfg) {
+    Fw::LogStringArg deviceArg = device;
 
-//     // Flush old data
-//     tcflush(fd, TCIFLUSH);
+    // Check if device exists first
+    if (access(device, F_OK) == -1) {
+        Fw::LogStringArg errorStr = strerror(errno);
+        this->log_WARNING_HI_OpenError(deviceArg, -1, errorStr);
+        return false;
+    }
 
-//     // Apply the settings
-//     stat = tcsetattr(fd, TCSANOW, &newtio);
-//     if (stat == -1) {
-//         close(fd);
-//         Fw::LogStringArg _arg = device;
-//         Fw::LogStringArg _err = strerror(errno);
-//         this->log_WARNING_HI_OpenError(_arg, fd, _err);
-//         return false;
-//     }
+    I32 ret = ::open(device, O_RDWR | O_NOCTTY | O_SYNC);
+    if (ret == -1) {
+        Fw::LogStringArg errorStr = strerror(errno);
+        this->log_WARNING_HI_OpenError(deviceArg, ret, errorStr);
+        return false;
+    }
+    this->m_fd = ret;
 
-//     // Now we're ready
-//     Fw::LogStringArg _arg = this->m_device;
-//     this->log_ACTIVITY_HI_PortOpened(_arg);
-//     if (this->isConnected_ready_OutputPort(0)) {
-//         this->ready_out(0); // Indicate the driver is connected
-//     }
+    // Using termios2 for configuration to support both standard and non-standard baud rates
+    struct termios2 tty;
 
-//     return true;
-// }
+    // Get the initial config
+    ret = ioctl(this->m_fd, TCGETS2, &tty);
+    if (ret < 0) {
+        // Handle error
+        ::close(this->m_fd);
+        return false;
+    }
+
+    if (!setTtyConfig(&tty, cfg)) {
+        Fw::LogStringArg errorStr = strerror(errno);
+        this->log_WARNING_HI_OpenError(deviceArg, this->m_fd, errorStr);
+        ::close(this->m_fd);
+        return false;
+    }
+
+    // Flush and apply the settings
+    // tcflush(this->m_fd, TCIFLUSH);
+    ioctl(this->m_fd, TCIFLUSH);
+    ret = ioctl(this->m_fd, TCSETS2, &tty);
+    if (ret < 0) {
+        // Handle error
+        Fw::LogStringArg errorStr = strerror(errno);
+        this->log_WARNING_HI_OpenError(deviceArg, this->m_fd, errorStr);
+        ::close(this->m_fd);
+        return false;
+    }
+
+    // Now we're ready
+    this->m_device = device;
+    Fw::LogStringArg _arg = this->m_device;
+    this->log_ACTIVITY_HI_PortOpened(_arg);
+    if (this->isConnected_ready_OutputPort(0)) {
+        this->ready_out(0);  // Indicate the driver is connected
+    }
+
+    return true;
+}
 
 bool LinuxUartDriver ::stop() {
     if (this->m_fd != -1) {
@@ -340,8 +462,22 @@ Drv::ByteStreamStatus LinuxUartDriver ::send_handler(const FwIndexType portNum, 
         status = Drv::ByteStreamStatus::OTHER_ERROR;
     } else {
         unsigned char* data = serBuffer.getData();
-        FW_ASSERT_NO_OVERFLOW(serBuffer.getSize(), size_t);
-        size_t xferSize = static_cast<size_t>(serBuffer.getSize());
+        NATIVE_INT_TYPE xferSize = static_cast<NATIVE_INT_TYPE>(serBuffer.getSize());
+        Fw::String byteStr;
+        Fw::String buffStr;
+        buffStr += "->(0x";
+        for (FwIndexType i = 0; i < serBuffer.getSize(); ++i) {
+            byteStr.format("%x", *static_cast<U8*>(serBuffer.getData() + i));
+            buffStr += byteStr;
+        }
+        buffStr += ")";
+        byteStr.format("%u/%u", serBuffer.getSerializeRepr().getBuffLength(), serBuffer.getSize());
+        buffStr += byteStr;
+        buffStr += "\n";
+
+#ifdef DEBUG
+        Fw::Logger::log("Sending %p %d %s", data, serBuffer.getSize(), buffStr.toChar());
+#endif
 
         ssize_t stat = ::write(this->m_fd, data, xferSize);
 
@@ -408,14 +544,15 @@ void LinuxUartDriver ::serialReadToRecvOutTaskEntry(void* ptr) {
     }
 }
 
-bool LinuxUartDriver ::readIntoBuff(LinuxUartDriver* comp, Fw::Buffer &buff) {
+bool LinuxUartDriver ::readIntoBuff(LinuxUartDriver* comp, Fw::Buffer& buff) {
     int stat = 0;
 
     size_t bytesRead = 0;
     size_t numBytes = buff.getSize();
     uint8_t* ptr = buff.getData();
 #ifdef DEBUG
-    Fw::Logger::log("Reading %p %d for %s - %s %d\n", ptr, numBytes, comp->m_objName.toChar(), comp->m_device, comp->m_fd);
+    Fw::Logger::log("Reading %p %d for %s - %s %d\n", ptr, numBytes, comp->m_objName.toChar(), comp->m_device,
+                    comp->m_fd);
 #endif
 
     // Read until something is received or an error occurs. Only loop when

@@ -15,9 +15,14 @@
 
 #include <Drv/LinuxUartDriver/LinuxUartDriverComponentAc.hpp>
 #include <Os/Task.hpp>
+#include "Drv/LinuxUartDriver/UartConfig.hpp"
 #include "Fw/Buffer/Buffer.hpp"
-
-// #include <termios.h>
+// // Linux headers
+// #include <fcntl.h> // Contains file controls like O_RDWR
+// // Contains POSIX terminal control definitions
+// // #include <termios.h> This must be removed, otherwise we'll get "redefinition of ‘struct termios’" errors
+// #include <sys/ioctl.h> // Used for TCGETS2/TCSETS2, which is required for custom baud rates
+// #include <unistd.h> // write(), read(), close()
 
 #include <asm-generic/termbits.h>
 
@@ -69,12 +74,10 @@ class LinuxUartDriver final : public LinuxUartDriverComponentBase {
     enum UartParity { PARITY_NONE, PARITY_ODD, PARITY_EVEN };
 
     // Open device with specified baud and flow control.
-    bool open(const char* const device,
-              UartBaudRate baud,
-              UartFlowControl fc,
-              UartParity parity,
-              FwSizeType allocationSize);
+    bool open(const char* const device, UartConfig &uartConfig);
+    bool open(const char* const device);
     bool stop();
+    bool resetHardware();
 
     //! start the serial poll thread.
     //! buffSize is the max receive buffer size
