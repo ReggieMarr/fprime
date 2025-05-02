@@ -530,7 +530,6 @@ void LinuxUartDriver ::serialReadToRecvOutTaskEntry(void* ptr) {
         } else {
             status = ByteStreamStatus::OTHER_ERROR;  // Simply to return the buffer
         }
-        status = comp->readIntoBuff(comp, buff) ? RecvStatus::RECV_OK : RecvStatus::RECV_ERROR;
 
         comp->recv_out(0, buff, status);  // added by m.chase 03.06.2017
     }
