@@ -43,7 +43,7 @@
 
 namespace Drv {
 
-#define DEBUG
+// #define DEBUG
 // ----------------------------------------------------------------------
 // Construction, initialization, and destruction
 // ----------------------------------------------------------------------
