@@ -22,7 +22,7 @@ register_fprime_library(
 set(MOD_DEPS
     Utils/Types
     Svc/FprimeProtocol
-    Components/DVBS2Protocol
+    # Components/DVBS2Protocol
 )
 
 register_fprime_module()

@@ -275,7 +275,7 @@ extern "C" {
 #endif
 
 #ifndef FW_TASK_HANDLE_MAX_SIZE
-#define FW_TASK_HANDLE_MAX_SIZE 24  //!< Maximum size of a handle for OS queues
+#define FW_TASK_HANDLE_MAX_SIZE 300  //!< Maximum size of a handle for OS queues
 #endif
 
 #ifndef FW_FILE_HANDLE_MAX_SIZE
