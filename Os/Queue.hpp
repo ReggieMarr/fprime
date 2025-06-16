@@ -11,6 +11,13 @@
 #include <Os/Mutex.hpp>
 #include <Os/Os.hpp>
 #include <Os/QueueString.hpp>
+
+// Save and clear problematic macros before F Prime headers
+#pragma push_macro("EMPTY")
+#ifdef EMPTY
+#undef EMPTY
+#endif
+
 namespace Os {
 // Forward declaration for registry
 class QueueRegistry;
@@ -322,4 +329,8 @@ class QueueRegistry {
     virtual void registerQueue(Queue* queue) = 0;  //!< method called by queue init() methods to register a new queue
 };
 }  // namespace Os
+
+// Restore Zephyr macros if needed later
+#pragma pop_macro("EMPTY")
+
 #endif
