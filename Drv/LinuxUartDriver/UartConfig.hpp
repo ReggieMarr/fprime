@@ -1,6 +1,6 @@
 #ifndef UARTCONFIG_H_
 #define UARTCONFIG_H_
-#include "FpConfig.hpp"
+#include "Fw/FPrimeBasicTypes.hpp"
 #include <Drv/LinuxUartDriver/LinuxUartDriverComponentAc.hpp>
 #include <Os/Task.hpp>
 #include <asm-generic/termbits.h>

@@ -16,11 +16,12 @@
 #include "Drv/ByteStreamDriverModel/PollStatusEnumAc.hpp"
 #include "Drv/ByteStreamDriverModel/RecvStatusEnumAc.hpp"
 #include "Drv/LinuxUartDriver/UartConfig.hpp"
-#include "FpConfig.h"
+#include "Fw/FPrimeBasicTypes.hpp"
 #include "Fw/Logger/Logger.hpp"
 #include "Fw/Time/TimeInterval.hpp"
 #include "Fw/Types/BasicTypes.hpp"
 #include "Fw/Types/String.hpp"
+#include "Platform/PlatformTypes.h"
 
 // Linux headers
 // #include <fcntl.h> // Contains file controls like O_RDWR
@@ -467,7 +468,7 @@ Drv::ByteStreamStatus LinuxUartDriver ::send_handler(const FwIndexType portNum, 
         status = Drv::ByteStreamStatus::OTHER_ERROR;
     } else {
         unsigned char* data = serBuffer.getData();
-        NATIVE_INT_TYPE xferSize = static_cast<NATIVE_INT_TYPE>(serBuffer.getSize());
+        PlatformIntType xferSize = static_cast<PlatformIntType>(serBuffer.getSize());
         Fw::String byteStr;
         Fw::String buffStr;
 
