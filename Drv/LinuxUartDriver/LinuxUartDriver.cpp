@@ -21,6 +21,7 @@
 #include "Fw/Time/TimeInterval.hpp"
 #include "Fw/Types/BasicTypes.hpp"
 #include "Fw/Types/String.hpp"
+#include "Platform/PlatformIndexTypeAliasAc.h"
 #include "Platform/PlatformTypes.h"
 
 // Linux headers
@@ -148,13 +149,6 @@ bool LinuxUartDriver::open(const char* const device) {
     }
 
     // Now we're ready
-    Fw::LogStringArg _arg = this->m_device;
-    this->log_ACTIVITY_HI_PortOpened(_arg);
-    if (this->isConnected_ready_OutputPort(0)) {
-        this->ready_out(0);  // Indicate the driver is connected
-    }
-
-    // All done!
     Fw::LogStringArg _arg = device;
     this->log_ACTIVITY_HI_PortOpened(_arg);
     if (this->isConnected_ready_OutputPort(0)) {
@@ -468,7 +462,7 @@ Drv::ByteStreamStatus LinuxUartDriver ::send_handler(const FwIndexType portNum, 
         status = Drv::ByteStreamStatus::OTHER_ERROR;
     } else {
         unsigned char* data = serBuffer.getData();
-        PlatformIntType xferSize = static_cast<PlatformIntType>(serBuffer.getSize());
+        PlatformIndexType xferSize = static_cast<PlatformIndexType>(serBuffer.getSize());
         Fw::String byteStr;
         Fw::String buffStr;
 

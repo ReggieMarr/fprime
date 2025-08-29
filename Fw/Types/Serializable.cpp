@@ -213,7 +213,6 @@ SerializeStatus SerializeBufferBase::serializeFrom(I64 val) {
     this->m_deserLoc = 0;
     return FW_SERIALIZE_OK;
 }
-#endif
 
 SerializeStatus SerializeBufferBase::serializeFrom(F64 val) {
     // floating point values need to be byte-swapped as well, so copy to U64 and use that routine
@@ -503,7 +502,6 @@ SerializeStatus SerializeBufferBase::deserializeTo(I64& val) {
 
     return FW_SERIALIZE_OK;
 }
-#endif
 
 SerializeStatus SerializeBufferBase::deserializeTo(F64& val) {
     // deserialize as 64-bit int to handle endianness
