@@ -14,17 +14,11 @@
 #define LinuxUartDriver_HPP
 
 #include <Drv/LinuxUartDriver/LinuxUartDriverComponentAc.hpp>
+#include <Os/Mutex.hpp>
 #include <Os/Task.hpp>
-#include "Drv/LinuxUartDriver/UartConfig.hpp"
-#include "Fw/Buffer/Buffer.hpp"
-// // Linux headers
-// #include <fcntl.h> // Contains file controls like O_RDWR
-// // Contains POSIX terminal control definitions
-// // #include <termios.h> This must be removed, otherwise we'll get "redefinition of ‘struct termios’" errors
-// #include <sys/ioctl.h> // Used for TCGETS2/TCSETS2, which is required for custom baud rates
-// #include <unistd.h> // write(), read(), close()
 
-#include <asm-generic/termbits.h>
+#include <termios.h>
+#include <atomic>
 
 namespace Drv {
 
@@ -74,10 +68,11 @@ class LinuxUartDriver final : public LinuxUartDriverComponentBase {
     enum UartParity { PARITY_NONE, PARITY_ODD, PARITY_EVEN };
 
     // Open device with specified baud and flow control.
-    bool open(const char* const device, UartConfig &uartConfig, FwSizeType allocationSize);
-    bool open(const char* const device);
-    bool stop();
-    bool resetHardware();
+    bool open(const char* const device,
+              UartBaudRate baud,
+              UartFlowControl fc,
+              UartParity parity,
+              FwSizeType allocationSize);
 
     //! start the serial poll thread.
     //! buffSize is the max receive buffer size
@@ -102,14 +97,11 @@ class LinuxUartDriver final : public LinuxUartDriverComponentBase {
     // ----------------------------------------------------------------------
 
     //! Handler implementation for run
+    //!
     //! The rate group input for sending telemetry
     void run_handler(FwIndexType portNum,  //!< The port number
                      U32 context           //!< The call order
                      ) override;
-    //! Port invoked to send data out the driver
-    //! Handler implementation for readPoll
-    Drv::PollStatus readPoll_handler(FwIndexType portNum,  //!< The port number
-                                     Fw::Buffer& pollBuffer) override;
 
     //! Handler implementation for serialSend
     //!
@@ -128,9 +120,7 @@ class LinuxUartDriver final : public LinuxUartDriverComponentBase {
     const char* m_device;         //!< original device path
 
     //! This method will be called by the new thread to wait for input on the serial port.
-    static void serialReadToRecvOutTaskEntry(void* ptr);
-
-    static bool readIntoBuff(LinuxUartDriver* comp, Fw::Buffer &buff);
+    static void serialReadTaskEntry(void* ptr);
 
     Os::Task m_readTask;  //!< task instance for thread to read serial port
 
