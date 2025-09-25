@@ -11,5 +11,8 @@ module Svc {
 
         @ Port receiving back ownership of sent buffers
         sync input port dataReturnIn: Svc.ComDataWithContext
+
+        @ Port receiving indicating the status of framer for receiving more data
+        output port comStatusOut: Fw.SuccessCondition
     }
 }

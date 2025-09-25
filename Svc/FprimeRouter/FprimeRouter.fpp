@@ -12,6 +12,9 @@ module Svc {
         @ components should either process data synchronously, or copy the data if needed
         output port unknownDataOut: Svc.ComDataWithContext
 
+        @ Telemetry output port
+        output port TlmPktSend: Fw.Com
+
         @ Port for allocating buffers
         output port bufferAllocate: Fw.BufferGet
 

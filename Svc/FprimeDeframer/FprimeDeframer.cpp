@@ -8,6 +8,7 @@
 #include "Fw/FPrimeBasicTypes.hpp"
 #include "Fw/Types/Assert.hpp"
 
+#include "Fw/Types/SuccessEnumAc.hpp"
 #include "Svc/FprimeProtocol/FrameHeaderSerializableAc.hpp"
 #include "Svc/FprimeProtocol/FrameTrailerSerializableAc.hpp"
 
@@ -100,6 +101,12 @@ void FprimeDeframer ::dataIn_handler(FwIndexType portNum, Fw::Buffer& data, cons
                  FprimeProtocol::FrameTrailer::SERIALIZED_SIZE);
     // Emit the deframed data
     this->dataOut_out(0, data, contextCopy);
+
+    if (!this->isConnected_comStatusOut_OutputPort(0)) {
+        return;
+    }
+    Fw::Success successCondition = Fw::Success::SUCCESS;
+    this->comStatusOut_out(0, successCondition);
 }
 
 void FprimeDeframer ::dataReturnIn_handler(FwIndexType portNum,
