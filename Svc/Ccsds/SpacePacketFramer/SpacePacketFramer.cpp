@@ -7,6 +7,7 @@
 #include "Svc/Ccsds/SpacePacketFramer/SpacePacketFramer.hpp"
 #include "Svc/Ccsds/Types/FppConstantsAc.hpp"
 #include "Svc/Ccsds/Types/SpacePacketHeaderSerializableAc.hpp"
+#include "Svc/Ccsds/Utils/CRC16.hpp"
 
 namespace Svc {
 
@@ -27,7 +28,7 @@ SpacePacketFramer ::~SpacePacketFramer() {}
 void SpacePacketFramer ::dataIn_handler(FwIndexType portNum, Fw::Buffer& data, const ComCfg::FrameContext& context) {
     SpacePacketHeader header;
     Fw::SerializeStatus status;
-    FwSizeType frameSize = SpacePacketHeader::SERIALIZED_SIZE + data.getSize();
+    FwSizeType frameSize = SpacePacketHeader::SERIALIZED_SIZE + data.getSize() + sizeof(U16);
     FW_ASSERT(data.getSize() <= std::numeric_limits<Fw::Buffer::SizeType>::max() - SpacePacketHeader::SERIALIZED_SIZE,
               static_cast<FwAssertArgType>(data.getSize()));
     FW_ASSERT(
@@ -48,6 +49,7 @@ void SpacePacketFramer ::dataIn_handler(FwIndexType portNum, Fw::Buffer& data, c
     FW_ASSERT((apid >> SpacePacketSubfields::ApidWidth) == 0,
               static_cast<FwAssertArgType>(apid));  // apid must fit in 11 bits
     packetIdentification |= static_cast<U16>(apid) & static_cast<U16>(SpacePacketSubfields::ApidMask);  // 11 bit APID
+    packetIdentification |= 1 << SpacePacketSubfields::SecHdrOffset;
 
     U16 sequenceCount = this->getApidSeqCount_out(0, apid, 0);  // retrieve the sequence count for this APID
     U16 packetSequenceControl = 0;
@@ -70,6 +72,10 @@ void SpacePacketFramer ::dataIn_handler(FwIndexType portNum, Fw::Buffer& data, c
     status = frameSerializer.serialize(header);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
     status = frameSerializer.serialize(data.getData(), data.getSize(), Fw::Serialization::OMIT_LENGTH);
+    FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
+
+    U16 crc = Utils::CRC16::compute(data.getData(), static_cast<U32>(data.getSize() - sizeof(U16)));
+    status = frameSerializer.serialize(crc);
     FW_ASSERT(status == Fw::FW_SERIALIZE_OK, status);
 
     this->dataOut_out(0, frameBuffer, context);
