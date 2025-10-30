@@ -98,8 +98,6 @@ module ComCcsds {
     # NOTE: name 'framer' is used for the framer that connects to the Com Adapter Interface for better subtopology interoperability
     instance framer: Svc.Ccsds.TmFramer base id ComCcsdsConfig.BASE_ID + 0x06000
 
-    instance spacePacketFramer: Svc.Ccsds.SpacePacketFramer base id ComCcsdsConfig.BASE_ID + 0x07000
-
     instance apidManager: Svc.Ccsds.ApidManager base id ComCcsdsConfig.BASE_ID + 0x08000
 
     instance comStub: Svc.ComStub base id ComCcsdsConfig.BASE_ID + 0x09000
